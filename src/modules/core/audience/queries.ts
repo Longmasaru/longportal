@@ -1,0 +1,210 @@
+import { and, asc, eq, gte, inArray, isNull, lte, or } from "drizzle-orm";
+import { db } from "@/db/client";
+import { departments } from "../departments/schema";
+import { employeeAssignments, employees } from "../employees/schema";
+import { employmentTypes } from "../employment-types/schema";
+import { locations } from "../locations/schema";
+import { positions } from "../positions/schema";
+import { audienceConditions, audienceGroups, audiences } from "./schema";
+import { definitionSchema, type AudienceDefinition } from "./definition";
+import { matchesAudience, type EmployeeContext } from "./evaluate";
+import type { MasterLookup } from "./summary";
+
+export type AudienceRecord = {
+  id: string;
+  name: string;
+  description: string;
+  isActive: boolean;
+  definition: AudienceDefinition;
+  updatedAt: Date;
+};
+
+/** 保存されている条件を読み、定義に組み立てる(壊れた条件は読み飛ばさず、検証エラーとして扱う)。 */
+async function loadDefinitions(audienceIds: string[]): Promise<Map<string, AudienceDefinition>> {
+  const result = new Map<string, AudienceDefinition>();
+  for (const id of audienceIds) result.set(id, { groups: [] });
+  if (audienceIds.length === 0) return result;
+
+  const groups = await db
+    .select()
+    .from(audienceGroups)
+    .where(inArray(audienceGroups.audienceId, audienceIds))
+    .orderBy(asc(audienceGroups.sortOrder));
+  const groupIds = groups.map((g) => g.id);
+  const conditions = groupIds.length
+    ? await db
+        .select()
+        .from(audienceConditions)
+        .where(inArray(audienceConditions.groupId, groupIds))
+        .orderBy(asc(audienceConditions.sortOrder))
+    : [];
+
+  const rawGroups = new Map<string, { audienceId: string; conditions: unknown[] }>();
+  for (const g of groups) rawGroups.set(g.id, { audienceId: g.audienceId, conditions: [] });
+  for (const c of conditions) {
+    rawGroups.get(c.groupId)?.conditions.push({ attribute: c.attribute, operator: c.operator, value: c.value });
+  }
+  for (const g of groups) {
+    const raw = rawGroups.get(g.id)!;
+    const list = result.get(raw.audienceId)!;
+    list.groups.push({ conditions: raw.conditions as AudienceDefinition["groups"][number]["conditions"] });
+  }
+  // 形式を検証する(DB を直接書き換えられた場合などに、評価で例外にならないように)
+  for (const [id, def] of result) {
+    const parsed = definitionSchema.safeParse(def);
+    result.set(id, parsed.success ? (parsed.data as AudienceDefinition) : { groups: [] });
+  }
+  return result;
+}
+
+export async function listAudiences(): Promise<AudienceRecord[]> {
+  const rows = await db.select().from(audiences).orderBy(asc(audiences.name));
+  const defs = await loadDefinitions(rows.map((r) => r.id));
+  return rows.map((r) => ({
+    id: r.id,
+    name: r.name,
+    description: r.description,
+    isActive: r.isActive,
+    definition: defs.get(r.id)!,
+    updatedAt: r.updatedAt,
+  }));
+}
+
+export async function getAudience(id: string): Promise<AudienceRecord | null> {
+  const [row] = await db.select().from(audiences).where(eq(audiences.id, id)).limit(1);
+  if (!row) return null;
+  const defs = await loadDefinitions([row.id]);
+  return {
+    id: row.id,
+    name: row.name,
+    description: row.description,
+    isActive: row.isActive,
+    definition: defs.get(row.id)!,
+    updatedAt: row.updatedAt,
+  };
+}
+
+/** 評価の対象になる社員(全員)の情報。人数は数百人規模なので、全員分を読み込んでメモリ上で評価する。 */
+export type EvaluationPopulation = {
+  contexts: EmployeeContext[];
+  info: Map<string, { name: string; employeeNumber: string; affiliation: string }>;
+};
+
+export async function loadPopulation(today: string): Promise<EvaluationPopulation> {
+  const [emps, active] = await Promise.all([
+    db
+      .select({
+        employee: employees,
+        positionIsManagement: positions.isManagement,
+      })
+      .from(employees)
+      .leftJoin(positions, eq(employees.positionId, positions.id))
+      .orderBy(asc(employees.employeeNumber)),
+    db
+      .select({
+        employeeId: employeeAssignments.employeeId,
+        departmentId: employeeAssignments.departmentId,
+        departmentName: departments.name,
+        locationId: employeeAssignments.locationId,
+        locationName: locations.name,
+        isPrimary: employeeAssignments.isPrimary,
+      })
+      .from(employeeAssignments)
+      .innerJoin(departments, eq(employeeAssignments.departmentId, departments.id))
+      .innerJoin(locations, eq(employeeAssignments.locationId, locations.id))
+      .where(
+        and(
+          lte(employeeAssignments.startDate, today),
+          or(isNull(employeeAssignments.endDate), gte(employeeAssignments.endDate, today)),
+        ),
+      ),
+  ]);
+
+  const byEmployee = new Map<string, typeof active>();
+  for (const a of active) {
+    const list = byEmployee.get(a.employeeId) ?? [];
+    list.push(a);
+    byEmployee.set(a.employeeId, list);
+  }
+
+  const info: EvaluationPopulation["info"] = new Map();
+  const contexts = emps.map(({ employee: e, positionIsManagement }): EmployeeContext => {
+    const assignments = byEmployee.get(e.id) ?? [];
+    const primary = assignments.find((a) => a.isPrimary) ?? assignments[0];
+    info.set(e.id, {
+      name: e.name,
+      employeeNumber: e.employeeNumber,
+      affiliation: primary ? `${primary.locationName} / ${primary.departmentName}` : "所属未設定",
+    });
+    return {
+      employeeId: e.id,
+      status: e.status,
+      hiredOn: e.hiredOn,
+      leftOn: e.leftOn,
+      positionId: e.positionId,
+      positionIsManagement: positionIsManagement ?? false,
+      employmentTypeId: e.employmentTypeId,
+      assignments: assignments.map((a) => ({ departmentId: a.departmentId, locationId: a.locationId })),
+    };
+  });
+  return { contexts, info };
+}
+
+/** 条件に当てはまる社員(いまアクセスできる人のみ)。 */
+export function evaluateDefinition(
+  definition: AudienceDefinition,
+  population: EvaluationPopulation,
+  today: string,
+) {
+  return population.contexts
+    .filter((ctx) => matchesAudience(definition, ctx, today))
+    .map((ctx) => ({ employeeId: ctx.employeeId, ...population.info.get(ctx.employeeId)! }));
+}
+
+/** 無効・削除済みを含む全マスタの名称(Audience の条件の表示と、無効なマスタの参照の検出用)。 */
+export async function loadMasterLookup(): Promise<MasterLookup> {
+  const [dep, loc, pos, et] = await Promise.all([
+    db.select({ id: departments.id, name: departments.name, isActive: departments.isActive }).from(departments),
+    db.select({ id: locations.id, name: locations.name, isActive: locations.isActive }).from(locations),
+    db.select({ id: positions.id, name: positions.name, isActive: positions.isActive }).from(positions),
+    db
+      .select({ id: employmentTypes.id, name: employmentTypes.name, isActive: employmentTypes.isActive })
+      .from(employmentTypes),
+  ]);
+  const toMap = (rows: { id: string; name: string; isActive: boolean }[]) =>
+    new Map(rows.map((r) => [r.id, { name: r.name, isActive: r.isActive }]));
+  return {
+    department: toMap(dep),
+    location: toMap(loc),
+    position: toMap(pos),
+    employment_type: toMap(et),
+  };
+}
+
+export type MasterOption = { id: string; name: string; isActive: boolean };
+export type MasterOptions = {
+  department: MasterOption[];
+  location: MasterOption[];
+  position: MasterOption[];
+  employment_type: MasterOption[];
+};
+
+export function lookupToOptions(lookup: MasterLookup): MasterOptions {
+  const toList = (m: MasterLookup["department"]): MasterOption[] =>
+    [...m.entries()].map(([id, v]) => ({ id, name: v.name, isActive: v.isActive })).sort((a, b) => a.name.localeCompare(b.name, "ja"));
+  return {
+    department: toList(lookup.department),
+    location: toList(lookup.location),
+    position: toList(lookup.position),
+    employment_type: toList(lookup.employment_type),
+  };
+}
+
+/**
+ * この Audience の利用先(アプリ・お知らせ・社内リンクなど)。
+ * 利用先のテーブル(app_registry など)が入る後続の手順で、ここに集約する。いまは常に空。
+ */
+export async function listAudienceUsages(audienceId: string): Promise<{ kind: string; name: string }[]> {
+  void audienceId;
+  return [];
+}

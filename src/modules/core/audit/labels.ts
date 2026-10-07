@@ -15,6 +15,9 @@ export const AUDIT_ACTION_LABEL: Record<string, string> = {
   "role.delete": "ロールの削除",
   "role_assignment.create": "ロールの割当",
   "role_assignment.delete": "ロール割当の解除",
+  "audience.create": "Audience の作成",
+  "audience.update": "Audience の更新",
+  "audience.delete": "Audience の削除",
 };
 
 export function auditActionLabel(action: string): string {

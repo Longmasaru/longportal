@@ -8,6 +8,7 @@ import { pool, db } from "../src/db/client";
 import { assertTarget } from "./guard";
 import { hashPassword } from "../src/modules/core/auth/password";
 import { users } from "../src/modules/core/auth/schema";
+import { ensureDefaultAudiences } from "../src/modules/core/audience/bootstrap";
 import { employmentTypes } from "../src/modules/core/employment-types/schema";
 import { allPermissionDefinitions } from "../src/modules/core/roles/catalog";
 import { bootstrapSystemAdmin, syncPermissions } from "../src/modules/core/roles/sync";
@@ -53,6 +54,10 @@ async function main(): Promise<void> {
   console.log(`[seed] employment_types: ${inserted.length} 件追加(既存は据え置き)`);
 
   await seedInitialAdmin();
+
+  // 初期の Audience「全社員」(未設定は誰にも見せない方針のため、最初から用意する)。
+  const audienceCreated = await db.transaction((tx) => ensureDefaultAudiences(tx));
+  console.log(audienceCreated ? "[seed] audiences: 「全社員」を作成" : "[seed] audiences: 「全社員」は作成済み");
 
   // 権限(コード定義)の反映と、system_admin ロールの用意。
   const report = await db.transaction((tx) => syncPermissions(tx, allPermissionDefinitions()));

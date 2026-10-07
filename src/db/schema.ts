@@ -8,3 +8,4 @@ export * from "@/modules/core/employees/schema";
 export * from "@/modules/core/auth/schema";
 export * from "@/modules/core/audit/schema";
 export * from "@/modules/core/roles/schema";
+export * from "@/modules/core/audience/schema";
