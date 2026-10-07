@@ -1,38 +1,71 @@
 // ポータル画面のデータ取得口。画面コンポーネントはここだけを呼ぶ。
-// 現在はモックを返す。DB・認証・Audience 判定の実装後は、中身を差し替える
-// (resolveActor → canAccessApp で絞り込んだアプリ、Audience・個人指定で絞り込んだお知らせ・リンク)。
-import { connection } from "next/server";
+// 利用者(ユーザー・所属・役職)は実データ。お知らせ・アプリ・社内リンクはまだモックで、
+// DB・Audience 判定の実装後に中身を差し替える(canAccessApp で絞り込んだアプリ、
+// Audience・個人指定で絞り込んだお知らせ・リンク)。
+import { redirect } from "next/navigation";
+import { requireActor, type Actor } from "../access";
 import { todayJst } from "../shared/jst";
-import { createMockNotices, mockApps, mockLinks, mockUser } from "./mock-data";
+import { createMockNotices, mockApps, mockLinks } from "./mock-data";
 import { buildNavigation } from "./navigation";
 import { comparePersonalNotices, isBannerActive, noticeChannel } from "./notices";
-import type { NavLeaf, PortalContext, PortalHomeData } from "./types";
+import type { NavLeaf, PortalContext, PortalHomeData, PortalUser } from "./types";
 
 const HOME_PERSONAL_NOTICE_LIMIT = 5;
 const HOME_BANNER_LIMIT = 2;
 
+// 手順4(roles / role_assignments / permissions)の実装までの暫定値。
+// 管理メニューの画面はすべて「準備中」で、管理操作はまだ存在しないため実害はない。
+const TEMPORARY_ROLE_NAMES = ["システム管理者"];
+const TEMPORARY_IS_ADMIN = true;
+
+function toPortalUser(actor: Actor): PortalUser {
+  const primary = actor.assignments[0];
+  const subtitle = actor.employee
+    ? [
+        primary ? `${primary.locationName} / ${primary.departmentName}` : "所属未設定",
+        actor.employee.positionName,
+      ]
+        .filter(Boolean)
+        .join(" ・ ")
+    : `ログインID: ${actor.loginId}`;
+
+  return {
+    id: actor.userId,
+    displayName: actor.employee?.name ?? actor.loginId,
+    subtitle,
+    employeeNumber: actor.employee?.employeeNumber ?? null,
+    roleNames: TEMPORARY_ROLE_NAMES,
+    isAdmin: TEMPORARY_IS_ADMIN,
+  };
+}
+
+/**
+ * ポータル画面の入口の判定。ログイン済みかつアクセス許可済みの利用者を返す。
+ * 初回ログイン(パスワード変更が必要)の場合は、変更画面へ送る。
+ */
+async function requirePortalActor(): Promise<Actor> {
+  const actor = await requireActor();
+  if (actor.mustChangePassword) redirect("/password");
+  return actor;
+}
+
 /** レイアウト(ヘッダー・サイドバー)用。 */
 export async function getPortalContext(): Promise<PortalContext> {
-  // 実装後はセッションに依存して毎回評価されるため、モックでも動的レンダリングにしておく。
-  await connection();
+  const actor = await requirePortalActor();
+  const user = toPortalUser(actor);
   const notices = createMockNotices(todayJst());
   return {
-    user: mockUser,
-    navigation: buildNavigation({
-      user: mockUser,
-      apps: mockApps,
-      notices,
-      links: mockLinks,
-    }),
+    user,
+    navigation: buildNavigation({ user, apps: mockApps, notices, links: mockLinks }),
   };
 }
 
 /**
  * ポータルホーム用。毎日開いて価値のある情報だけを返す:
- * 緊急の全社連絡(バナー)・本人宛のお知らせ・アプリ。通常の全社連絡は含めない。
+ * 緊急の全社連絡(バナー)・本人宛のお知らせ・要対応。通常の全社連絡は含めない。
  */
 export async function getPortalHome(): Promise<PortalHomeData> {
-  await connection();
+  await requirePortalActor();
   const today = todayJst();
   const notices = createMockNotices(today);
 

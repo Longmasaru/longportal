@@ -34,12 +34,13 @@ export type IconName =
 export type PortalUser = {
   id: string;
   displayName: string;
-  employeeNumber: string;
-  positionName: string;
-  departmentName: string;
-  locationName: string;
-  /** 表示用のロール名(core.roles.name)。 */
+  /** 例: 「現工場 / 管理 ・ 部長」。社員以外のアカウント・未配属は代替の文言。 */
+  subtitle: string;
+  /** 社員以外のユーザーは null。 */
+  employeeNumber: string | null;
+  /** 表示用のロール名(core.roles.name)。手順4で roles に接続するまでは暫定値。 */
   roleNames: string[];
+  /** 管理メニューを出すか。手順4で role / permission に接続するまでは暫定値。 */
   isAdmin: boolean;
 };
 

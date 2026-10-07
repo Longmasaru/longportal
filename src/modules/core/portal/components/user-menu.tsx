@@ -1,15 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { signOutAction } from "@/modules/core/auth/actions";
 import type { PortalUser } from "../types";
 import { Icon } from "./icons";
-
-// メニュー項目は UI 確認用で、まだ動作しない(認証・アカウント機能は手順2以降)。
-const MENU_ITEMS = [
-  { key: "profile", label: "プロフィール", icon: "user" },
-  { key: "password", label: "パスワードを変更", icon: "key" },
-  { key: "logout", label: "ログアウト", icon: "logout" },
-] as const;
 
 export function UserMenu({ user }: { user: PortalUser }) {
   const [open, setOpen] = useState(false);
@@ -49,7 +44,7 @@ export function UserMenu({ user }: { user: PortalUser }) {
         <span className="hidden text-left leading-tight md:block">
           <span className="text-brand01 block text-sm font-bold">{user.displayName}</span>
           <span className="text-brand04 block text-xs">
-            {user.locationName} / {user.departmentName} ・ {user.positionName}
+            {user.subtitle}
           </span>
         </span>
         <Icon name="chevron-down" size={16} className="text-brand04" />
@@ -63,7 +58,8 @@ export function UserMenu({ user }: { user: PortalUser }) {
           <div className="border-brand01/15 border-b px-4 py-3">
             <p className="text-brand01 text-sm font-bold">{user.displayName}</p>
             <p className="text-brand04 text-xs">
-              社員番号 {user.employeeNumber} ・ {user.positionName}
+              {user.employeeNumber ? `社員番号 ${user.employeeNumber} ・ ` : ""}
+              {user.subtitle}
             </p>
             <p className="mt-2 flex flex-wrap gap-1">
               {user.roleNames.map((role) => (
@@ -77,19 +73,29 @@ export function UserMenu({ user }: { user: PortalUser }) {
             </p>
           </div>
           <ul className="py-1">
-            {MENU_ITEMS.map((item) => (
-              <li key={item.key}>
+            <li>
+              <Link
+                href="/password"
+                role="menuitem"
+                onClick={() => setOpen(false)}
+                className="text-brand01 hover:bg-bg01 hover:text-brand03 flex w-full items-center gap-3 px-4 py-2 text-left text-sm transition-colors"
+              >
+                <Icon name="key" size={18} />
+                パスワードを変更
+              </Link>
+            </li>
+            <li>
+              <form action={signOutAction}>
                 <button
-                  type="button"
+                  type="submit"
                   role="menuitem"
-                  onClick={() => setOpen(false)}
                   className="text-brand01 hover:bg-bg01 hover:text-brand03 flex w-full items-center gap-3 px-4 py-2 text-left text-sm transition-colors"
                 >
-                  <Icon name={item.icon} size={18} />
-                  {item.label}
+                  <Icon name="logout" size={18} />
+                  ログアウト
                 </button>
-              </li>
-            ))}
+              </form>
+            </li>
           </ul>
         </div>
       ) : null}

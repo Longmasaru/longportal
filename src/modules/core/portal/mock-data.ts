@@ -1,16 +1,5 @@
 // UI 確認用のモックデータ(管理者ユーザー想定)。DB 実装後は queries.ts から DB 参照に置き換え、このファイルは削除する。
-import type { NavLeaf, Notice, PortalApp, PortalLink, PortalUser } from "./types";
-
-export const mockUser: PortalUser = {
-  id: "mock-user-1",
-  displayName: "山田 太郎",
-  employeeNumber: "A0001",
-  positionName: "部長",
-  departmentName: "管理",
-  locationName: "現工場",
-  roleNames: ["システム管理者"],
-  isAdmin: true,
-};
+import type { NavLeaf, Notice, PortalApp, PortalLink } from "./types";
 
 /** 管理メニュー(管理権限のあるユーザーにだけ表示)。 */
 export const mockAdminItems: NavLeaf[] = [
