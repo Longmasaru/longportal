@@ -1,13 +1,16 @@
 // 初期データの投入(冪等)。雇用区分と、初期管理者アカウント(ユーザーが 1 人もいないときだけ)。
-// 初期管理者への system_admin ロールの付与は、roles テーブルが入る手順4で追加する。
+// 権限(permission)の同期と system_admin ロールの用意、初期管理者への system_admin の付与も行う。
 //
 // 実行: npm run db:seed(.env.local の接続先に対して実行される)
 // 本番への誤実行を防ぐため、DB_TARGET の明示を必須とし、production には CONFIRM_PRODUCTION=yes を要求する。
 import { count } from "drizzle-orm";
 import { pool, db } from "../src/db/client";
+import { assertTarget } from "./guard";
 import { hashPassword } from "../src/modules/core/auth/password";
 import { users } from "../src/modules/core/auth/schema";
 import { employmentTypes } from "../src/modules/core/employment-types/schema";
+import { allPermissionDefinitions } from "../src/modules/core/roles/catalog";
+import { bootstrapSystemAdmin, syncPermissions } from "../src/modules/core/roles/sync";
 
 const EMPLOYMENT_TYPES = [
   { code: "regular", name: "正社員", sortOrder: 10 },
@@ -15,18 +18,6 @@ const EMPLOYMENT_TYPES = [
   { code: "part_time", name: "パート・アルバイト", sortOrder: 30 },
   { code: "dispatch", name: "派遣社員", sortOrder: 40 },
 ];
-
-function assertTarget(): void {
-  const target = process.env.DB_TARGET;
-  if (target !== "development" && target !== "production") {
-    throw new Error("DB_TARGET が未設定です。development か production を指定してください。");
-  }
-  if (target === "production" && process.env.CONFIRM_PRODUCTION !== "yes") {
-    throw new Error("production への seed には CONFIRM_PRODUCTION=yes が必要です。");
-  }
-  const host = new URL(process.env.DATABASE_URL ?? "postgres://invalid").host;
-  console.log(`[seed] DB_TARGET=${target} host=${host}`);
-}
 
 /** 初期管理者(社員以外のアカウント)。ユーザーが 1 人でもいれば何もしない。初回ログインでパスワード変更が必須。 */
 async function seedInitialAdmin(): Promise<void> {
@@ -50,7 +41,7 @@ async function seedInitialAdmin(): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  assertTarget();
+  assertTarget("seed");
 
   // 既存の code は変更しない(管理画面で名称・並び順を編集済みの可能性があるため)。
   const inserted = await db
@@ -62,6 +53,14 @@ async function main(): Promise<void> {
   console.log(`[seed] employment_types: ${inserted.length} 件追加(既存は据え置き)`);
 
   await seedInitialAdmin();
+
+  // 権限(コード定義)の反映と、system_admin ロールの用意。
+  const report = await db.transaction((tx) => syncPermissions(tx, allPermissionDefinitions()));
+  console.log(`[seed] permissions: 追加 ${report.added.length}件 / system_admin に付与 ${report.grantedToSystemAdmin}件`);
+
+  // system_admin を持つユーザーが 1 人もいなければ、最も古い「社員に紐づかないアカウント」に付与する。
+  const granted = await db.transaction((tx) => bootstrapSystemAdmin(tx));
+  console.log(granted ? `[seed] system_admin を ${granted} に付与` : "[seed] system_admin: 付与済み(または対象アカウントなし)");
 }
 
 main()

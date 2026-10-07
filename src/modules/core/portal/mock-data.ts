@@ -1,15 +1,5 @@
 // UI 確認用のモックデータ(管理者ユーザー想定)。DB 実装後は queries.ts から DB 参照に置き換え、このファイルは削除する。
-import type { NavLeaf, Notice, PortalApp, PortalLink } from "./types";
-
-/** 管理メニュー(管理権限のあるユーザーにだけ表示)。 */
-export const mockAdminItems: NavLeaf[] = [
-  { key: "employees", label: "社員管理", href: "/admin/employees", icon: "users" },
-  { key: "organization", label: "組織管理", href: "/admin/organization", icon: "building" },
-  { key: "roles", label: "権限管理", href: "/admin/roles", icon: "shield" },
-  { key: "audiences", label: "Audience管理", href: "/admin/audiences", icon: "target" },
-  { key: "apps-admin", label: "アプリ管理", href: "/admin/apps", icon: "layers" },
-  { key: "audit-logs", label: "監査ログ", href: "/admin/audit-logs", icon: "clipboard" },
-];
+import type { Notice, PortalApp, PortalLink } from "./types";
 
 /** 管理者ユーザー用に全アプリを返す(実装後は Audience 判定で絞り込まれる)。 */
 export const mockApps: PortalApp[] = [

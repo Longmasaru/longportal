@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/db/client";
-import { requireAdmin } from "../access";
+import { requireGlobalPermission } from "../access";
 import { writeAuditLog } from "../audit";
 import { PG_UNIQUE_VIOLATION, pgErrorCode } from "../shared/db-errors";
 import { MASTER_LABEL, isMasterKey, type MasterKey } from "./config";
@@ -51,7 +51,7 @@ export async function createMasterAction(
   _prev: MasterFormState,
   formData: FormData,
 ): Promise<MasterFormState> {
-  const actor = await requireAdmin();
+  const actor = await requireGlobalPermission("core.organization.manage");
   const key = keyFrom(formData);
   if (!key) return { error: "不正なリクエストです。" };
 
@@ -94,7 +94,7 @@ export async function updateMasterAction(
   _prev: MasterFormState,
   formData: FormData,
 ): Promise<MasterFormState> {
-  const actor = await requireAdmin();
+  const actor = await requireGlobalPermission("core.organization.manage");
   const key = keyFrom(formData);
   const id = String(formData.get("id") ?? "");
   if (!key || !z.uuid().safeParse(id).success) return { error: "不正なリクエストです。" };

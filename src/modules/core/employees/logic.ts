@@ -50,6 +50,7 @@ export type EmployeeWarningCode =
   | "unassigned_soon"
   | "no_current_assignment"
   | "planned_overdue"
+  | "role_scope_mismatch"
   | "account_active_but_gone";
 
 export type EmployeeWarning = { code: EmployeeWarningCode; message: string };
@@ -62,6 +63,8 @@ export type WarningInput = {
   hasOpenPrimaryAssignment: boolean;
   /** 今日時点で有効な主所属があるか。 */
   hasCurrentPrimaryAssignment: boolean;
+  /** スコープ付きのロールに、現在の所属と合わないものがあるか(異動後の見直し用)。 */
+  hasRoleScopeMismatch: boolean;
   userStatus: string | null;
 };
 
@@ -98,6 +101,13 @@ export function employeeWarnings(input: WarningInput, today: string): EmployeeWa
       code: "planned_overdue",
       message:
         "入社日を過ぎていますが、状態が「入社予定」のままです。利用を開始するには「在籍」に変更してください。",
+    });
+  }
+  if (!gone && input.hasRoleScopeMismatch) {
+    warnings.push({
+      code: "role_scope_mismatch",
+      message:
+        "この社員には現在の所属と異なる Scope の Role があります。見直してください。(ロールは異動しても自動では変わりません)",
     });
   }
   if (gone && input.userStatus === "active") {

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireAdmin } from "../../access";
+import { requireGlobalPermission } from "../../access";
 import { formatDateDot } from "../../shared/format";
 import { todayJst } from "../../shared/jst";
 import {
@@ -55,7 +55,7 @@ export async function EmployeeListPage({
   status?: string;
   warningOnly?: boolean;
 }) {
-  await requireAdmin();
+  await requireGlobalPermission("core.employees.manage");
   const today = todayJst();
   const items = await listEmployees(today, {
     q: q?.trim() || undefined,
@@ -184,6 +184,8 @@ export async function EmployeeListPage({
                                     ? "入社予定のまま"
                                     : w.code === "no_current_assignment"
                                       ? "所属が開始前"
+                                      : w.code === "role_scope_mismatch"
+                                        ? "ロール要見直し"
                                     : "アカウント要無効化"}
                               </StatusTag>
                             </li>

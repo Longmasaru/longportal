@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db } from "@/db/client";
-import { requireAdmin } from "../access";
+import { requireGlobalPermission } from "../access";
 import { writeAuditLog } from "../audit";
 import { users } from "../auth/schema";
 import { hashPassword } from "../auth/password";
@@ -18,10 +18,12 @@ import {
 } from "../shared/db-errors";
 import { isIsoDate } from "../shared/date";
 import { todayJst } from "../shared/jst";
+import { evaluateEmployeeAccess } from "../access/evaluate";
+import { LAST_SYSTEM_ADMIN_MESSAGE, isSoleActiveSystemAdmin } from "../roles/protection";
 import { hasOpenPrimaryAssignment, planTransfer } from "./logic";
 import { employeeAssignments, employees } from "./schema";
 
-// 社員管理の Server Action。すべて requireAdmin() で本判定し、変更は監査ログと同じトランザクションで記録する。
+// 社員管理の Server Action。すべて requireGlobalPermission("core.employees.manage") で本判定し、変更は監査ログと同じトランザクションで記録する。
 
 export type EmployeeFormState = { error?: string; success?: string } | undefined;
 export type AccountFormState =
@@ -82,7 +84,7 @@ export async function createEmployeeAction(
   _prev: EmployeeFormState,
   formData: FormData,
 ): Promise<EmployeeFormState> {
-  const actor = await requireAdmin();
+  const actor = await requireGlobalPermission("core.employees.manage");
   const raw = formObject(formData);
   const parsed = employeeSchema.safeParse(raw);
   if (!parsed.success) return { error: firstIssue(parsed.error) };
@@ -139,7 +141,7 @@ export async function updateEmployeeAction(
   _prev: EmployeeFormState,
   formData: FormData,
 ): Promise<EmployeeFormState> {
-  const actor = await requireAdmin();
+  const actor = await requireGlobalPermission("core.employees.manage");
   const raw = formObject(formData);
   const id = raw.id ?? "";
   if (!uuid.safeParse(id).success) return { error: "不正なリクエストです。" };
@@ -150,6 +152,17 @@ export async function updateEmployeeAction(
     const done = await db.transaction(async (tx) => {
       const [before] = await tx.select().from(employees).where(eq(employees.id, id)).limit(1);
       if (!before) return false;
+
+      // アクセスできる最後のシステム管理者が、この変更(退職・入社予定への変更など)でアクセス不可になる場合は拒否する。
+      const [linkedUser] = await tx.select({ id: users.id }).from(users).where(eq(users.employeeId, id)).limit(1);
+      if (linkedUser) {
+        const today = todayJst();
+        const wouldBeDenied = evaluateEmployeeAccess(parsed.data, today) !== null;
+        if (wouldBeDenied && (await isSoleActiveSystemAdmin(tx, linkedUser.id, today))) {
+          return LAST_SYSTEM_ADMIN_MESSAGE;
+        }
+      }
+
       const [after] = await tx.update(employees).set(parsed.data).where(eq(employees.id, id)).returning();
       await writeAuditLog(tx, {
         actorUserId: actor.userId,
@@ -161,7 +174,8 @@ export async function updateEmployeeAction(
       });
       return true;
     });
-    if (!done) return { error: "社員が見つかりません。" };
+    if (done === false) return { error: "社員が見つかりません。" };
+    if (typeof done === "string") return { error: done };
   } catch (err) {
     if (pgErrorCode(err) === PG_UNIQUE_VIOLATION) return { error: "この社員番号は既に使われています。" };
     throw err;
@@ -190,7 +204,7 @@ export async function transferAction(
   _prev: EmployeeFormState,
   formData: FormData,
 ): Promise<EmployeeFormState> {
-  const actor = await requireAdmin();
+  const actor = await requireGlobalPermission("core.employees.manage");
   const parsed = transferSchema.safeParse(formObject(formData));
   if (!parsed.success) return { error: firstIssue(parsed.error) };
   const { employeeId, departmentId, locationId, effectiveDate } = parsed.data;
@@ -252,7 +266,7 @@ export async function endAssignmentAction(
   _prev: EmployeeFormState,
   formData: FormData,
 ): Promise<EmployeeFormState> {
-  const actor = await requireAdmin();
+  const actor = await requireGlobalPermission("core.employees.manage");
   const parsed = endAssignmentSchema.safeParse(formObject(formData));
   if (!parsed.success) return { error: firstIssue(parsed.error) };
   const { assignmentId, endDate } = parsed.data;
@@ -315,7 +329,7 @@ export async function issueAccountAction(
   _prev: AccountFormState,
   formData: FormData,
 ): Promise<AccountFormState> {
-  const actor = await requireAdmin();
+  const actor = await requireGlobalPermission("core.employees.manage");
   const parsed = issueAccountSchema.safeParse(formObject(formData));
   if (!parsed.success) return { error: firstIssue(parsed.error) };
   const { employeeId, loginId } = parsed.data;
@@ -372,7 +386,7 @@ export async function setUserStatusAction(
   _prev: AccountFormState,
   formData: FormData,
 ): Promise<AccountFormState> {
-  const actor = await requireAdmin();
+  const actor = await requireGlobalPermission("core.employees.manage");
   const parsed = userStatusSchema.safeParse(formObject(formData));
   if (!parsed.success) return { error: firstIssue(parsed.error) };
   const { userId, status } = parsed.data;
@@ -394,6 +408,9 @@ export async function setUserStatusAction(
       if (!hasOpenPrimaryAssignment(assignments, today)) {
         return "有効化するには、終了していない主所属が必要です。先に所属を設定してください。";
       }
+    }
+    if (status === "disabled" && (await isSoleActiveSystemAdmin(tx, userId, today))) {
+      return LAST_SYSTEM_ADMIN_MESSAGE;
     }
     await tx.update(users).set({ status }).where(eq(users.id, userId));
     await writeAuditLog(tx, {
@@ -420,7 +437,7 @@ export async function resetPasswordAction(
   _prev: AccountFormState,
   formData: FormData,
 ): Promise<AccountFormState> {
-  const actor = await requireAdmin();
+  const actor = await requireGlobalPermission("core.employees.manage");
   const parsed = resetPasswordSchema.safeParse(formObject(formData));
   if (!parsed.success) return { error: firstIssue(parsed.error) };
   const { userId } = parsed.data;

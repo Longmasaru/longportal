@@ -18,7 +18,9 @@
     "db:migrate": "drizzle-kit migrate",
     "db:check": "drizzle-kit check",
     "db:seed": "tsx --env-file=.env.local scripts/seed.ts",
-    "test": "tsx --test \"src/**/*.test.ts\""
+    "test": "tsx --test \"src/**/*.test.ts\"",
+    "sync:manifests": "tsx --env-file=.env.local scripts/sync-manifests.ts",
+    "db:grant-admin": "tsx --env-file=.env.local scripts/grant-system-admin.ts"
   },
   "dependencies": {
     "bcryptjs": "3.0.3",

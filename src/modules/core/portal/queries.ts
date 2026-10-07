@@ -3,21 +3,25 @@
 // DB・Audience 判定の実装後に中身を差し替える(canAccessApp で絞り込んだアプリ、
 // Audience・個人指定で絞り込んだお知らせ・リンク)。
 import { redirect } from "next/navigation";
-import { isAdminActor, requireActor, type Actor } from "../access";
+import { canGlobally, requireActor, type Actor } from "../access";
 import { todayJst } from "../shared/jst";
 import { createMockNotices, mockApps, mockLinks } from "./mock-data";
-import { buildNavigation } from "./navigation";
+import { ADMIN_NAV, buildNavigation } from "./navigation";
 import { comparePersonalNotices, isBannerActive, noticeChannel } from "./notices";
 import type { NavLeaf, PortalContext, PortalHomeData, PortalUser } from "./types";
 
 const HOME_PERSONAL_NOTICE_LIMIT = 5;
 const HOME_BANNER_LIMIT = 2;
 
-// ロール名は手順4(roles / role_assignments)の実装までの暫定表示。管理者かどうかは access/admin.ts の暫定規則
-// (社員に紐づかないアカウント = システム管理者)で決まり、手順4で system_admin ロールの判定に置き換える。
-const TEMPORARY_ADMIN_ROLE_NAMES = ["システム管理者"];
 
-function toPortalUser(actor: Actor): PortalUser {
+/** 利用者が見られる管理メニュー(必要な権限を全社で持つ項目だけ)。 */
+function visibleAdminItems(actor: Actor) {
+  return ADMIN_NAV.filter((item) => canGlobally(actor, item.permission)).map(
+    (item): NavLeaf => ({ key: item.key, label: item.label, href: item.href, icon: item.icon }),
+  );
+}
+
+function toPortalUser(actor: Actor, isAdmin: boolean): PortalUser {
   const primary = actor.assignments[0];
   const subtitle = actor.employee
     ? [
@@ -28,13 +32,12 @@ function toPortalUser(actor: Actor): PortalUser {
         .join(" ・ ")
     : `ログインID: ${actor.loginId}`;
 
-  const isAdmin = isAdminActor(actor);
   return {
     id: actor.userId,
     displayName: actor.employee?.name ?? actor.loginId,
     subtitle,
     employeeNumber: actor.employee?.employeeNumber ?? null,
-    roleNames: isAdmin ? TEMPORARY_ADMIN_ROLE_NAMES : [],
+    roleNames: [...new Set(actor.roles.map((r) => r.name))],
     isAdmin,
   };
 }
@@ -52,11 +55,12 @@ async function requirePortalActor(): Promise<Actor> {
 /** レイアウト(ヘッダー・サイドバー)用。 */
 export async function getPortalContext(): Promise<PortalContext> {
   const actor = await requirePortalActor();
-  const user = toPortalUser(actor);
+  const adminItems = visibleAdminItems(actor);
+  const user = toPortalUser(actor, adminItems.length > 0);
   const notices = createMockNotices(todayJst());
   return {
     user,
-    navigation: buildNavigation({ user, apps: mockApps, notices, links: mockLinks }),
+    navigation: buildNavigation({ adminItems, apps: mockApps, notices, links: mockLinks }),
   };
 }
 

@@ -9,8 +9,10 @@ import { departments } from "../departments/schema";
 import { employeeAssignments, employees } from "../employees/schema";
 import { locations } from "../locations/schema";
 import { positions } from "../positions/schema";
+import { permissions, rolePermissions, roleAssignments, roles } from "../roles/schema";
 import { todayJst } from "../shared/jst";
 import { evaluateUserAccess, type AccessDenyReason } from "./evaluate";
+import type { Grant } from "./grants";
 
 export type ActorAssignment = {
   id: string;
@@ -21,6 +23,14 @@ export type ActorAssignment = {
   isPrimary: boolean;
   startDate: string;
   endDate: string | null;
+};
+
+/** ユーザーに付与されたロール(割当 1 件)。表示用。 */
+export type ActorRole = {
+  code: string;
+  name: string;
+  locationId: string | null;
+  departmentId: string | null;
 };
 
 /** アクセス判定を通過した、ログイン中の利用者。 */
@@ -37,6 +47,10 @@ export type Actor = {
   } | null;
   /** 判定時点(today)に有効な所属。主所属が先頭。 */
   assignments: ActorAssignment[];
+  /** 付与されているロール(スコープ付きの割当ごと)。 */
+  roles: ActorRole[];
+  /** ロールの権限 × 割当のスコープ。権限の判定(can / requirePermission)に使う。 */
+  grants: Grant[];
   /** 判定に使った基準日(JST)。 */
   today: string;
 };
@@ -92,6 +106,28 @@ export async function loadActor(userId: string, today: string): Promise<ActorRes
         .orderBy(desc(employeeAssignments.isPrimary), employeeAssignments.startDate)
     : [];
 
+  // 8: ロールと権限(スコープ付き)。権限・在籍状態は JWT ではなく、毎回ここで DB から読む。
+  const roleRows = await db
+    .select({
+      code: roles.code,
+      name: roles.name,
+      locationId: roleAssignments.locationId,
+      departmentId: roleAssignments.departmentId,
+    })
+    .from(roleAssignments)
+    .innerJoin(roles, eq(roleAssignments.roleId, roles.id))
+    .where(eq(roleAssignments.userId, row.user.id));
+  const grantRows = await db
+    .select({
+      permissionCode: permissions.code,
+      locationId: roleAssignments.locationId,
+      departmentId: roleAssignments.departmentId,
+    })
+    .from(roleAssignments)
+    .innerJoin(rolePermissions, eq(rolePermissions.roleId, roleAssignments.roleId))
+    .innerJoin(permissions, eq(permissions.id, rolePermissions.permissionId))
+    .where(eq(roleAssignments.userId, row.user.id));
+
   return {
     ok: true,
     actor: {
@@ -107,6 +143,8 @@ export async function loadActor(userId: string, today: string): Promise<ActorRes
           }
         : null,
       assignments,
+      roles: roleRows,
+      grants: grantRows,
       today,
     },
   };

@@ -30,7 +30,9 @@ npm run dev                  # http://localhost:3000
 | `npm run db:generate` | Drizzle の migration を生成 |
 | `npm run db:migrate` | migration を実行(`DATABASE_URL_UNPOOLED` を使用) |
 | `npm run db:check` | migration の整合性チェック |
-| `npm run db:seed` | 初期データ(雇用区分・初期管理者)を冪等に投入(`.env.local` の接続先) |
+| `npm run db:seed` | 初期データ(雇用区分・初期管理者・権限の同期・system_admin の付与)を冪等に投入 |
+| `npm run sync:manifests` | コード側の定義(権限)を DB に反映(`-- --prune` でコードにない権限を削除) |
+| `npm run db:grant-admin -- <login_id>` | 管理者の復旧: 指定ユーザーに全社の system_admin を付与 |
 | `npm test` | ユニットテスト(node:test + tsx) |
 
 ## ディレクトリ
@@ -50,4 +52,4 @@ docs/             設計ドキュメント
 
 ## 開発状況
 
-実装順序(docs/DESIGN.md 12 章)の **手順 0(開発基盤)・手順 1(core スキーマ)・手順 2(認証)・手順 3(組織マスタ・社員・所属履歴・アカウント発行の管理画面と監査ログ)まで完了**。権限(roles)・Audience・アプリ登録などは未実装(ホームのお知らせ・アプリ・社内リンクはモックデータ)。
+実装順序(docs/DESIGN.md 12 章)の **手順 0(開発基盤)・手順 1(core スキーマ)・手順 2(認証)・手順 3(組織・社員・アカウント)・手順 4(ロールと権限・スコープ付き割当・監査ログ閲覧)まで完了**。Audience・アプリ登録・お知らせなどは未実装(ホームのお知らせ・アプリ・社内リンクはモックデータ)。

@@ -1,11 +1,11 @@
 import Link from "next/link";
-import { requireAdmin } from "../../access";
+import { requireGlobalPermission } from "../../access";
 import { LINK_CLASS, PageHeading } from "../../shared/ui/form";
 import { getFormOptions } from "../queries";
 import { EmployeeForm } from "./employee-form";
 
 export async function EmployeeNewPage() {
-  await requireAdmin();
+  await requireGlobalPermission("core.employees.manage");
   const options = await getFormOptions();
 
   return (

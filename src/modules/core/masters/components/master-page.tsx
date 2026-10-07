@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireAdmin } from "../../access";
+import { requireGlobalPermission } from "../../access";
 import { PageHeading } from "../../shared/ui/form";
 import { MASTER_DESCRIPTION, MASTER_KEYS, MASTER_LABEL, type MasterKey } from "../config";
 import { listMasters } from "../repo";
@@ -8,7 +8,7 @@ import { MasterRowItem } from "./master-row";
 
 /** 組織管理(部署・拠点・役職・雇用区分)。管理者のみ。 */
 export async function MasterPage({ masterKey }: { masterKey: MasterKey }) {
-  await requireAdmin();
+  await requireGlobalPermission("core.organization.manage");
   const rows = await listMasters(masterKey);
 
   return (

@@ -53,6 +53,7 @@ const base = {
   leftOn: null,
   hasOpenPrimaryAssignment: true,
   hasCurrentPrimaryAssignment: true,
+  hasRoleScopeMismatch: false,
   userStatus: null,
 };
 
@@ -62,7 +63,7 @@ test("警告なし: 在籍中で主所属あり", () => {
 
 test("警告: 主所属が未設定(入社日が遠い)", () => {
   const w = employeeWarnings(
-    { ...base, status: "planned", hiredOn: "2027-04-01", hasOpenPrimaryAssignment: false, hasCurrentPrimaryAssignment: false },
+    { ...base, status: "planned", hiredOn: "2027-04-01", hasOpenPrimaryAssignment: false, hasCurrentPrimaryAssignment: false, hasRoleScopeMismatch: false },
     TODAY,
   );
   assert.deepEqual(w.map((x) => x.code), ["unassigned"]);
@@ -70,7 +71,7 @@ test("警告: 主所属が未設定(入社日が遠い)", () => {
 
 test("警告: 主所属が未設定で入社日が 14 日以内なら強い警告", () => {
   const w = employeeWarnings(
-    { ...base, status: "planned", hiredOn: "2026-10-21", hasOpenPrimaryAssignment: false, hasCurrentPrimaryAssignment: false },
+    { ...base, status: "planned", hiredOn: "2026-10-21", hasOpenPrimaryAssignment: false, hasCurrentPrimaryAssignment: false, hasRoleScopeMismatch: false },
     TODAY,
   );
   assert.deepEqual(w.map((x) => x.code), ["unassigned_soon"]);
@@ -91,20 +92,33 @@ test("警告: 退職済みなのにアカウントが有効", () => {
 
 test("警告: 退職日を過ぎた社員には未配属の警告を出さない", () => {
   const w = employeeWarnings(
-    { ...base, status: "active", leftOn: "2026-10-06", hasOpenPrimaryAssignment: false, hasCurrentPrimaryAssignment: false },
+    { ...base, status: "active", leftOn: "2026-10-06", hasOpenPrimaryAssignment: false, hasCurrentPrimaryAssignment: false, hasRoleScopeMismatch: false },
     TODAY,
   );
   assert.deepEqual(w, []);
 });
 
 test("警告: 在籍中だが主所属が開始前(今日時点の所属がない)", () => {
-  const w = employeeWarnings({ ...base, hasCurrentPrimaryAssignment: false }, TODAY);
+  const w = employeeWarnings({ ...base, hasCurrentPrimaryAssignment: false, hasRoleScopeMismatch: false }, TODAY);
   assert.deepEqual(w.map((x) => x.code), ["no_current_assignment"]);
 });
 
 test("警告なし: 入社予定で所属が開始前なのは通常の状態", () => {
   const w = employeeWarnings(
-    { ...base, status: "planned", hiredOn: "2027-04-01", hasCurrentPrimaryAssignment: false },
+    { ...base, status: "planned", hiredOn: "2027-04-01", hasCurrentPrimaryAssignment: false, hasRoleScopeMismatch: false },
+    TODAY,
+  );
+  assert.deepEqual(w, []);
+});
+
+test("警告: スコープ付きロールが現在の所属と合わない", () => {
+  const w = employeeWarnings({ ...base, hasRoleScopeMismatch: true }, TODAY);
+  assert.deepEqual(w.map((x) => x.code), ["role_scope_mismatch"]);
+});
+
+test("警告なし: 退職済みならロール不整合の警告は出さない", () => {
+  const w = employeeWarnings(
+    { ...base, status: "retired", leftOn: "2026-09-30", hasRoleScopeMismatch: true },
     TODAY,
   );
   assert.deepEqual(w, []);

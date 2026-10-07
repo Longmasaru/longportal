@@ -11,6 +11,7 @@ LONG PORTAL は株式会社ロングの社内ポータル基盤。設計の正�
 - `npm run dev` / `npm run build` / `npm run start`
 - `npm run lint` — ESLint。module 境界(`no-restricted-imports`)もここで検査される
 - `npm run typecheck` — `tsc --noEmit`
+- `npm run sync:manifests` — コード側の定義(権限)を DB に反映。`npm run db:grant-admin -- <login_id>` — 管理者の復旧
 - `npm run db:generate` / `db:migrate` / `db:check` / `db:seed` — Drizzle。migration は `DATABASE_URL_UNPOOLED`(direct connection)で実行する。`DB_TARGET`(development / production)の明示が必須で、production への実行には `CONFIRM_PRODUCTION=yes` も要る。ローカルの `.env.local` は development ブランチの接続先にし、本番の接続文字列は置かない。手書き SQL が要る制約(EXCLUDE など)は `drizzle-kit generate --custom` で migration を作る
 - `npm test` — ユニットテスト(`node:test` + `tsx`。アクセス判定の純粋関数など)
 

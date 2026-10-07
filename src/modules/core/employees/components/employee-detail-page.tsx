@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { z } from "zod";
-import { requireAdmin } from "../../access";
+import { canGlobally, requireGlobalPermission } from "../../access";
 import { formatDateDot } from "../../shared/format";
 import { todayJst } from "../../shared/jst";
 import { FormNotice, LINK_CLASS, PageHeading, StatusTag } from "../../shared/ui/form";
@@ -31,7 +31,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 export async function EmployeeDetailPage({ id }: { id: string }) {
-  const actor = await requireAdmin();
+  const actor = await requireGlobalPermission("core.employees.manage");
   if (!z.uuid().safeParse(id).success) notFound();
   const today = todayJst();
   const detail = await getEmployeeDetail(id, today);
@@ -152,6 +152,33 @@ export async function EmployeeDetailPage({ id }: { id: string }) {
                 {user.mustChangePassword ? "初回ログイン時に変更が必要" : "変更済み"}
               </dd>
             </dl>
+            <div>
+              <p className="text-brand04 mb-1 text-sm">付与されているロール</p>
+              {detail.roles.length === 0 ? (
+                <p className="text-brand04 text-xs">ロールは付与されていません(業務アプリの利用権限などは別途設定します)。</p>
+              ) : (
+                <ul className="flex flex-wrap gap-2">
+                  {detail.roles.map((r) => (
+                    <li key={r.id} className="flex items-center gap-1">
+                      <StatusTag tone={r.mismatch ? "attention" : "info"}>
+                        {r.roleName}
+                        {r.locationName || r.departmentName
+                          ? `(${[r.locationName, r.departmentName].filter(Boolean).join(" かつ ")})`
+                          : "(全社)"}
+                      </StatusTag>
+                      {r.mismatch ? <span className="text-brand01 text-xs font-bold">現在の所属と不一致</span> : null}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {canGlobally(actor, "core.roles.manage") ? (
+                <p className="mt-2 text-sm">
+                  <Link href="/admin/roles/assignments" className={LINK_CLASS}>
+                    ロールの割当を管理する
+                  </Link>
+                </p>
+              ) : null}
+            </div>
             <AccountControls userId={user.id} status={user.status} isSelf={user.id === actor.userId} />
           </>
         ) : (

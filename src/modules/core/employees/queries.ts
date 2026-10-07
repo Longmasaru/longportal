@@ -1,10 +1,12 @@
-import { and, asc, desc, eq, gte, ilike, inArray, isNull, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, ilike, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { db } from "@/db/client";
+import { scopeFitsAssignments } from "../access/grants";
 import { users } from "../auth/schema";
 import { departments } from "../departments/schema";
 import { employmentTypes } from "../employment-types/schema";
 import { locations } from "../locations/schema";
 import { positions } from "../positions/schema";
+import { roleAssignments, roles } from "../roles/schema";
 import { employeeAssignments, employees } from "./schema";
 import { employeeWarnings, hasOpenPrimaryAssignment, type EmployeeWarning } from "./logic";
 
@@ -108,7 +110,6 @@ export async function listEmployees(
         .where(
           and(
             inArray(employeeAssignments.employeeId, ids),
-            eq(employeeAssignments.isPrimary, true),
             or(isNull(employeeAssignments.endDate), gte(employeeAssignments.endDate, today)),
           ),
         )
@@ -121,8 +122,36 @@ export async function listEmployees(
     byEmployee.set(a.employeeId, list);
   }
 
+  // スコープ付きのロール割当(拠点・部署の指定があるもの)。異動後に所属と合わなくなっていないかの警告に使う。
+  const scopedRows = ids.length
+    ? await db
+        .select({
+          employeeId: users.employeeId,
+          locationId: roleAssignments.locationId,
+          departmentId: roleAssignments.departmentId,
+        })
+        .from(roleAssignments)
+        .innerJoin(users, eq(roleAssignments.userId, users.id))
+        .where(
+          and(
+            inArray(users.employeeId, ids),
+            or(isNotNull(roleAssignments.locationId), isNotNull(roleAssignments.departmentId)),
+          ),
+        )
+    : [];
+  const scopedByEmployee = new Map<string, { locationId: string | null; departmentId: string | null }[]>();
+  for (const sr of scopedRows) {
+    if (!sr.employeeId) continue;
+    const list = scopedByEmployee.get(sr.employeeId) ?? [];
+    list.push({ locationId: sr.locationId, departmentId: sr.departmentId });
+    scopedByEmployee.set(sr.employeeId, list);
+  }
+
   const items = rows.map((r): EmployeeListItem => {
-    const assignments = byEmployee.get(r.employee.id) ?? [];
+    const allOpen = byEmployee.get(r.employee.id) ?? [];
+    const assignments = allOpen.filter((a) => a.isPrimary);
+    // 今日時点で有効な所属(主・副を問わない)。ロールのスコープとの適合判定に使う。
+    const activeToday = allOpen.filter((a) => a.startDate <= today);
     const current = assignments.find((a) => a.startDate <= today);
     const upcoming = assignments.find((a) => a.startDate > today);
     return {
@@ -145,6 +174,9 @@ export async function listEmployees(
           leftOn: r.employee.leftOn,
           hasOpenPrimaryAssignment: hasOpenPrimaryAssignment(assignments, today),
           hasCurrentPrimaryAssignment: current !== undefined,
+          hasRoleScopeMismatch: (scopedByEmployee.get(r.employee.id) ?? []).some(
+            (scope) => !scopeFitsAssignments(scope, activeToday),
+          ),
           userStatus: r.userStatus,
         },
         today,
@@ -164,6 +196,8 @@ export type EmployeeDetail = {
   user: { id: string; loginId: string; status: string; mustChangePassword: boolean; lastLoginAt: Date | null } | null;
   warnings: EmployeeWarning[];
   hasOpenPrimary: boolean;
+  /** 紐づくアカウントに付与されているロール(スコープつき)。 */
+  roles: { id: string; roleName: string; locationName: string | null; departmentName: string | null; mismatch: boolean }[];
 };
 
 export async function getEmployeeDetail(id: string, today: string): Promise<EmployeeDetail | null> {
@@ -191,6 +225,35 @@ export async function getEmployeeDetail(id: string, today: string): Promise<Empl
     .orderBy(desc(employeeAssignments.startDate), desc(employeeAssignments.isPrimary));
   const assignments: AssignmentRow[] = all.map(toAssignmentRow);
   const hasOpenPrimary = hasOpenPrimaryAssignment(assignments, today);
+  const activeToday = assignments.filter(
+    (a) => a.startDate <= today && (a.endDate === null || a.endDate >= today),
+  );
+
+  // 紐づくアカウントのロール(スコープつき)と、現在の所属との適合
+  const roleRows = row.user
+    ? await db
+        .select({
+          id: roleAssignments.id,
+          roleName: roles.name,
+          locationId: roleAssignments.locationId,
+          locationName: locations.name,
+          departmentId: roleAssignments.departmentId,
+          departmentName: departments.name,
+        })
+        .from(roleAssignments)
+        .innerJoin(roles, eq(roleAssignments.roleId, roles.id))
+        .leftJoin(locations, eq(roleAssignments.locationId, locations.id))
+        .leftJoin(departments, eq(roleAssignments.departmentId, departments.id))
+        .where(eq(roleAssignments.userId, row.user.id))
+        .orderBy(asc(roles.name))
+    : [];
+  const roleList = roleRows.map((r) => ({
+    id: r.id,
+    roleName: r.roleName,
+    locationName: r.locationName,
+    departmentName: r.departmentName,
+    mismatch: !scopeFitsAssignments(r, activeToday),
+  }));
 
   return {
     employee: row.employee,
@@ -215,11 +278,13 @@ export async function getEmployeeDetail(id: string, today: string): Promise<Empl
         hasCurrentPrimaryAssignment: assignments.some(
           (a) => a.isPrimary && a.startDate <= today && (a.endDate === null || a.endDate >= today),
         ),
+        hasRoleScopeMismatch: roleList.some((r) => r.mismatch),
         userStatus: row.user?.status ?? null,
       },
       today,
     ),
     hasOpenPrimary,
+    roles: roleList,
   };
 }
 

@@ -1,6 +1,18 @@
-import { mockAdminItems } from "./mock-data";
 import { noticeChannel } from "./notices";
-import type { Navigation, Notice, PortalApp, PortalLink, PortalUser } from "./types";
+import type { NavLeaf, Navigation, Notice, PortalApp, PortalLink } from "./types";
+
+/**
+ * 管理メニュー。各項目を見せるのに必要な権限(全社)を持つ。権限のない項目は表示しない
+ * (表示を隠すだけでなく、各画面・Server Action でも同じ権限を本判定する)。
+ */
+export const ADMIN_NAV: (NavLeaf & { permission: string })[] = [
+  { key: "employees", label: "社員管理", href: "/admin/employees", icon: "users", permission: "core.employees.manage" },
+  { key: "organization", label: "組織管理", href: "/admin/organization", icon: "building", permission: "core.organization.manage" },
+  { key: "roles", label: "権限管理", href: "/admin/roles", icon: "shield", permission: "core.roles.manage" },
+  { key: "audiences", label: "Audience管理", href: "/admin/audiences", icon: "target", permission: "core.audiences.manage" },
+  { key: "apps-admin", label: "アプリ管理", href: "/admin/apps", icon: "layers", permission: "core.apps.manage" },
+  { key: "audit-logs", label: "監査ログ", href: "/admin/audit-logs", icon: "clipboard", permission: "core.audit.view" },
+];
 
 function unreadCount(notices: Notice[], channel: "personal" | "company"): number {
   return notices.filter((n) => noticeChannel(n) === channel && !n.isRead).length;
@@ -12,12 +24,13 @@ function unreadCount(notices: Notice[], channel: "personal" | "company"): number
  * 見えないアプリがメニューに出ることはない。管理メニューは管理者にだけ含める。
  */
 export function buildNavigation(input: {
-  user: PortalUser;
+  /** 利用者が見られる管理メニュー(権限で絞り込み済み)。 */
+  adminItems: NavLeaf[];
   apps: PortalApp[];
   notices: Notice[];
   links: PortalLink[];
 }): Navigation {
-  const { user, apps, notices, links } = input;
+  const { adminItems, apps, notices, links } = input;
 
   const sections: Navigation["sections"] = [
     // 開いてまず確認したいのは自分宛・全社のお知らせなので、アプリより上に置く。
@@ -66,12 +79,12 @@ export function buildNavigation(input: {
     },
   ];
 
-  if (user.isAdmin) {
+  if (adminItems.length > 0) {
     sections.push({
       key: "admin",
       en: "ADMIN",
       ja: "管理",
-      items: mockAdminItems,
+      items: adminItems,
       collapsible: true,
     });
   }
