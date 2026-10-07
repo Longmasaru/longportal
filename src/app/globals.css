@@ -1,0 +1,59 @@
+@import "tailwindcss";
+
+/* ==========================================================================
+   docs/design-system-long-kanazawa.md のデザイントークンを適用
+   （株式会社ロング 金沢 コーポレートサイトのデザインシステム）
+
+   ポータルは毎日使う業務システムなので、コーポレートサイト用の
+   「1920px 基準の流体ルートフォントサイズ」は採用せず、ルートは 16px 固定にする。
+   色・書体・フラットな見た目（影・グラデーションを使わない）・
+   「hover は brand03」「現在地は brand03」のルールは踏襲する。
+   ========================================================================== */
+
+:root {
+  /* ブランドカラー */
+  --brand01: #003c96; /* 濃紺: 見出し・ボタン・罫線・文字 */
+  --brand03: #e67150; /* オレンジ: hover・現在地・必須 */
+  --brand04: #666666; /* サブテキスト・区切り線 */
+  --bg01: #e9f9ff; /* 淡いブルー: セクション背景 */
+
+  /* 補助色 */
+  --link: #009bf5; /* 本文リンク・任意ラベル */
+  --canvas: #ffffff;
+  --field: #eeeeee; /* 入力欄・画像枠 */
+
+  /* フォント（和文は Google Fonts から読み込み） */
+  --font-zen: "Zen Kaku Gothic New";
+}
+
+@theme inline {
+  --color-brand01: var(--brand01);
+  --color-brand03: var(--brand03);
+  --color-brand04: var(--brand04);
+  --color-bg01: var(--bg01);
+  --color-link: var(--link);
+  --color-canvas: var(--canvas);
+  --color-field: var(--field);
+
+  --font-heading: var(--font-futura), futura-pt, sans-serif;
+  --font-body: var(--font-zen), -apple-system, system-ui, sans-serif;
+}
+
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+  -webkit-tap-highlight-color: rgba(0, 0, 0, 0.2);
+}
+
+body {
+  background: var(--canvas);
+  color: var(--brand04);
+  font-family: var(--font-zen), -apple-system, system-ui, sans-serif;
+  font-feature-settings: "palt";
+  line-height: 1.75;
+}
+
+:focus-visible {
+  outline: 2px solid var(--brand01);
+  outline-offset: 2px;
+}

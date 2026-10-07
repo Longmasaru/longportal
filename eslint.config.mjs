@@ -1,0 +1,59 @@
+import { defineConfig, globalIgnores } from "eslint/config";
+import nextVitals from "eslint-config-next/core-web-vitals";
+import nextTs from "eslint-config-next/typescript";
+
+// module 境界の機械的な強制(docs/DESIGN.md 3.1)。
+// 依存方向: src/app → modules/apps/* → modules/core/*
+const eslintConfig = defineConfig([
+  ...nextVitals,
+  ...nextTs,
+  {
+    // modules はルーティング層(src/app)に依存しない
+    files: ["src/modules/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["@/app", "@/app/*"],
+              message: "modules から src/app(ルーティング層)を参照しないでください。",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    // core は apps に依存しない
+    files: ["src/modules/core/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["@/app", "@/app/*"],
+              message: "modules から src/app(ルーティング層)を参照しないでください。",
+            },
+            {
+              group: ["@/modules/apps", "@/modules/apps/*"],
+              message: "core から業務アプリ(modules/apps)を参照しないでください。",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  // 業務アプリ同士の直接依存の禁止は、各アプリ(modules/apps/○○)を追加する際に
+  // そのアプリ用のブロックをここへ追加する(他アプリの @/modules/apps/* を禁止)。
+  globalIgnores([
+    ".next/**",
+    "out/**",
+    "build/**",
+    "next-env.d.ts",
+    "src/db/migrations/**",
+  ]),
+]);
+
+export default eslintConfig;
