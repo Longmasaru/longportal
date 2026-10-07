@@ -3,7 +3,7 @@
 // DB・Audience 判定の実装後に中身を差し替える(canAccessApp で絞り込んだアプリ、
 // Audience・個人指定で絞り込んだお知らせ・リンク)。
 import { redirect } from "next/navigation";
-import { requireActor, type Actor } from "../access";
+import { isAdminActor, requireActor, type Actor } from "../access";
 import { todayJst } from "../shared/jst";
 import { createMockNotices, mockApps, mockLinks } from "./mock-data";
 import { buildNavigation } from "./navigation";
@@ -13,10 +13,9 @@ import type { NavLeaf, PortalContext, PortalHomeData, PortalUser } from "./types
 const HOME_PERSONAL_NOTICE_LIMIT = 5;
 const HOME_BANNER_LIMIT = 2;
 
-// 手順4(roles / role_assignments / permissions)の実装までの暫定値。
-// 管理メニューの画面はすべて「準備中」で、管理操作はまだ存在しないため実害はない。
-const TEMPORARY_ROLE_NAMES = ["システム管理者"];
-const TEMPORARY_IS_ADMIN = true;
+// ロール名は手順4(roles / role_assignments)の実装までの暫定表示。管理者かどうかは access/admin.ts の暫定規則
+// (社員に紐づかないアカウント = システム管理者)で決まり、手順4で system_admin ロールの判定に置き換える。
+const TEMPORARY_ADMIN_ROLE_NAMES = ["システム管理者"];
 
 function toPortalUser(actor: Actor): PortalUser {
   const primary = actor.assignments[0];
@@ -29,13 +28,14 @@ function toPortalUser(actor: Actor): PortalUser {
         .join(" ・ ")
     : `ログインID: ${actor.loginId}`;
 
+  const isAdmin = isAdminActor(actor);
   return {
     id: actor.userId,
     displayName: actor.employee?.name ?? actor.loginId,
     subtitle,
     employeeNumber: actor.employee?.employeeNumber ?? null,
-    roleNames: TEMPORARY_ROLE_NAMES,
-    isAdmin: TEMPORARY_IS_ADMIN,
+    roleNames: isAdmin ? TEMPORARY_ADMIN_ROLE_NAMES : [],
+    isAdmin,
   };
 }
 

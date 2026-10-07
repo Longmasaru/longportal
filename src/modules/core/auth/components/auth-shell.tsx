@@ -1,4 +1,7 @@
 import type { ReactNode } from "react";
+import { FIELD_CLASS, FormNotice, LABEL_CLASS } from "../../shared/ui/form";
+
+export { FIELD_CLASS, LABEL_CLASS };
 
 /** ログイン・パスワード変更など、ポータルの枠(サイドバー)を持たない認証系画面の共通レイアウト。 */
 export function AuthShell({ title, children }: { title: string; children: ReactNode }) {
@@ -18,28 +21,14 @@ export function AuthShell({ title, children }: { title: string; children: ReactN
   );
 }
 
-export const FIELD_CLASS =
-  "bg-field text-brand01 placeholder:text-brand04 block w-full px-4 py-2.5 outline-none focus-visible:outline-2 focus-visible:outline-brand01";
-export const LABEL_CLASS = "text-brand01 mb-1.5 block text-sm font-bold";
 export const SUBMIT_CLASS =
   "bg-brand01 w-full py-3 font-bold tracking-[0.2em] text-white transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:bg-field disabled:text-brand04";
 
 /** フォーム上部の通知(エラー・案内)。 */
-export function Notice({
-  tone,
-  children,
-}: {
-  tone: "error" | "info";
-  children: ReactNode;
-}) {
+export function Notice({ tone, children }: { tone: "error" | "info"; children: ReactNode }) {
   return (
-    <p
-      role={tone === "error" ? "alert" : "status"}
-      className={`text-brand01 mb-5 border-l-4 px-3 py-2 text-sm ${
-        tone === "error" ? "border-brand03 bg-brand03/10" : "border-link bg-bg01"
-      }`}
-    >
-      {children}
-    </p>
+    <div className="mb-5">
+      <FormNotice tone={tone}>{children}</FormNotice>
+    </div>
   );
 }

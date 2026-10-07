@@ -6,3 +6,4 @@ export * from "@/modules/core/positions/schema";
 export * from "@/modules/core/employment-types/schema";
 export * from "@/modules/core/employees/schema";
 export * from "@/modules/core/auth/schema";
+export * from "@/modules/core/audit/schema";

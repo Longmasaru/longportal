@@ -15,6 +15,13 @@
       "when": 1790856619409,
       "tag": "0001_core_assignments_primary_exclusion",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791358689312,
+      "tag": "0002_core_audit_logs",
+      "breakpoints": true
     }
   ]
 }
