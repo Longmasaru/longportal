@@ -9,6 +9,7 @@ import { requireActor } from "../access";
 import { signIn, signOut } from "./auth";
 import { newPasswordSchema } from "./password-policy";
 import { hashPassword, verifyPassword } from "./password";
+import { MAX_LOGIN_ID_LENGTH, MAX_LOGIN_PASSWORD_LENGTH } from "./throttle-policy";
 import { users } from "./schema";
 
 // クライアントコンポーネントから呼べる Server Action。サーバー専用の API は index.ts から参照する。
@@ -19,6 +20,10 @@ export async function loginAction(_prev: FormState, formData: FormData): Promise
   const loginId = String(formData.get("loginId") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
   if (!loginId || !password) return { error: "ログインIDとパスワードを入力してください。" };
+  // 異常に長い入力は、照合せずに(通常の失敗と同じ文言で)弾く。
+  if (loginId.length > MAX_LOGIN_ID_LENGTH || password.length > MAX_LOGIN_PASSWORD_LENGTH) {
+    return { error: "ログインIDまたはパスワードが違います。" };
+  }
 
   try {
     await signIn("credentials", { loginId, password, redirectTo: "/" });
@@ -27,6 +32,11 @@ export async function loginAction(_prev: FormState, formData: FormData): Promise
     if (err instanceof AuthError) {
       if (err.type === "CredentialsSignin") {
         const code = (err as CredentialsSignin).code;
+        if (code === "too_many_attempts") {
+          return {
+            error: "ログインの試行回数が多すぎます。しばらく(15分ほど)待ってから、もう一度お試しください。",
+          };
+        }
         return {
           error:
             code === "account_unavailable"
@@ -45,7 +55,10 @@ export async function signOutAction(): Promise<void> {
 }
 
 const changePasswordSchema = z.object({
-  currentPassword: z.string().min(1, "現在のパスワードを入力してください。"),
+  currentPassword: z
+    .string()
+    .min(1, "現在のパスワードを入力してください。")
+    .max(MAX_LOGIN_PASSWORD_LENGTH, "現在のパスワードが違います。"),
   newPassword: newPasswordSchema,
   confirmPassword: z.string(),
 });

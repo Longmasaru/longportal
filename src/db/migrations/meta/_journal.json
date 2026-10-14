@@ -36,6 +36,13 @@
       "when": 1791370370692,
       "tag": "0004_core_audiences",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1791885675408,
+      "tag": "0005_core_login_attempts",
+      "breakpoints": true
     }
   ]
 }

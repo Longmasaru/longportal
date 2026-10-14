@@ -10,6 +10,7 @@ import { requireGlobalPermission } from "../access";
 import { writeAuditLog } from "../audit";
 import { users } from "../auth/schema";
 import { hashPassword } from "../auth/password";
+import { clearLoginFailures } from "../auth/throttle";
 import {
   PG_EXCLUSION_VIOLATION,
   PG_UNIQUE_VIOLATION,
@@ -465,6 +466,9 @@ export async function resetPasswordAction(
     return null;
   });
   if (error) return { error };
+
+  // 失敗の記録によるロックが残っていると、再設定した本人がすぐにログインできないため、解除する。
+  await clearLoginFailures(loginId);
 
   if (employeeId) revalidatePath(`/admin/employees/${employeeId}`);
   return { success: "パスワードを再設定しました。", tempPassword, loginId };
