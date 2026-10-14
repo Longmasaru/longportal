@@ -34,6 +34,7 @@ npm run dev                  # http://localhost:3000
 | `npm run sync:manifests` | コード側の定義(権限)を DB に反映(`-- --prune` でコードにない権限を削除) |
 | `npm run db:grant-admin -- <login_id>` | 管理者の復旧: 指定ユーザーに全社の system_admin を付与 |
 | `npm test` | ユニットテスト(node:test + tsx) |
+| `npm run r2:check` | Cloudflare R2 への接続確認(試験用のファイルを作って、読んで、消す) |
 
 ## ディレクトリ
 
