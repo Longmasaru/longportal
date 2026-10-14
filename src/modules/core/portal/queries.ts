@@ -1,17 +1,41 @@
 // ポータル画面のデータ取得口。画面コンポーネントはここだけを呼ぶ。
-// 利用者(ユーザー・所属・役職)は実データ。お知らせ・アプリ・社内リンクはまだモックで、
-// DB・Audience 判定の実装後に中身を差し替える(canAccessApp で絞り込んだアプリ、
-// Audience・個人指定で絞り込んだお知らせ・リンク)。
+// 利用者(ユーザー・所属・役職)は実データ。お知らせ・アプリ・社内リンクは未実装のため空を返し、
+// 画面は枠だけを出す(見本の架空データは出さない)。実装時に下の list* の中身を差し替える
+// (canAccessApp で絞り込んだアプリ、Audience・個人指定で絞り込んだお知らせ・リンク)。
 import { redirect } from "next/navigation";
 import { canGlobally, requireActor, type Actor } from "../access";
 import { todayJst } from "../shared/jst";
-import { createMockNotices, mockApps, mockLinks } from "./mock-data";
 import { ADMIN_NAV, buildNavigation } from "./navigation";
 import { comparePersonalNotices, isBannerActive, noticeChannel } from "./notices";
-import type { NavLeaf, PortalContext, PortalHomeData, PortalUser } from "./types";
+import type {
+  NavLeaf,
+  Notice,
+  PortalApp,
+  PortalContext,
+  PortalHomeData,
+  PortalLink,
+  PortalUser,
+} from "./types";
 
 const HOME_PERSONAL_NOTICE_LIMIT = 5;
 const HOME_BANNER_LIMIT = 2;
+
+// ---- 未実装の情報(実装時に、利用者(actor)で絞り込む DB 参照へ差し替える) ----
+
+/** 利用者が使えるアプリ。手順 6(app registry・canAccessApp)で実装する。 */
+async function listVisibleApps(): Promise<PortalApp[]> {
+  return [];
+}
+
+/** 利用者に届くお知らせ。手順 7 で実装する。 */
+async function listVisibleNotices(): Promise<Notice[]> {
+  return [];
+}
+
+/** 利用者に見える社内リンク。手順 7 で実装する。 */
+async function listVisibleLinks(): Promise<PortalLink[]> {
+  return [];
+}
 
 
 /** 利用者が見られる管理メニュー(必要な権限を全社で持つ項目だけ)。 */
@@ -57,10 +81,14 @@ export async function getPortalContext(): Promise<PortalContext> {
   const actor = await requirePortalActor();
   const adminItems = visibleAdminItems(actor);
   const user = toPortalUser(actor, adminItems.length > 0);
-  const notices = createMockNotices(todayJst());
+  const [apps, notices, links] = await Promise.all([
+    listVisibleApps(),
+    listVisibleNotices(),
+    listVisibleLinks(),
+  ]);
   return {
     user,
-    navigation: buildNavigation({ adminItems, apps: mockApps, notices, links: mockLinks }),
+    navigation: buildNavigation({ adminItems, apps, notices, links }),
   };
 }
 
@@ -71,7 +99,7 @@ export async function getPortalContext(): Promise<PortalContext> {
 export async function getPortalHome(): Promise<PortalHomeData> {
   await requirePortalActor();
   const today = todayJst();
-  const notices = createMockNotices(today);
+  const [notices, apps] = await Promise.all([listVisibleNotices(), listVisibleApps()]);
 
   const personal = notices.filter((n) => noticeChannel(n) === "personal");
   const personalSorted = [...personal].sort(comparePersonalNotices);
@@ -85,7 +113,7 @@ export async function getPortalHome(): Promise<PortalHomeData> {
     personalNotices: personalForHome,
     actionRequiredCount: personal.filter((n) => n.requiresAction).length,
     // 実装後は各アプリの manifest が提供する「未対応件数」を集める。
-    pendingItems: mockApps.flatMap((app) =>
+    pendingItems: apps.flatMap((app) =>
       app.summary?.tone === "attention"
         ? [
             {

@@ -482,7 +482,7 @@ MVP 後: notifications、副所属の UI、将来日付での Audience プレビ
 - 配色・書体・フラットな見た目(影・グラデーションを使わない)・「hover は brand03」「現在地は brand03」・英字+和文の見出しペア・日付表記 `YYYY.MM.DD` は `docs/design-system-long-kanazawa.md` に従う。
 - **例外**: コーポレートサイト用の「1920px 基準の流体ルートフォントサイズ」は採用しない。毎日使う業務画面の視認性を優先し、ルートは 16px 固定とする。見出しの英字サイズも業務画面向けに縮小する。
 - 画面本体は `src/modules/core/portal/` に置き、`src/app/(portal)/` は薄い route / layout のみ。画面コンポーネントは `queries.ts` の戻り値(`types.ts`)だけに依存する。
-- UI 確認用のモックは `src/modules/core/portal/mock-data.ts` に集約し、DB 実装後に `queries.ts` を差し替えて削除する。
+- 見本(架空)のデータは画面に出さない。未実装の情報(お知らせ・アプリ・社内リンク・要対応)は `queries.ts` が空で返し、画面は枠と「まだありません」の表示だけを出す。実装時に `queries.ts` の中身を実データに差し替える(2026-10-14 に見本データ `mock-data.ts` を削除)。
 
 ### 画面の役割分担
 

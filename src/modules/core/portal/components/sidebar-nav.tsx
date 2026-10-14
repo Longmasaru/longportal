@@ -104,13 +104,18 @@ function Section({
   const [open, setOpen] = useState(containsCurrent);
   const listId = `nav-section-${section.key}`;
 
-  const list = (
-    <ul id={listId}>
-      {section.items.map((item) => (
-        <NavLink key={item.key} item={item} pathname={pathname} onNavigate={onNavigate} />
-      ))}
-    </ul>
-  );
+  const list =
+    section.items.length === 0 && section.emptyText ? (
+      <p id={listId} className="text-brand04 py-1.5 pr-3 pl-[2.625rem] text-xs">
+        {section.emptyText}
+      </p>
+    ) : (
+      <ul id={listId}>
+        {section.items.map((item) => (
+          <NavLink key={item.key} item={item} pathname={pathname} onNavigate={onNavigate} />
+        ))}
+      </ul>
+    );
 
   if (!section.collapsible) {
     return (

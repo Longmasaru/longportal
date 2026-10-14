@@ -64,6 +64,8 @@ export type NavSection = {
   items: NavLeaf[];
   /** 折りたたみ可能にするか(管理メニューなど)。 */
   collapsible?: boolean;
+  /** 項目が 0 件のときに出す説明(枠だけを残す)。 */
+  emptyText?: string;
 };
 
 export type Navigation = {
