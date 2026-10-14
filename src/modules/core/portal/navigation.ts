@@ -65,6 +65,7 @@ export function buildNavigation(input: {
         href: app.href,
         icon: app.icon,
       })),
+      emptyText: "利用できるアプリはまだありません",
     },
     {
       key: "links",
@@ -76,6 +77,7 @@ export function buildNavigation(input: {
         href: link.url,
         external: true,
       })),
+      emptyText: "登録された社内リンクはありません",
     },
   ];
 
