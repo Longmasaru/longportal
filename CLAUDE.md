@@ -3,6 +3,9 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 @AGENTS.md
+@docs/HANDOFF.md
+
+新しいアプリを作る・各サービス(GitHub / Neon / Vercel / Cloudflare)につなぐ・本番に出すときは、先に **`docs/playbooks/new-app-setup.md`** を読み、その手順に沿って進めること。
 
 LONG PORTAL は株式会社ロングの社内ポータル基盤。設計の正は **`docs/DESIGN.md`**(確定版)。実装前に必ず読み、設計を変える場合は先に同ファイルを更新すること。
 
