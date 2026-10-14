@@ -54,6 +54,7 @@
 | 本番公開 | Vercel + Neon 本番ブランチ。migration 6 本、初期データ投入済み |
 | ログイン強化 | 入力長の上限(ID 50 / PW 200)、失敗回数の制限(ID は 15 分 5 回、接続元は 15 分 50 回。`core.login_attempts`)、セキュリティヘッダー |
 | ファイル保管 | Cloudflare R2 の基盤(`core/storage`、署名付き URL、接続確認 `npm run r2:check`、CORS 設定済み) |
+| 最初の業務アプリ | `apps/sodatsu`(人事ポリシー「育てて、育つ。」の紹介。`/apps/sodatsu`、閲覧のみ・DB なし・専用権限なし。記入欄とふりかえりは端末のブラウザにだけ保存)。サイドバーへの表示は、手順 6 までは `mock-data.ts` の `mockApps` に載せている |
 
 ### まだ「見せかけ」の部分
 - ホームの**お知らせ・アプリ・社内リンク・各アプリの件数**は、`src/modules/core/portal/mock-data.ts` の**見本データ**。画面は `queries.ts` の戻り値だけに依存するので、実装後は `queries.ts` の中身を差し替える。

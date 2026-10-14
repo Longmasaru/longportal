@@ -3,6 +3,14 @@ import type { Notice, PortalApp, PortalLink } from "./types";
 
 /** 管理者ユーザー用に全アプリを返す(実装後は Audience 判定で絞り込まれる)。 */
 export const mockApps: PortalApp[] = [
+  // 実装済みのアプリ(modules/apps/sodatsu)。手順 6 で manifest + app_registry からの表示に置き換える。
+  {
+    appKey: "sodatsu",
+    displayName: "育てて、育つ。",
+    description: "ロングの人事ポリシー「育てて、育つ。」の考え方と、今日からできることをまとめています。",
+    icon: "sprout",
+    href: "/apps/sodatsu",
+  },
   {
     appKey: "todo",
     displayName: "TODO",
