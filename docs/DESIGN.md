@@ -550,7 +550,7 @@ MVP 後: notifications、副所属の UI、将来日付での Audience プレビ
 - **保存キー**: `<プレフィックス><アプリのキー>/<所有者の ID>/<UUID>.<拡張子>`。元のファイル名はキーに入れず、各アプリの DB のメタ情報で持つ。他の環境のプレフィックスのキーは、削除・参照できない。
 - **実装**: `modules/core/storage/`(`policy.ts` = 純粋な規則とテスト、`r2.ts` = R2 とのやりとり)。環境変数は `R2_ACCOUNT_ID` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` / `R2_BUCKET` / `R2_KEY_PREFIX`。接続確認は `npm run r2:check`(試験用のファイルを作って、読んで、消す)。
 - **メタ情報のテーブル**(ファイル名、サイズ、所有者など)は、最初の利用者(TODO アプリの添付ファイル、手順 8)を作るときに、migration で追加する。いまは未作成。
-- **CORS**: トークンの権限が「オブジェクトの読み書き」のみで、バケットの設定は変えられないため、Cloudflare の画面から設定する(内容は `docs/r2-cors.json`)。許可オリジン: `localhost:3000/3001` と、本番の `longportal.vercel.app` ほか 2 つの別名。独自ドメインを足したときや、ポートを変えたときは、ここも更新する。プレビューごとの固有 URL は許可していない。
+- **CORS**: トークンの権限が「オブジェクトの読み書き」のみで、バケットの設定は変えられないため、Cloudflare の画面から設定する(内容は `docs/r2-cors.json`)。許可オリジン: `localhost:3000/3001`、本番の独自ドメイン `long-ishikawa.com`(2026-10-15 に追加)、`longportal.vercel.app` ほか 2 つの別名。独自ドメインを足したときや、ポートを変えたときは、ここも更新する。プレビューごとの固有 URL は許可していない。
 
 ## 21. 実装メモ(社員の一括取り込み)
 
@@ -629,3 +629,13 @@ MVP 後: notifications、副所属の UI、将来日付での Audience プレビ
 - **見える条件**(deny by default): `is_enabled` かつ宛先に当てはまる(`company` = 全員、`audience` = 有効な Audience に一致)。サイドバー・ホームのアプリ一覧は、この判定を通ったものだけ。
 - **入場の制限**: internal のアプリのページは、最初に `requireAppAccess(app_key)` を呼ぶ。見えない人は 404(存在も知らせない)。判定は `canAccessApp`。
 - **管理**: `/admin/apps`(権限 `core.apps.manage`)。表示名・説明・アイコン・表示順・有効/無効・宛先を変更、external の追加・削除。変更は監査ログに記録。Audience の利用先に、アプリを加える。
+
+## 25. 実装メモ(手順 8: TODO アプリ)
+
+TODOSample の TODO を、ポータルの中のアプリ(`modules/apps/todo`、`app_key = todo`、`/apps/todo`)として移植する。2026-10-15 にユーザーと決めたこと: カテゴリは仕事向け、Claude による自動分類あり(モデルは Claude Haiku 5.5)、添付は 1 つ 25MB まで。
+
+- **データは本人だけのもの**: TODO・添付は `user_id`(`core.users`、削除時は CASCADE)に紐づき、本人以外(管理者を含む)には見せない。すべての読み書きは `user_id = 本人` で絞り込む。画面の入口は `requireAppAccess("todo")`(アプリ管理で有効にし、表示する相手に当てはまる人だけ)。Server Action も、毎回同じ判定を通す。
+- **テーブル**(`pgSchema("todo")`): `todo.categories`(code・表示名・絵文字・並び順。初期値は migration で入れる: 業務・会議・連絡・書類・安全・設備・教育・改善・その他)、`todo.todos`(タスク名 200 字・完了・詳細 5000 字・優先度 低/中/高・カテゴリ・期限(JST の暦日)・作成/更新日時)、`todo.attachments`(R2 のキー・元のファイル名・サイズ・種類)。主キーは UUID。
+- **自動分類**: タスクを追加すると、タスク名を Claude Haiku 5.5(`claude-haiku-5-5`、構造化出力でカテゴリの code を 1 つ返す、effort `low`)に送り、カテゴリを決める。API キーが無い・失敗・断られた場合は「その他」にして、追加は止めない。送るのはタスク名とカテゴリ一覧だけ(氏名などは送らない)。環境変数 `ANTHROPIC_API_KEY`(Vercel では Sensitive)。
+- **添付**: `core/storage`(R2、署名付き URL)を使う。キーは `<環境>/todo/<user_id>/<UUID>.<拡張子>`。登録前に、キーが本人のものか・R2 に実在するか(`headObject`)を確かめる。TODO を削除したら、R2 のファイルも消す(失敗しても TODO の削除は止めない)。
+- 画面は TODOSample と同じ機能(追加・完了・編集・削除の取り消し・並べ替え・カテゴリの絞り込み・期限の相対表示・完了済みの一覧)を、ポータルのデザインで作る。

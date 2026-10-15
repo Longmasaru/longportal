@@ -3,13 +3,22 @@
     "AllowedOrigins": [
       "http://localhost:3000",
       "http://localhost:3001",
+      "https://long-ishikawa.com",
       "https://longportal.vercel.app",
       "https://longportal-longmasaru.vercel.app",
       "https://longportal-git-main-longmasaru.vercel.app"
     ],
-    "AllowedMethods": ["GET", "PUT", "HEAD"],
-    "AllowedHeaders": ["*"],
-    "ExposeHeaders": ["ETag"],
+    "AllowedMethods": [
+      "GET",
+      "PUT",
+      "HEAD"
+    ],
+    "AllowedHeaders": [
+      "*"
+    ],
+    "ExposeHeaders": [
+      "ETag"
+    ],
     "MaxAgeSeconds": 3600
   }
 ]

@@ -61,7 +61,7 @@
 - 取り込んだのは 社員番号・氏名・フリガナ・役職・部署・入社日 だけ。雇用区分は全員「正社員」で仮置き。
 - 2026-10-15: 開発 DB に拠点 3 つ(本社工場・2号店・B工場。白山工場は今はない)を登録し、54 人全員に「部署(名簿どおり。1005 は総務・経理)× 本社工場」の主所属を作った。2号店は溶接、B工場はレーザーの人だけがいるので、**所属の割り当て画面**(`/admin/employees/assignments`。部署は選択欄、拠点は丸で選ぶ表。管理者が個別に変えると、そのまま DB に保存される)で選び直す。
 - **本番 DB にも投入済み(2026-10-15)**: 拠点 3 つ、部署 8・役職 6、社員 54 人(画面で手登録されていた「052」は名簿の「0052」に番号を直して重複を防いだ)、全員に「部署 × 本社工場」の主所属。**本番のアカウントは未発行**(ユーザーの判断。お知らせ・アプリの中身と、社内確認(Vercel のプラン、DB の場所)のあとで `npm run db:issue-accounts` で発行する)。2号店・B工場の割り当ては、本番の所属の割り当て画面で行う。
-- 本番の URL は独自ドメイン `https://long-ishikawa.com` に変わっている(`longportal.vercel.app` は転送)。R2 の CORS の許可オリジンに、このドメインを足す必要がある(`docs/r2-cors.json`、未対応)。
+- 本番の URL は独自ドメイン `https://long-ishikawa.com` に変わっている(`longportal.vercel.app` は転送)。R2 の CORS の許可オリジンには、2026-10-15 にこのドメインを追加済み(`docs/r2-cors.json`)。
 - 54 人にアカウントを発行済み(開発 DB。ログイン ID = 社員番号。`npm run db:issue-accounts`)。名簿にない社員が開発 DB に 1 人いる(以前の確認用と思われる。主所属がないため発行していない)。
 
 - 2026-10-15: 氏名を姓・名・姓(かな)・名(かな)に分けた(本番も。DESIGN.md 22 章)。区切りのないかなは、漢字の姓名を手がかりに分けた一覧をユーザーが確認してから入れた(`npm run db:update-name-kana`)。
@@ -74,7 +74,7 @@
 ### 次にやること(順番)
 1. ~~**手順 6**~~(2026-10-15 完了。DESIGN.md 24 章。登録簿 `/admin/apps`、ポータルの中のアプリは `requireAppAccess` で入場を制限、別プロジェクトのアプリは URL で登録。自動ログイン(SSO)と、アプリごとの開発者・管理者の指定は、あとの段階):  app registry(コード側の manifest + DB の運用設定)、manifest の同期(`npm run sync:manifests` に、アプリの権限と `app_registry` を追加)、`canAccessApp` / `requireAppAccess`。サイドバーとホームのアプリ表示を、Audience の判定につなぐ。Audience の「利用先」の表示と「利用中は削除不可」(`listAudienceUsages`)もここで有効にする。
 2. ~~**手順 7**~~(2026-10-15 完了・本番反映済み): お知らせ(全社・Audience・個人指定、通常・重要・緊急、ホームのバナー、既読、確認ボタン)と社内リンク。管理画面 `/admin/notices`・`/admin/links`、権限 `core.notices.manage`・`core.links.manage`。DESIGN.md 23 章。
-3. **手順 8**: TODO アプリの移植(TODOSample から。TODO は `user_id` に紐づく個人データ。Claude による自動分類、R2 添付ファイルも含む)。添付のメタ情報テーブル(ファイル名・サイズ・所有者)は、このときに migration で追加する。
+3. ~~**手順 8**~~(2026-10-16 完了・本番反映済み。DESIGN.md 25 章。`/apps/todo`。カテゴリは仕事向け 9 種、Claude Haiku 5.5 で自動分類、添付は 25MB まで。本番のアプリ管理ではまだ「無効」。Vercel Production に `ANTHROPIC_API_KEY`(Sensitive)、手元の `.env.local` にも同名のキーを登録済み): TODO アプリの移植(TODOSample から。TODO は `user_id` に紐づく個人データ。Claude による自動分類、R2 添付ファイルも含む)。添付のメタ情報テーブル(ファイル名・サイズ・所有者)は、このときに migration で追加する。
 4. 以後: 教育・スキル、改善提案、出し直し管理、マニュアル、設備管理など。
 
 ### 社員にアカウントを配る前のチェック(未了)
@@ -90,7 +90,7 @@
 | 公開 | Vercel `longmasaru/longportal`(個人スコープ、Hobby)。`main` への push で**自動デプロイ**。本番 URL `https://longportal.vercel.app`。Functions の地域は `vercel.json` で **sin1**(TODOSample は iad1)。Node 24.x |
 | DB | Neon の project `longdashbord`、リージョン ap-southeast-1。**ブランチは 2 つ**: `development`(手元の開発)、`production`(本番)。接続は、実行時は pooler、migration は direct |
 | ファイル | Cloudflare R2 のバケット `longportal`(**1 つのみ・非公開**)。API トークンは `longportal` 専用(オブジェクトの読み書き)。開発/本番は、キーの頭(`dev/`、`prod/`)で区別(**権限の分離ではない**) |
-| AI | Anthropic API(TODO アプリの自動分類で使う予定。まだ未組み込み) |
+| AI | Anthropic API(TODO アプリの自動分類。`claude-haiku-5-5`、`@anthropic-ai/sdk` 0.131.0。キーは `ANTHROPIC_API_KEY`) |
 
 ### 環境変数(名前のみ。値はここにも書かない)
 | 場所 | 変数 |

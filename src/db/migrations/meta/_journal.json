@@ -71,6 +71,13 @@
       "when": 1792073019820,
       "tag": "0009_core_app_registry",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1792074271164,
+      "tag": "0010_todo_app",
+      "breakpoints": true
     }
   ]
 }
