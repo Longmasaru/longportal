@@ -98,6 +98,13 @@ const PATHS: Record<IconName, ReactNode> = {
       <path d="M9 18h6M10 22h4" />
     </>
   ),
+  sprout: (
+    <>
+      <path d="M12 21v-9" />
+      <path d="M12 12c0-4 3-7 8-7 0 4-3 7-8 7" />
+      <path d="M12 14c0-3-2.5-5.5-7-5.5 0 3 2.5 5.5 7 5.5" />
+    </>
+  ),
   redo: (
     <>
       <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />

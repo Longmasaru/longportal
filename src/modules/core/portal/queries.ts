@@ -22,9 +22,21 @@ const HOME_BANNER_LIMIT = 2;
 
 // ---- 未実装の情報(実装時に、利用者(actor)で絞り込む DB 参照へ差し替える) ----
 
-/** 利用者が使えるアプリ。手順 6(app registry・canAccessApp)で実装する。 */
+/**
+ * 利用者が使えるアプリ。手順 6(app registry・canAccessApp)で DB 参照に差し替える。
+ * それまでは、実装済みで全社員が見てよいアプリ(apps/sodatsu)だけを固定で返す。
+ * core は apps を参照できないので、表示内容は apps/sodatsu の manifest と合わせて書く。
+ */
 async function listVisibleApps(): Promise<PortalApp[]> {
-  return [];
+  return [
+    {
+      appKey: "sodatsu",
+      displayName: "育てて、育つ。",
+      description: "ロングの人事ポリシー「育てて、育つ。」の考え方と、今日からできることをまとめています。",
+      icon: "sprout",
+      href: "/apps/sodatsu",
+    },
+  ];
 }
 
 /** 利用者に届くお知らせ。手順 7 で実装する。 */
