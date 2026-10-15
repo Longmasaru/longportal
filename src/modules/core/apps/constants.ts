@@ -15,6 +15,7 @@ export const APP_KEY_PATTERN = /^[a-z][a-z0-9_-]{1,39}$/;
 export const APP_ICONS = [
   "grid",
   "check-square",
+  "calendar",
   "graduation",
   "lightbulb",
   "sprout",
@@ -34,6 +35,7 @@ export type AppIcon = (typeof APP_ICONS)[number];
 export const APP_ICON_LABEL: Record<AppIcon, string> = {
   grid: "一覧",
   "check-square": "チェック",
+  calendar: "カレンダー",
   graduation: "教育",
   lightbulb: "アイデア",
   sprout: "芽",

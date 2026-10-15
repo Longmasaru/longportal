@@ -234,6 +234,7 @@ ALTER TABLE core.employee_assignments
 #### アプリ側
 
 **`todo.todo_categories`**、**`todo.todos`**(`user_id` FK → `core.users`、ON DELETE CASCADE)
+**`calendar.entries`**(会社カレンダーの本人だけのメモ・予定。`user_id` FK → `core.users`、ON DELETE CASCADE。会社の休日そのものは DB に持たず、`apps/calendar/company-calendar.ts` にコードで持つ)
 
 ### 4.4 リレーション概要
 

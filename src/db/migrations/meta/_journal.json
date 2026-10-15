@@ -78,6 +78,13 @@
       "when": 1792074271164,
       "tag": "0010_todo_app",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1792077034554,
+      "tag": "0011_calendar_entries",
+      "breakpoints": true
     }
   ]
 }
