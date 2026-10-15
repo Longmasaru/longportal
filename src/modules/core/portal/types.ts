@@ -17,6 +17,7 @@ export type IconName =
   | "check-square"
   | "graduation"
   | "lightbulb"
+  | "sprout"
   | "redo"
   | "file-text"
   | "wrench"
