@@ -29,7 +29,8 @@ export type IconName =
   | "user"
   | "key"
   | "logout"
-  | "alert";
+  | "alert"
+  | "calendar";
 
 /** ログイン中ユーザー(core.users + core.employees + 現在有効な主所属 + 役職)。 */
 export type PortalUser = {

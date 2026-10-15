@@ -98,6 +98,12 @@ const PATHS: Record<IconName, ReactNode> = {
       <path d="M9 18h6M10 22h4" />
     </>
   ),
+  calendar: (
+    <>
+      <rect x="3" y="4" width="18" height="18" rx="2" />
+      <path d="M16 2v4M8 2v4M3 10h18" />
+    </>
+  ),
   sprout: (
     <>
       <path d="M12 21v-9" />

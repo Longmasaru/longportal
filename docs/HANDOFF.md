@@ -55,6 +55,7 @@
 | ログイン強化 | 入力長の上限(ID 50 / PW 200)、失敗回数の制限(ID は 15 分 5 回、接続元は 15 分 50 回。`core.login_attempts`)、セキュリティヘッダー |
 | ファイル保管 | Cloudflare R2 の基盤(`core/storage`、署名付き URL、接続確認 `npm run r2:check`、CORS 設定済み) |
 | 最初の業務アプリ | `apps/sodatsu`(人事ポリシー「育てて、育つ。」の紹介。`/apps/sodatsu`、閲覧のみ・DB なし・専用権限なし。記入欄とふりかえりは端末のブラウザにだけ保存)。サイドバーへの表示は、手順 6 までは `queries.ts` の `listVisibleApps` が固定で返している |
+| 会社カレンダー | `apps/calendar`(`/apps/calendar`。会社の休日・出勤日の月表示、今日・次の休み・残りの出勤日数、年間のまとめ。休日データは `company-calendar.ts` にコードで持つ(2026 年分のみ。紙のカレンダーを写したもので、`logic.test.ts` で照合)。本人だけのメモ・予定は `calendar.entries`(migration `0011_calendar_entries`、`user_id` でスコープ)。専用権限なし。アプリの登録簿(`sync:manifests`)に登録し、入場は `requireAppAccess`。本番で使うには、アプリ管理(`/admin/apps`)で有効にし、表示する相手を決める |
 
 ### 社員データ(2026-10-14)
 - 社内サーバーの `社員名簿.xls`(「名簿 (2)」シート)から、在籍 54 人を**開発 DB に取り込み済み**(`npm run db:import-employees`、DESIGN.md 21 章)。**本番は未実施**。
