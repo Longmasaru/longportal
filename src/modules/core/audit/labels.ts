@@ -30,6 +30,7 @@ export const AUDIT_ACTION_LABEL: Record<string, string> = {
   "app.create": "アプリの登録(別プロジェクト)",
   "app.update": "アプリの設定の変更",
   "app.delete": "アプリの登録の削除",
+  "arigato.card.delete": "ありがとうカードの削除(管理)",
 };
 
 export function auditActionLabel(action: string): string {

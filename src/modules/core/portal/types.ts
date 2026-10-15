@@ -18,6 +18,7 @@ export type IconName =
   | "graduation"
   | "lightbulb"
   | "sprout"
+  | "heart"
   | "redo"
   | "file-text"
   | "wrench"
