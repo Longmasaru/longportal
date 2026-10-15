@@ -57,6 +57,13 @@
       "when": 1792068995177,
       "tag": "0007_core_employee_name_kana_dot",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792070551035,
+      "tag": "0008_core_notices_links",
+      "breakpoints": true
     }
   ]
 }

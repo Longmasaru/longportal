@@ -20,6 +20,13 @@ export const AUDIT_ACTION_LABEL: Record<string, string> = {
   "audience.create": "Audience の作成",
   "audience.update": "Audience の更新",
   "audience.delete": "Audience の削除",
+  "notice.create": "お知らせの作成",
+  "notice.update": "お知らせの更新",
+  "notice.unpublish": "お知らせを下書きに戻す",
+  "notice.delete": "お知らせの削除",
+  "link.create": "社内リンクの追加",
+  "link.update": "社内リンクの更新",
+  "link.delete": "社内リンクの削除",
 };
 
 export function auditActionLabel(action: string): string {

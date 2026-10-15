@@ -5,6 +5,8 @@ import { employeeAssignments, employees } from "../employees/schema";
 import { employmentTypes } from "../employment-types/schema";
 import { locations } from "../locations/schema";
 import { positions } from "../positions/schema";
+import { portalLinks } from "../links/schema";
+import { announcements } from "../notices/schema";
 import { audienceConditions, audienceGroups, audiences } from "./schema";
 import { definitionSchema, type AudienceDefinition } from "./definition";
 import { matchesAudience, type EmployeeContext } from "./evaluate";
@@ -201,10 +203,79 @@ export function lookupToOptions(lookup: MasterLookup): MasterOptions {
 }
 
 /**
- * この Audience の利用先(アプリ・お知らせ・社内リンクなど)。
- * 利用先のテーブル(app_registry など)が入る後続の手順で、ここに集約する。いまは常に空。
+ * この Audience の利用先(お知らせ・社内リンク。手順 6 でアプリを加える)。
+ * 利用中の Audience は削除できない(下書き・終了済みのお知らせ、無効のリンクも利用中として数える)。
  */
 export async function listAudienceUsages(audienceId: string): Promise<{ kind: string; name: string }[]> {
-  void audienceId;
-  return [];
+  const [notices, links] = await Promise.all([
+    db
+      .select({ title: announcements.title })
+      .from(announcements)
+      .where(eq(announcements.audienceId, audienceId)),
+    db.select({ title: portalLinks.title }).from(portalLinks).where(eq(portalLinks.audienceId, audienceId)),
+  ]);
+  return [
+    ...notices.map((n) => ({ kind: "お知らせ", name: `お知らせ「${n.title}」` })),
+    ...links.map((l) => ({ kind: "社内リンク", name: `社内リンク「${l.title}」` })),
+  ];
+}
+
+/** 有効な Audience の定義(無効・存在しない Audience は含めない = 誰にも当てはまらない)。 */
+export async function loadActiveDefinitions(audienceIds: string[]): Promise<Map<string, AudienceDefinition>> {
+  const ids = [...new Set(audienceIds)];
+  if (ids.length === 0) return new Map();
+  const active = await db
+    .select({ id: audiences.id })
+    .from(audiences)
+    .where(and(inArray(audiences.id, ids), eq(audiences.isActive, true)));
+  return loadDefinitions(active.map((a) => a.id));
+}
+
+/**
+ * 社員が当てはまる Audience(指定した中から、有効なものだけ)。社員でないアカウントは空。
+ * お知らせ・社内リンクなど、見る人ごとの表示の判定に使う(単一社員の判定と同じ matchesAudience)。
+ */
+export async function matchedAudienceIds(
+  employeeId: string | null,
+  audienceIds: string[],
+  today: string,
+): Promise<Set<string>> {
+  if (employeeId === null || audienceIds.length === 0) return new Set();
+  const [definitions, ctx] = await Promise.all([
+    loadActiveDefinitions(audienceIds),
+    loadEmployeeContext(employeeId, today),
+  ]);
+  if (!ctx) return new Set();
+  return new Set([...definitions].filter(([, def]) => matchesAudience(def, ctx, today)).map(([id]) => id));
+}
+
+/** 1 人の社員の、評価用の情報(loadPopulation と同じ形)。社員がいなければ null。 */
+export async function loadEmployeeContext(employeeId: string, today: string): Promise<EmployeeContext | null> {
+  const [row] = await db
+    .select({ employee: employees, positionIsManagement: positions.isManagement })
+    .from(employees)
+    .leftJoin(positions, eq(employees.positionId, positions.id))
+    .where(eq(employees.id, employeeId));
+  if (!row) return null;
+  const active = await db
+    .select({ departmentId: employeeAssignments.departmentId, locationId: employeeAssignments.locationId })
+    .from(employeeAssignments)
+    .where(
+      and(
+        eq(employeeAssignments.employeeId, employeeId),
+        lte(employeeAssignments.startDate, today),
+        or(isNull(employeeAssignments.endDate), gte(employeeAssignments.endDate, today)),
+      ),
+    );
+  const e = row.employee;
+  return {
+    employeeId: e.id,
+    status: e.status,
+    hiredOn: e.hiredOn,
+    leftOn: e.leftOn,
+    positionId: e.positionId,
+    positionIsManagement: row.positionIsManagement ?? false,
+    employmentTypeId: e.employmentTypeId,
+    assignments: active,
+  };
 }

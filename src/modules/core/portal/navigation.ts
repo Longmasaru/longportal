@@ -10,6 +10,8 @@ export const ADMIN_NAV: (NavLeaf & { permission: string })[] = [
   { key: "organization", label: "組織管理", href: "/admin/organization", icon: "building", permission: "core.organization.manage" },
   { key: "roles", label: "権限管理", href: "/admin/roles", icon: "shield", permission: "core.roles.manage" },
   { key: "audiences", label: "Audience管理", href: "/admin/audiences", icon: "target", permission: "core.audiences.manage" },
+  { key: "notices-admin", label: "お知らせ管理", href: "/admin/notices", icon: "megaphone", permission: "core.notices.manage" },
+  { key: "links-admin", label: "社内リンク管理", href: "/admin/links", icon: "link", permission: "core.links.manage" },
   { key: "apps-admin", label: "アプリ管理", href: "/admin/apps", icon: "layers", permission: "core.apps.manage" },
   { key: "audit-logs", label: "監査ログ", href: "/admin/audit-logs", icon: "clipboard", permission: "core.audit.view" },
 ];

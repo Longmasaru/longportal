@@ -4,3 +4,13 @@ export { definitionSchema } from "./definition";
 export type { AudienceDefinition, AudienceCondition, AudienceGroup } from "./definition";
 export { matchesAudience, type EmployeeContext } from "./evaluate";
 export { ensureDefaultAudiences, ALL_EMPLOYEES_AUDIENCE_NAME } from "./bootstrap";
+export {
+  evaluateDefinition,
+  listAudiences,
+  loadActiveDefinitions,
+  loadEmployeeContext,
+  loadPopulation,
+  matchedAudienceIds,
+  type AudienceRecord,
+  type EvaluationPopulation,
+} from "./queries";

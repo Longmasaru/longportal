@@ -70,7 +70,7 @@
 
 ### 次にやること(順番)
 1. **手順 6**: app registry(コード側の manifest + DB の運用設定)、manifest の同期(`npm run sync:manifests` に、アプリの権限と `app_registry` を追加)、`canAccessApp` / `requireAppAccess`。サイドバーとホームのアプリ表示を、Audience の判定につなぐ。Audience の「利用先」の表示と「利用中は削除不可」(`listAudienceUsages`)もここで有効にする。
-2. **手順 7**: お知らせ(共通モデル: target / priority / kind、Audience、既読)と社内リンクの登録・表示、ホームの実データ化。
+2. ~~**手順 7**~~(2026-10-15 完了・本番反映済み): お知らせ(全社・Audience・個人指定、通常・重要・緊急、ホームのバナー、既読、確認ボタン)と社内リンク。管理画面 `/admin/notices`・`/admin/links`、権限 `core.notices.manage`・`core.links.manage`。DESIGN.md 23 章。
 3. **手順 8**: TODO アプリの移植(TODOSample から。TODO は `user_id` に紐づく個人データ。Claude による自動分類、R2 添付ファイルも含む)。添付のメタ情報テーブル(ファイル名・サイズ・所有者)は、このときに migration で追加する。
 4. 以後: 教育・スキル、改善提案、出し直し管理、マニュアル、設備管理など。
 

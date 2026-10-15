@@ -594,3 +594,27 @@ MVP 後: notifications、副所属の UI、将来日付での Audience プレビ
   - 表示用のかな(`name_kana`)は、姓(かな)に中黒があれば中黒で、なければ全角空白でつなぐ(migration 0007)。
 - **区切りのないかな**(名簿の「ヤマダタロウ」など)は、規則では分けられない。漢字の姓名を手がかりに分けた一覧(CSV: `employee_number,family_name_kana,given_name_kana`)を人が確認し、`npm run db:update-name-kana -- <CSV> --actor <ログインID> [--apply]`(`scripts/update-name-kana.ts`)で入れる。今のかなと、区切りを除いて文字が一致しない行があれば、何も更新しない。2026-10-15 に開発 DB の 43 人分で使用(確認待ち)。
 - 名簿 CSV の見出しは今までどおり(`name` / `name_kana` に氏名全体)。取り込み時に上の規則で分ける。
+
+## 23. 実装メモ(手順 7: お知らせ・社内リンク)
+
+4.3 の `announcements` / `portal_links` と「お知らせの共通モデル」(15 章)を、次の形で実装する。module は `core/notices`(お知らせ)と `core/links`(社内リンク)。ポータル画面(`core/portal`)は、この 2 つの公開 API だけを呼ぶ。
+
+### テーブル
+
+- **`core.announcements`** … `id`、`title`(100 字まで)、`body`(5000 字まで。文章と改行のみ)、`kind`(連絡・確認依頼・承認依頼・教育・担当案件・安全・健康・行事・ルール・システム)、`priority`(`normal` / `important` / `urgent`)、`target`(`company` / `audience` / `individual`)、`audience_id`(`target = audience` のときだけ必須。CHECK 制約)、`requires_action`(確認ボタンを出すか)、`status`(`draft` / `published`)、`published_on`(掲載開始日・JST)、`expires_on`(掲載の最終日・任意)、`banner_until`(ホーム上部のバナーの最終日。`company` かつ `urgent` のときだけ。CHECK 制約)、`created_by` / `updated_by`(user_id)、作成・更新日時。
+- **`core.announcement_recipients`** … `target = individual` の宛先(`announcement_id` × `employee_id`)。
+- **`core.announcement_reads`** … 本人ごとの状態(`announcement_id` × `user_id`、`read_at`、`acknowledged_at`)。詳細を開いたら既読、確認ボタンを押したら確認済み。
+- **`core.portal_links`** … `id`、`title`、`url`(`https://` / `http://` のみ)、`description`、`target`(`company` / `audience`)、`audience_id`、`sort_order`、`is_active`、作成・更新日時。
+
+### 見える条件(deny by default)
+
+- お知らせ: `status = published` かつ `published_on <= 今日 <= expires_on`(空なら無期限)、かつ宛先に当てはまる。`company` = ログインできる全員。`audience` = その Audience に一致する社員(無効な Audience は誰にも見せない)。`individual` = 宛先に入っている社員。
+- 対象外の人には、一覧にも詳細にも出さない(詳細は 404)。既読・確認の操作も、同じ判定を通す。
+- 社内リンク: `is_active` かつ宛先に当てはまる。
+- 判定は Audience の `matchesAudience`(単一社員の判定と同じ関数)を使う。
+
+### 画面
+
+- 社員: `/notices/personal`(`company` 以外)、`/notices/company`(`company`)、`/notices/[id]`(詳細。開くと既読。確認が必要なら「確認しました」ボタン)。ホームは既存の部品(緊急バナー・あなたへのお知らせ)に実データを渡す。サイドバーに未読の件数。要対応 = `requires_action` で、まだ確認していないもの。
+- 管理: `/admin/notices`(一覧・作成・編集・公開・下書きに戻す。宛先の人数と、既読・確認の人数。確認状況の一覧)、`/admin/links`(登録・編集・並び順・有効 / 無効)。権限は `core.notices.manage` / `core.links.manage`(全社)。権限管理の画面で、ロールに付けて任せられる。
+- 変更はすべて監査ログに記録する。Audience の「利用先」(`listAudienceUsages`)に、お知らせと社内リンクを加える(利用中の Audience は削除できない)。

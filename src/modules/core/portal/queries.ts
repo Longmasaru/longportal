@@ -1,9 +1,10 @@
 // ポータル画面のデータ取得口。画面コンポーネントはここだけを呼ぶ。
-// 利用者(ユーザー・所属・役職)は実データ。お知らせ・アプリ・社内リンクは未実装のため空を返し、
-// 画面は枠だけを出す(見本の架空データは出さない)。実装時に下の list* の中身を差し替える
-// (canAccessApp で絞り込んだアプリ、Audience・個人指定で絞り込んだお知らせ・リンク)。
+// 利用者・お知らせ・社内リンクは実データ(宛先・Audience の判定は core/notices・core/links が行う)。
+// アプリは手順 6(app registry・canAccessApp)まで固定。見本の架空データは出さない。
 import { redirect } from "next/navigation";
 import { canGlobally, requireActor, type Actor } from "../access";
+import { listLinksForActor } from "../links";
+import { listNoticesForActor } from "../notices";
 import { todayJst } from "../shared/jst";
 import { ADMIN_NAV, buildNavigation } from "./navigation";
 import { comparePersonalNotices, isBannerActive, noticeChannel } from "./notices";
@@ -39,14 +40,28 @@ async function listVisibleApps(): Promise<PortalApp[]> {
   ];
 }
 
-/** 利用者に届くお知らせ。手順 7 で実装する。 */
-async function listVisibleNotices(): Promise<Notice[]> {
-  return [];
+/** 利用者に届いている、掲載中のお知らせ(画面用の形)。要対応 = 確認が必要で、まだ確認していないもの。 */
+async function listVisibleNotices(actor: Actor): Promise<Notice[]> {
+  const list = await listNoticesForActor(actor);
+  return list.map((n) => ({
+    id: n.id,
+    title: n.title,
+    summary: n.summary,
+    kind: n.kind,
+    priority: n.priority,
+    target: n.target,
+    publishedOn: n.publishedOn,
+    isRead: n.isRead,
+    requiresAction: n.requiresAction && !n.isAcknowledged,
+    bannerUntil: n.isBanner && n.bannerUntil ? n.bannerUntil : undefined,
+    href: `/notices/${n.id}`,
+  }));
 }
 
-/** 利用者に見える社内リンク。手順 7 で実装する。 */
-async function listVisibleLinks(): Promise<PortalLink[]> {
-  return [];
+/** 利用者に見える社内リンク(有効で、宛先に当てはまるもの)。 */
+async function listVisibleLinks(actor: Actor): Promise<PortalLink[]> {
+  const links = await listLinksForActor(actor);
+  return links.map((l) => ({ id: l.id, title: l.title, description: l.description, url: l.url }));
 }
 
 
@@ -95,8 +110,8 @@ export async function getPortalContext(): Promise<PortalContext> {
   const user = toPortalUser(actor, adminItems.length > 0);
   const [apps, notices, links] = await Promise.all([
     listVisibleApps(),
-    listVisibleNotices(),
-    listVisibleLinks(),
+    listVisibleNotices(actor),
+    listVisibleLinks(actor),
   ]);
   return {
     user,
@@ -109,21 +124,23 @@ export async function getPortalContext(): Promise<PortalContext> {
  * 緊急の全社連絡(バナー)・本人宛のお知らせ・要対応。通常の全社連絡は含めない。
  */
 export async function getPortalHome(): Promise<PortalHomeData> {
-  await requirePortalActor();
+  const actor = await requirePortalActor();
   const today = todayJst();
-  const [notices, apps] = await Promise.all([listVisibleNotices(), listVisibleApps()]);
+  const [notices, apps] = await Promise.all([listVisibleNotices(actor), listVisibleApps()]);
 
   const personal = notices.filter((n) => noticeChannel(n) === "personal");
   const personalSorted = [...personal].sort(comparePersonalNotices);
   // 既読で対応も不要なものは、ホームには出さない(一覧は個人のお知らせ画面で見る)。
-  const personalForHome = personalSorted
-    .filter((n) => n.requiresAction || !n.isRead)
+  // 全社宛でも、確認が必要でまだ確認していないものは、ホームに出す(見落とし防止)。
+  const companyActions = notices.filter((n) => noticeChannel(n) === "company" && n.requiresAction);
+  const personalForHome = [...personalSorted.filter((n) => n.requiresAction || !n.isRead), ...companyActions]
+    .sort(comparePersonalNotices)
     .slice(0, HOME_PERSONAL_NOTICE_LIMIT);
 
   return {
     urgentBanners: notices.filter((n) => isBannerActive(n, today)).slice(0, HOME_BANNER_LIMIT),
     personalNotices: personalForHome,
-    actionRequiredCount: personal.filter((n) => n.requiresAction).length,
+    actionRequiredCount: personal.filter((n) => n.requiresAction).length + companyActions.length,
     // 実装後は各アプリの manifest が提供する「未対応件数」を集める。
     pendingItems: apps.flatMap((app) =>
       app.summary?.tone === "attention"

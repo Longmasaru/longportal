@@ -9,3 +9,5 @@ export * from "@/modules/core/auth/schema";
 export * from "@/modules/core/audit/schema";
 export * from "@/modules/core/roles/schema";
 export * from "@/modules/core/audience/schema";
+export * from "@/modules/core/notices/schema";
+export * from "@/modules/core/links/schema";
