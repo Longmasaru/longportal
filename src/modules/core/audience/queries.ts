@@ -5,6 +5,7 @@ import { employeeAssignments, employees } from "../employees/schema";
 import { employmentTypes } from "../employment-types/schema";
 import { locations } from "../locations/schema";
 import { positions } from "../positions/schema";
+import { appRegistry } from "../apps/schema";
 import { portalLinks } from "../links/schema";
 import { announcements } from "../notices/schema";
 import { audienceConditions, audienceGroups, audiences } from "./schema";
@@ -203,11 +204,15 @@ export function lookupToOptions(lookup: MasterLookup): MasterOptions {
 }
 
 /**
- * この Audience の利用先(お知らせ・社内リンク。手順 6 でアプリを加える)。
+ * この Audience の利用先(アプリ・お知らせ・社内リンク)。
  * 利用中の Audience は削除できない(下書き・終了済みのお知らせ、無効のリンクも利用中として数える)。
  */
 export async function listAudienceUsages(audienceId: string): Promise<{ kind: string; name: string }[]> {
-  const [notices, links] = await Promise.all([
+  const [apps, notices, links] = await Promise.all([
+    db
+      .select({ name: appRegistry.displayName })
+      .from(appRegistry)
+      .where(eq(appRegistry.audienceId, audienceId)),
     db
       .select({ title: announcements.title })
       .from(announcements)
@@ -215,6 +220,7 @@ export async function listAudienceUsages(audienceId: string): Promise<{ kind: st
     db.select({ title: portalLinks.title }).from(portalLinks).where(eq(portalLinks.audienceId, audienceId)),
   ]);
   return [
+    ...apps.map((a) => ({ kind: "アプリ", name: `アプリ「${a.name}」` })),
     ...notices.map((n) => ({ kind: "お知らせ", name: `お知らせ「${n.title}」` })),
     ...links.map((l) => ({ kind: "社内リンク", name: `社内リンク「${l.title}」` })),
   ];

@@ -86,6 +86,8 @@ export type PortalApp = {
   description: string;
   icon: IconName;
   href: string;
+  /** 別プロジェクトのアプリ(別タブで開く)。 */
+  external?: boolean;
   /** アプリ側が提供する未処理件数などの要約。 */
   summary?: { label: string; tone: BadgeTone };
 };

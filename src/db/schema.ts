@@ -11,3 +11,4 @@ export * from "@/modules/core/roles/schema";
 export * from "@/modules/core/audience/schema";
 export * from "@/modules/core/notices/schema";
 export * from "@/modules/core/links/schema";
+export * from "@/modules/core/apps/schema";

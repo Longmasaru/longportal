@@ -618,3 +618,14 @@ MVP 後: notifications、副所属の UI、将来日付での Audience プレビ
 - 社員: `/notices/personal`(`company` 以外)、`/notices/company`(`company`)、`/notices/[id]`(詳細。開くと既読。確認が必要なら「確認しました」ボタン)。ホームは既存の部品(緊急バナー・あなたへのお知らせ)に実データを渡す。サイドバーに未読の件数。要対応 = `requires_action` で、まだ確認していないもの。
 - 管理: `/admin/notices`(一覧・作成・編集・公開・下書きに戻す。宛先の人数と、既読・確認の人数。確認状況の一覧)、`/admin/links`(登録・編集・並び順・有効 / 無効)。権限は `core.notices.manage` / `core.links.manage`(全社)。権限管理の画面で、ロールに付けて任せられる。
 - 変更はすべて監査ログに記録する。Audience の「利用先」(`listAudienceUsages`)に、お知らせと社内リンクを加える(利用中の Audience は削除できない)。
+
+## 24. 実装メモ(手順 6: アプリの登録簿)
+
+8 章の app registry を、次の形で実装する(module は `core/apps`)。2026-10-15 にユーザーと決めた範囲: 登録簿・Audience による表示と入場の制限・**別プロジェクトのアプリは URL で登録**。別プロジェクトへの自動ログイン(SSO)と、アプリごとの開発者・管理者の指定(`docs/plans/step6-plan-draft.md`)は、あとの段階。
+
+- **`core.app_registry`** … `app_key`(PK・永続。半角小文字・数字・`_` `-`)、`kind`(`internal` = ポータルの中のアプリ / `external` = 別プロジェクトのアプリ)、`display_name`、`description`、`icon`、`url`(external だけ。`https://` / `http://`)、`route`(internal だけ。manifest から)、`target`(`company` / `audience`)、`audience_id`、`sort_order`、`is_enabled`、`in_manifest`(internal で、manifest にまだあるか)、作成・更新日時。
+- **internal**: コード側の manifest(`modules/apps/○○/manifest.ts`。一覧は `modules/apps/manifests.ts`)を `npm run sync:manifests` で登録する。初回は `is_enabled = false`(誰にも見えない)。2 回目以降は `route` と権限だけを更新し、管理画面で決めた表示名・Audience・表示順などは上書きしない。manifest から消えたアプリは `is_enabled = false`・`in_manifest = false` にして警告する(削除しない)。
+- **external**: 管理画面(`/admin/apps`)から登録する(sync の対象外)。サイドバーから別タブで開く。いまは URL を開くだけで、ログインは各アプリ側。
+- **見える条件**(deny by default): `is_enabled` かつ宛先に当てはまる(`company` = 全員、`audience` = 有効な Audience に一致)。サイドバー・ホームのアプリ一覧は、この判定を通ったものだけ。
+- **入場の制限**: internal のアプリのページは、最初に `requireAppAccess(app_key)` を呼ぶ。見えない人は 404(存在も知らせない)。判定は `canAccessApp`。
+- **管理**: `/admin/apps`(権限 `core.apps.manage`)。表示名・説明・アイコン・表示順・有効/無効・宛先を変更、external の追加・削除。変更は監査ログに記録。Audience の利用先に、アプリを加える。

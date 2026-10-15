@@ -27,6 +27,9 @@ export const AUDIT_ACTION_LABEL: Record<string, string> = {
   "link.create": "社内リンクの追加",
   "link.update": "社内リンクの更新",
   "link.delete": "社内リンクの削除",
+  "app.create": "アプリの登録(別プロジェクト)",
+  "app.update": "アプリの設定の変更",
+  "app.delete": "アプリの登録の削除",
 };
 
 export function auditActionLabel(action: string): string {

@@ -1,8 +1,9 @@
 // ポータル画面のデータ取得口。画面コンポーネントはここだけを呼ぶ。
 // 利用者・お知らせ・社内リンクは実データ(宛先・Audience の判定は core/notices・core/links が行う)。
-// アプリは手順 6(app registry・canAccessApp)まで固定。見本の架空データは出さない。
+// アプリはアプリの登録簿(core/apps)で判定する。見本の架空データは出さない。
 import { redirect } from "next/navigation";
 import { canGlobally, requireActor, type Actor } from "../access";
+import { listAppsForActor } from "../apps";
 import { listLinksForActor } from "../links";
 import { listNoticesForActor } from "../notices";
 import { todayJst } from "../shared/jst";
@@ -21,23 +22,19 @@ import type {
 const HOME_PERSONAL_NOTICE_LIMIT = 5;
 const HOME_BANNER_LIMIT = 2;
 
-// ---- 未実装の情報(実装時に、利用者(actor)で絞り込む DB 参照へ差し替える) ----
+// ---- 利用者に見せる情報 ----
 
-/**
- * 利用者が使えるアプリ。手順 6(app registry・canAccessApp)で DB 参照に差し替える。
- * それまでは、実装済みで全社員が見てよいアプリ(apps/sodatsu)だけを固定で返す。
- * core は apps を参照できないので、表示内容は apps/sodatsu の manifest と合わせて書く。
- */
-async function listVisibleApps(): Promise<PortalApp[]> {
-  return [
-    {
-      appKey: "sodatsu",
-      displayName: "育てて、育つ。",
-      description: "ロングの人事ポリシー「育てて、育つ。」の考え方と、今日からできることをまとめています。",
-      icon: "sprout",
-      href: "/apps/sodatsu",
-    },
-  ];
+/** 利用者が使えるアプリ(アプリの登録簿で有効で、表示する相手に当てはまるもの)。 */
+async function listVisibleApps(actor: Actor): Promise<PortalApp[]> {
+  const apps = await listAppsForActor(actor);
+  return apps.map((a) => ({
+    appKey: a.appKey,
+    displayName: a.displayName,
+    description: a.description,
+    icon: a.icon,
+    href: a.kind === "external" ? a.url! : a.route!,
+    external: a.kind === "external",
+  }));
 }
 
 /** 利用者に届いている、掲載中のお知らせ(画面用の形)。要対応 = 確認が必要で、まだ確認していないもの。 */
@@ -109,7 +106,7 @@ export async function getPortalContext(): Promise<PortalContext> {
   const adminItems = visibleAdminItems(actor);
   const user = toPortalUser(actor, adminItems.length > 0);
   const [apps, notices, links] = await Promise.all([
-    listVisibleApps(),
+    listVisibleApps(actor),
     listVisibleNotices(actor),
     listVisibleLinks(actor),
   ]);
@@ -126,7 +123,7 @@ export async function getPortalContext(): Promise<PortalContext> {
 export async function getPortalHome(): Promise<PortalHomeData> {
   const actor = await requirePortalActor();
   const today = todayJst();
-  const [notices, apps] = await Promise.all([listVisibleNotices(actor), listVisibleApps()]);
+  const [notices, apps] = await Promise.all([listVisibleNotices(actor), listVisibleApps(actor)]);
 
   const personal = notices.filter((n) => noticeChannel(n) === "personal");
   const personalSorted = [...personal].sort(comparePersonalNotices);

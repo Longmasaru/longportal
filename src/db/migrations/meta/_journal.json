@@ -64,6 +64,13 @@
       "when": 1792070551035,
       "tag": "0008_core_notices_links",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1792073019820,
+      "tag": "0009_core_app_registry",
+      "breakpoints": true
     }
   ]
 }

@@ -72,15 +72,14 @@
 - `/notices/*`、`/admin/apps` は「準備中」ページ(`[...slug]` のキャッチオール)。
 
 ### 次にやること(順番)
-1. **手順 6**: app registry(コード側の manifest + DB の運用設定)、manifest の同期(`npm run sync:manifests` に、アプリの権限と `app_registry` を追加)、`canAccessApp` / `requireAppAccess`。サイドバーとホームのアプリ表示を、Audience の判定につなぐ。Audience の「利用先」の表示と「利用中は削除不可」(`listAudienceUsages`)もここで有効にする。
+1. ~~**手順 6**~~(2026-10-15 完了。DESIGN.md 24 章。登録簿 `/admin/apps`、ポータルの中のアプリは `requireAppAccess` で入場を制限、別プロジェクトのアプリは URL で登録。自動ログイン(SSO)と、アプリごとの開発者・管理者の指定は、あとの段階):  app registry(コード側の manifest + DB の運用設定)、manifest の同期(`npm run sync:manifests` に、アプリの権限と `app_registry` を追加)、`canAccessApp` / `requireAppAccess`。サイドバーとホームのアプリ表示を、Audience の判定につなぐ。Audience の「利用先」の表示と「利用中は削除不可」(`listAudienceUsages`)もここで有効にする。
 2. ~~**手順 7**~~(2026-10-15 完了・本番反映済み): お知らせ(全社・Audience・個人指定、通常・重要・緊急、ホームのバナー、既読、確認ボタン)と社内リンク。管理画面 `/admin/notices`・`/admin/links`、権限 `core.notices.manage`・`core.links.manage`。DESIGN.md 23 章。
 3. **手順 8**: TODO アプリの移植(TODOSample から。TODO は `user_id` に紐づく個人データ。Claude による自動分類、R2 添付ファイルも含む)。添付のメタ情報テーブル(ファイル名・サイズ・所有者)は、このときに migration で追加する。
 4. 以後: 教育・スキル、改善提案、出し直し管理、マニュアル、設備管理など。
 
 ### 社員にアカウントを配る前のチェック(未了)
 - ~~見本データの除去~~(2026-10-14 に完了)。お知らせ・アプリ・社内リンクの実装(手順 6・7)。
-- Vercel の **Hobby プランは個人・非商用向け**(利用規約を要確認)。会社の業務利用では Pro が必要になる可能性。
-- **DB がシンガポール**(Neon の AWS ap-southeast-1)にあることの、社内の個人情報の取り扱いルールでの確認。
+- 2026-10-15 ユーザーの判断: 本番は **Hobby プランのまま**、DB は**シンガポールのまま**(Neon に東京の地域がなく、日本に最も近い)。※ Vercel の Hobby は利用規約上「個人・非商用向け」。社員に配る段階で、Pro への切り替えを再検討する材料として残す。
 - 追加の強化候補: パスワード変更画面の失敗制限、ロックの管理者への通知、2 要素認証、CSP、CSV 一括登録(社員)。
 
 ## 5. インフラ・環境(外側の構成は TODOSample と同じ)

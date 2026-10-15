@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import { redirect } from "next/navigation";
-import { requireActor } from "@/modules/core/access";
+import { requireAppAccess } from "@/modules/core/apps";
+import { manifest } from "../manifest";
 import {
   CHAIN,
   COMPANY_FACTS,
@@ -65,10 +65,12 @@ function Key({ children }: { children: ReactNode }) {
   return <p className="border-brand03 text-brand01 border-l-[3px] pl-3 font-bold">{children}</p>;
 }
 
-/** 人事ポリシー「育てて、育つ。」の紹介ページ。ログインした社員なら誰でも見られる。 */
+/**
+ * 人事ポリシー「育てて、育つ。」の紹介ページ。アプリ管理(登録簿)で有効にし、
+ * 表示する相手に当てはまる社員だけが見られる(それ以外は 404)。
+ */
 export async function SodatsuPage() {
-  const actor = await requireActor();
-  if (actor.mustChangePassword) redirect("/password");
+  const actor = await requireAppAccess(manifest.appKey);
   return <SodatsuContent userId={actor.userId} />;
 }
 
