@@ -68,19 +68,24 @@ function receivableWhere(today: string) {
   );
 }
 
-/** 送り先の候補(自分以外。フリガナ順)。 */
-export async function listRecipients(selfUserId: string, today: string): Promise<Recipient[]> {
+/** 在籍中でアカウントのある社員(フリガナ順)。除く人を指定できる。 */
+async function listReceivable(today: string, excludeUserId?: string): Promise<Recipient[]> {
   const rows = await db
     .select({ userId: users.id, employeeId: employees.id, name: employees.name })
     .from(users)
     .innerJoin(employees, eq(employees.id, users.employeeId))
-    .where(and(receivableWhere(today), ne(users.id, selfUserId)))
+    .where(and(receivableWhere(today), excludeUserId ? ne(users.id, excludeUserId) : undefined))
     .orderBy(asc(employees.nameKana), asc(employees.name));
   const depts = await primaryDepartments(
     rows.map((r) => r.employeeId),
     today,
   );
   return rows.map((r) => ({ userId: r.userId, name: r.name, departmentName: depts.get(r.employeeId)?.name ?? null }));
+}
+
+/** 送り先の候補(自分以外。フリガナ順)。 */
+export function listRecipients(selfUserId: string, today: string): Promise<Recipient[]> {
+  return listReceivable(today, selfUserId);
 }
 
 /** 送り先として有効か。有効なら、送った時点の主所属の部署 id(未配属は null)を返す。 */
@@ -200,6 +205,28 @@ export async function getWeekStatus(userId: string, today: string): Promise<Week
   };
 }
 
+/**
+ * 加点(docs/DESIGN.md 26 章): 送ったカード 1 枚につき 1 点。ただし同じ相手には 1 日 1 点まで
+ * (同じ日に同じ人へ何枚送っても 1 点)。「本人にだけ」のカードも数え、取り消したカードは数えない。
+ */
+const pointsExpr = sql<number>`count(distinct (${arigatoCards.toUserId}, ${arigatoCards.sentOn}))::int`;
+
+function monthWhere(month: string) {
+  const range = monthRange(month);
+  return and(gte(arigatoCards.sentOn, range.start), lte(arigatoCards.sentOn, range.end));
+}
+
+/** その人の、その月の加点と送った枚数。 */
+export async function getMonthPoints(userId: string, month: string): Promise<{ points: number; cards: number }> {
+  const [row] = await db
+    .select({ points: pointsExpr, cards: count() })
+    .from(arigatoCards)
+    .where(and(eq(arigatoCards.fromUserId, userId), monthWhere(month)));
+  return { points: row?.points ?? 0, cards: row?.cards ?? 0 };
+}
+
+export type SenderPoints = { userId: string; name: string; departmentName: string | null; points: number; cards: number };
+
 export type MonthStats = {
   month: string;
   total: number;
@@ -207,14 +234,15 @@ export type MonthStats = {
   byTag: { tag: ArigatoTag; count: number }[];
   byDepartment: { name: string; count: number }[];
   topReceivers: { name: string; count: number }[];
+  /** 在籍中の全員(0 点の人も含む)と、その月に送った人の加点。点数の多い順。 */
+  senderPoints: SenderPoints[];
 };
 
 /** 月の集計(「本人にだけ」のカードも件数には含める。本文は返さない)。 */
-export async function getMonthStats(month: string): Promise<MonthStats> {
-  const range = monthRange(month);
-  const where = and(gte(arigatoCards.sentOn, range.start), lte(arigatoCards.sentOn, range.end));
+export async function getMonthStats(month: string, today: string): Promise<MonthStats> {
+  const where = monthWhere(month);
 
-  const [[totals], byTag, byDepartment, topReceivers] = await Promise.all([
+  const [[totals], byTag, byDepartment, topReceivers, pointRows, members] = await Promise.all([
     db
       .select({ total: count(), senders: sql<number>`count(distinct ${arigatoCards.fromUserId})::int` })
       .from(arigatoCards)
@@ -236,7 +264,26 @@ export async function getMonthStats(month: string): Promise<MonthStats> {
       .groupBy(toUser.id, toUser.loginId, toEmployee.name)
       .orderBy(desc(count()), asc(toEmployee.name))
       .limit(10),
+    db
+      .select({ userId: arigatoCards.fromUserId, name: nameOf(fromUser, fromEmployee), points: pointsExpr, cards: count() })
+      .from(arigatoCards)
+      .innerJoin(fromUser, eq(fromUser.id, arigatoCards.fromUserId))
+      .leftJoin(fromEmployee, eq(fromEmployee.id, fromUser.employeeId))
+      .where(where)
+      .groupBy(arigatoCards.fromUserId, fromUser.loginId, fromEmployee.name),
+    listReceivable(today),
   ]);
+
+  // 在籍中の全員を 0 点で並べ、送った人の点数を重ねる(退職などで一覧にいない送り主も残す)。
+  const byUser = new Map<string, SenderPoints>(members.map((m) => [m.userId, { ...m, points: 0, cards: 0 }]));
+  for (const r of pointRows) {
+    const base = byUser.get(r.userId) ?? { userId: r.userId, name: r.name, departmentName: null, points: 0, cards: 0 };
+    byUser.set(r.userId, { ...base, points: r.points, cards: r.cards });
+  }
+  const order = new Map(members.map((m, i) => [m.userId, i]));
+  const senderPoints = [...byUser.values()].sort(
+    (a, b) => b.points - a.points || (order.get(a.userId) ?? Infinity) - (order.get(b.userId) ?? Infinity),
+  );
 
   const tagCounts = new Map(byTag.map((r) => [r.tag, r.count]));
   return {
@@ -246,5 +293,6 @@ export async function getMonthStats(month: string): Promise<MonthStats> {
     byTag: ARIGATO_TAGS.map((tag) => ({ tag, count: tagCounts.get(tag) ?? 0 })),
     byDepartment,
     topReceivers,
+    senderPoints,
   };
 }

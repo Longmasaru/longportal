@@ -13,7 +13,7 @@ import {
   MESSAGE_MAX_LENGTH,
 } from "./constants";
 import { manifest } from "./manifest";
-import { checkRecipient, countSentOn, getCard, type CardRow } from "./queries";
+import { checkRecipient, countSentOn, getCard, getMonthPoints, type CardRow } from "./queries";
 import { arigatoCards, arigatoLikes } from "./schema";
 
 // ありがとうカードの Server Action(docs/DESIGN.md 26 章)。画面以外からも呼べるため、
@@ -34,7 +34,8 @@ const SendInput = z
   })
   .strict();
 
-export type SendResult = { ok: true; card: CardRow } | { ok: false; error: string };
+/** myPoints = 送った人の今月の加点(送った・取り消した後の値)。 */
+export type SendResult = { ok: true; card: CardRow; myPoints: number } | { ok: false; error: string };
 
 export async function sendCardAction(input: z.input<typeof SendInput>): Promise<SendResult> {
   const actor = await requireAppAccess(manifest.appKey);
@@ -63,7 +64,8 @@ export async function sendCardAction(input: z.input<typeof SendInput>): Promise<
     .returning({ id: arigatoCards.id });
   const card = await getCard(actor.userId, row.id);
   if (!card) return { ok: false, error: "送信しましたが、表示に失敗しました。画面を読み込み直してください。" };
-  return { ok: true, card };
+  const { points } = await getMonthPoints(actor.userId, actor.today.slice(0, 7));
+  return { ok: true, card, myPoints: points };
 }
 
 /** いいねを付ける・外す(読めるカードだけ)。 */
@@ -86,15 +88,16 @@ export async function toggleLikeAction(idInput: string): Promise<{ liked: boolea
  * カードを削除する。送った本人は自分のカードを、権限 arigato.cards.manage(全社)を持つ人は
  * どのカードでも削除できる(本人以外が消したときは監査ログに残す)。
  */
-export async function deleteCardAction(idInput: string): Promise<void> {
+export async function deleteCardAction(idInput: string): Promise<{ myPoints: number }> {
   const actor = await requireAppAccess(manifest.appKey);
   const id = Id.parse(idInput);
+  const myPoints = async () => ({ myPoints: (await getMonthPoints(actor.userId, actor.today.slice(0, 7))).points });
   const [card] = await db.select().from(arigatoCards).where(eq(arigatoCards.id, id));
-  if (!card) return;
+  if (!card) return myPoints();
 
   if (card.fromUserId === actor.userId) {
     await db.delete(arigatoCards).where(eq(arigatoCards.id, id));
-    return;
+    return myPoints();
   }
   if (!canGlobally(actor, "arigato.cards.manage")) throw new Error("このカードは削除できません。");
   await db.transaction(async (tx) => {
@@ -107,4 +110,5 @@ export async function deleteCardAction(idInput: string): Promise<void> {
       before: card,
     });
   });
+  return myPoints();
 }

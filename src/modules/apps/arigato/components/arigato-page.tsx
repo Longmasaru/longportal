@@ -2,18 +2,19 @@ import Link from "next/link";
 import { canGlobally } from "@/modules/core/access";
 import { canAccessApp, requireAppAccess } from "@/modules/core/apps";
 import { manifest } from "../manifest";
-import { getWeekStatus, listFeed, listReceived, listRecipients } from "../queries";
+import { getMonthPoints, getWeekStatus, listFeed, listReceived, listRecipients } from "../queries";
 import { ArigatoBoard } from "./arigato-board";
 
 /** ありがとうカードの入口。アプリ管理で有効にし、表示する相手に当てはまる人だけ(それ以外は 404)。 */
 export async function ArigatoPage() {
   const actor = await requireAppAccess(manifest.appKey);
-  const [recipients, feed, received, week, canSeeSodatsu] = await Promise.all([
+  const [recipients, feed, received, week, canSeeSodatsu, myPoints] = await Promise.all([
     listRecipients(actor.userId, actor.today),
     listFeed(actor.userId),
     listReceived(actor.userId),
     getWeekStatus(actor.userId, actor.today),
     canAccessApp(actor, "sodatsu"),
+    getMonthPoints(actor.userId, actor.today.slice(0, 7)),
   ]);
   const canViewStats = canGlobally(actor, "arigato.stats.view");
 
@@ -45,6 +46,7 @@ export async function ArigatoPage() {
         initialFeed={feed}
         initialReceived={received}
         initialWeek={week}
+        initialMyPoints={myPoints.points}
       />
     </div>
   );

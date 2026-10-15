@@ -47,7 +47,7 @@ export async function ArigatoStatsPage({ month: monthParam }: { month?: string }
 
   const current = actor.today.slice(0, 7);
   const month = monthParam && MONTH_PATTERN.test(monthParam) && monthParam <= current ? monthParam : current;
-  const stats = await getMonthStats(month);
+  const stats = await getMonthStats(month, actor.today);
   const prev = shiftMonth(month, -1);
   const next = shiftMonth(month, 1);
 
@@ -57,7 +57,7 @@ export async function ArigatoStatsPage({ month: monthParam }: { month?: string }
         <p className="font-heading text-brand03 text-xs font-bold tracking-[0.2em]">THANKS CARD</p>
         <h1 className="text-brand01 text-2xl font-black">ありがとうカードの集計</h1>
         <p className="text-brand04 text-sm">
-          「本人にだけ」のカードも件数に含めています。朝礼での紹介や、年に一度の表彰の材料に使ってください。個人の評価には直接つなげない方針です。
+          ありがとうを伝えた人を評価するための集計です。加点は送ったカード 1 枚につき 1 点で、同じ相手には 1 日 1 点までです。「本人にだけ」のカードも数え、取り消したカードは数えません。
         </p>
         <Link href="/apps/arigato" className="text-brand01 hover:text-brand03 self-start text-sm font-bold">
           ← カードに戻る
@@ -89,13 +89,42 @@ export async function ArigatoStatsPage({ month: monthParam }: { month?: string }
         </div>
       </div>
 
+      <Block title="送った人の加点(1 枚 1 点・同じ相手は 1 日 1 点まで)">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-brand04 border-brand01/15 border-b text-left text-xs">
+                <th className="py-2 pr-3 font-bold">名前</th>
+                <th className="py-2 pr-3 font-bold">部署</th>
+                <th className="py-2 pr-3 text-right font-bold">送った枚数</th>
+                <th className="py-2 text-right font-bold">加点</th>
+              </tr>
+            </thead>
+            <tbody>
+              {stats.senderPoints.map((r) => (
+                <tr key={r.userId} className="border-brand01/10 border-b">
+                  <td className="text-brand01 py-2 pr-3 font-bold whitespace-nowrap">{r.name}</td>
+                  <td className="text-brand04 py-2 pr-3 whitespace-nowrap">{r.departmentName ?? "—"}</td>
+                  <td className="text-brand04 py-2 pr-3 text-right tabular-nums">{r.cards}</td>
+                  <td
+                    className={`py-2 text-right font-bold tabular-nums ${r.points > 0 ? "text-brand01" : "text-brand04"}`}
+                  >
+                    {r.points}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Block>
+
       <Block title="どんなこと">
         <Bars rows={stats.byTag.map((r) => ({ label: ARIGATO_TAG_LABEL[r.tag], count: r.count }))} />
       </Block>
       <Block title="受け取った人の部署(送った時点)">
         <Bars rows={stats.byDepartment.map((r) => ({ label: r.name, count: r.count }))} />
       </Block>
-      <Block title="受け取った枚数の多い人(上位 10 人)">
+      <Block title="受け取った枚数の多い人(上位 10 人・参考。加点はしません)">
         <Bars rows={stats.topReceivers.map((r) => ({ label: r.name, count: r.count }))} />
       </Block>
     </div>

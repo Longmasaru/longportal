@@ -9,6 +9,7 @@ import type { CardRow, Recipient, WeekStatus } from "../queries";
 // ありがとうカードの画面(docs/DESIGN.md 26 章)。「みんな」「送る」「自分あて」の 3 つのタブ。
 
 type Tab = "feed" | "send" | "mine";
+
 const TAB_LABEL: Record<Tab, string> = { feed: "みんな", send: "送る", mine: "自分あて" };
 
 const TIME_FORMAT = new Intl.DateTimeFormat("ja-JP", {
@@ -30,7 +31,7 @@ function CardItem({
   viewerId: string;
   canManage: boolean;
   onChange: (card: CardRow) => void;
-  onDelete: (id: string) => void;
+  onDelete: (id: string, myPoints: number) => void;
 }) {
   const [pending, startTransition] = useTransition();
   const [confirming, setConfirming] = useState(false);
@@ -46,8 +47,8 @@ function CardItem({
 
   function remove() {
     startTransition(async () => {
-      await deleteCardAction(card.id);
-      onDelete(card.id);
+      const r = await deleteCardAction(card.id);
+      onDelete(card.id, r.myPoints);
     });
   }
 
@@ -114,7 +115,7 @@ function CardList({
   viewerId: string;
   canManage: boolean;
   onChange: (card: CardRow) => void;
-  onDelete: (id: string) => void;
+  onDelete: (id: string, myPoints: number) => void;
 }) {
   if (cards.length === 0) return <p className="bg-bg01 text-brand01 px-4 py-6 text-center text-sm">{empty}</p>;
   return (
@@ -155,7 +156,7 @@ function SendForm({
   onSent,
 }: {
   recipients: Recipient[];
-  onSent: (card: CardRow) => void;
+  onSent: (card: CardRow, myPoints: number) => void;
 }) {
   const [toUserId, setToUserId] = useState("");
   const [tag, setTag] = useState<ArigatoTag | "">("");
@@ -180,7 +181,7 @@ function SendForm({
       setTag("");
       setMessage("");
       setIsPrivate(false);
-      onSent(r.card);
+      onSent(r.card, r.myPoints);
     });
   }
 
@@ -272,6 +273,7 @@ export function ArigatoBoard({
   initialFeed,
   initialReceived,
   initialWeek,
+  initialMyPoints,
 }: {
   viewerId: string;
   canManage: boolean;
@@ -279,24 +281,29 @@ export function ArigatoBoard({
   initialFeed: CardRow[];
   initialReceived: CardRow[];
   initialWeek: WeekStatus;
+  initialMyPoints: number;
 }) {
   const [tab, setTab] = useState<Tab>("feed");
   const [feed, setFeed] = useState(initialFeed);
   const [received, setReceived] = useState(initialReceived);
   const [week, setWeek] = useState(initialWeek);
   const [toast, setToast] = useState("");
+  const [myPoints, setMyPoints] = useState(initialMyPoints);
 
   const replace = (card: CardRow) => {
     const swap = (list: CardRow[]) => list.map((c) => (c.id === card.id ? card : c));
     setFeed(swap);
     setReceived(swap);
   };
-  const remove = (id: string) => {
+  const remove = (id: string, points: number) => {
+    setMyPoints(points);
     setFeed((list) => list.filter((c) => c.id !== id));
     setReceived((list) => list.filter((c) => c.id !== id));
   };
-  const sent = (card: CardRow) => {
+  const sent = (card: CardRow, points: number) => {
+    setMyPoints(points);
     setFeed((list) => [card, ...list]);
+
     setWeek((w) => ({ ...w, sentThisWeek: true, thisWeekCount: w.thisWeekCount + 1 }));
     setToast(`${card.toName}さんにありがとうを送りました。`);
     setTab("feed");
@@ -306,6 +313,14 @@ export function ArigatoBoard({
 
   return (
     <div className="flex flex-col gap-6">
+      <div className="bg-bg01 text-brand01 px-4 py-3 text-sm">
+        <p>
+          今月あなたが伝えたありがとう
+          <span className="font-heading mx-1.5 text-2xl font-bold tabular-nums">{myPoints}</span>点
+        </p>
+        <p className="text-brand04 text-xs">1 枚 1 点。同じ相手には 1 日 1 点までです。</p>
+      </div>
+
       {!week.sentThisWeek && tab !== "send" ? <WeeklyPrompt week={week} onSend={() => setTab("send")} /> : null}
 
       <div role="tablist" aria-label="表示の切り替え" className="border-brand01/15 flex border-b">
