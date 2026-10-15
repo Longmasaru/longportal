@@ -22,6 +22,7 @@ import { isIsoDate } from "../shared/date";
 import { todayJst } from "../shared/jst";
 import { evaluateEmployeeAccess } from "../access/evaluate";
 import { LAST_SYSTEM_ADMIN_MESSAGE, isSoleActiveSystemAdmin } from "../roles/protection";
+import { normalizeText } from "./import";
 import { hasOpenPrimaryAssignment, planAssignmentChange, planTransfer } from "./logic";
 import { employeeAssignments, employees } from "./schema";
 
@@ -41,6 +42,13 @@ const optionalDate = (label: string) =>
     .transform((v) => (v === "" ? null : v))
     .refine((v) => v === null || isIsoDate(v), `${label}は正しい日付で入力してください。`);
 const optionalUuid = z.string().transform((v) => (v === "" ? null : v)).pipe(uuid.nullable());
+/** 任意の短い文字(姓名など)。空白をそろえ(normalizeText)、空なら null。 */
+const optionalText = (label: string) =>
+  z
+    .string()
+    .transform((v) => normalizeText(v))
+    .refine((v) => v.length <= 40, `${label}は40文字以内で入力してください。`)
+    .transform((v) => (v === "" ? null : v));
 
 const employeeSchema = z
   .object({
@@ -49,8 +57,13 @@ const employeeSchema = z
       .trim()
       .min(1, "社員番号を入力してください。")
       .max(30, "社員番号は30文字以内で入力してください。"),
-    name: z.string().trim().min(1, "氏名を入力してください。").max(50),
-    nameKana: z.string().trim().max(50).transform((v) => (v === "" ? null : v)),
+    // 氏名は姓と名で持つ(表示用の氏名 name は DB の生成列。docs/DESIGN.md 22 章)。
+    familyName: z.string().transform(normalizeText).pipe(
+      z.string().min(1, "姓を入力してください。").max(40, "姓は40文字以内で入力してください。"),
+    ),
+    givenName: optionalText("名"),
+    familyNameKana: optionalText("姓(かな)"),
+    givenNameKana: optionalText("名(かな)"),
     employmentTypeId: uuid,
     positionId: optionalUuid,
     hiredOn: isoDate("入社日"),

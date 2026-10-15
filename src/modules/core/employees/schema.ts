@@ -21,8 +21,23 @@ export const employees = core.table(
     id: idColumn(),
     /** 人が扱う業務上の識別子。UUID(id)とは別物。 */
     employeeNumber: text("employee_number").notNull().unique(),
-    name: text("name").notNull(),
-    nameKana: text("name_kana"),
+    /** 姓(必須)・名。外国籍の方は、ミドルネームまでを姓に含める(docs/DESIGN.md 22 章)。 */
+    familyName: text("family_name").notNull(),
+    givenName: text("given_name"),
+    familyNameKana: text("family_name_kana"),
+    givenNameKana: text("given_name_kana"),
+    /**
+     * 表示用の氏名(生成列。書き込まない)。英字だけなら半角空白、それ以外は全角空白でつなぐ。
+     * 規則は names.ts の joinName / joinNameKana と同じ。
+     */
+    name: text("name")
+      .notNull()
+      .generatedAlwaysAs(
+        sql`family_name || case when given_name is null or given_name = '' then '' when (family_name || given_name) ~ '^[ -~]*$' then ' ' || given_name else '　' || given_name end`,
+      ),
+    nameKana: text("name_kana").generatedAlwaysAs(
+      sql`case when coalesce(family_name_kana, '') = '' and coalesce(given_name_kana, '') = '' then null when coalesce(family_name_kana, '') = '' then given_name_kana when coalesce(given_name_kana, '') = '' then family_name_kana when family_name_kana like '%・%' then family_name_kana || '・' || given_name_kana else family_name_kana || '　' || given_name_kana end`,
+    ),
     employmentTypeId: uuid("employment_type_id")
       .notNull()
       .references(() => employmentTypes.id, { onDelete: "restrict" }),

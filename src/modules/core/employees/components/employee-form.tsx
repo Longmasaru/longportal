@@ -14,8 +14,10 @@ import type { FormOptions } from "../queries";
 export type EmployeeFormValues = {
   id: string;
   employeeNumber: string;
-  name: string;
-  nameKana: string | null;
+  familyName: string;
+  givenName: string | null;
+  familyNameKana: string | null;
+  givenNameKana: string | null;
   employmentTypeId: string;
   positionId: string | null;
   hiredOn: string;
@@ -54,15 +56,40 @@ export function EmployeeForm({
             className={FIELD_CLASS}
           />
         </Field>
-        <Field label="氏名" htmlFor="name" required>
-          <input id="name" name="name" required maxLength={50} defaultValue={employee?.name} className={FIELD_CLASS} />
-        </Field>
-        <Field label="氏名(かな)" htmlFor="nameKana">
+        <Field label="姓" htmlFor="familyName" required hint="外国籍の方は、ミドルネームまでを姓に入れます。">
           <input
-            id="nameKana"
-            name="nameKana"
-            maxLength={50}
-            defaultValue={employee?.nameKana ?? ""}
+            id="familyName"
+            name="familyName"
+            required
+            maxLength={40}
+            defaultValue={employee?.familyName}
+            className={FIELD_CLASS}
+          />
+        </Field>
+        <Field label="名" htmlFor="givenName">
+          <input
+            id="givenName"
+            name="givenName"
+            maxLength={40}
+            defaultValue={employee?.givenName ?? ""}
+            className={FIELD_CLASS}
+          />
+        </Field>
+        <Field label="姓(かな)" htmlFor="familyNameKana">
+          <input
+            id="familyNameKana"
+            name="familyNameKana"
+            maxLength={40}
+            defaultValue={employee?.familyNameKana ?? ""}
+            className={FIELD_CLASS}
+          />
+        </Field>
+        <Field label="名(かな)" htmlFor="givenNameKana">
+          <input
+            id="givenNameKana"
+            name="givenNameKana"
+            maxLength={40}
+            defaultValue={employee?.givenNameKana ?? ""}
             className={FIELD_CLASS}
           />
         </Field>

@@ -76,8 +76,10 @@ export async function EmployeeDetailPage({ id }: { id: string }) {
           employee={{
             id: employee.id,
             employeeNumber: employee.employeeNumber,
-            name: employee.name,
-            nameKana: employee.nameKana,
+            familyName: employee.familyName,
+            givenName: employee.givenName,
+            familyNameKana: employee.familyNameKana,
+            givenNameKana: employee.givenNameKana,
             employmentTypeId: employee.employmentTypeId,
             positionId: employee.positionId,
             hiredOn: employee.hiredOn,

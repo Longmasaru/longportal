@@ -21,6 +21,7 @@ import { writeAuditLog } from "../src/modules/core/audit";
 import { users } from "../src/modules/core/auth/schema";
 import { departments } from "../src/modules/core/departments/schema";
 import { readImportCsv } from "../src/modules/core/employees/import";
+import { isAsciiOnly, splitName } from "../src/modules/core/employees/names";
 import { employeeAssignments, employees } from "../src/modules/core/employees/schema";
 import { employmentTypes } from "../src/modules/core/employment-types/schema";
 import { locations } from "../src/modules/core/locations/schema";
@@ -193,12 +194,18 @@ async function main(): Promise<void> {
     );
 
     for (const r of newRecords) {
+      // 氏名は姓と名に分けて入れる(表示用の name は DB の生成列。docs/DESIGN.md 22 章)。
+      const ascii = isAsciiOnly(r.name);
+      const name = splitName(r.name, ascii);
+      const kana = r.nameKana ? splitName(r.nameKana, ascii) : null;
       const [created] = await tx
         .insert(employees)
         .values({
           employeeNumber: r.employeeNumber,
-          name: r.name,
-          nameKana: r.nameKana,
+          familyName: name.family,
+          givenName: name.given,
+          familyNameKana: kana?.family ?? null,
+          givenNameKana: kana?.given ?? null,
           employmentTypeId: employmentType.id,
           positionId: r.positionName ? (positionIdByName.get(r.positionName) ?? null) : null,
           hiredOn: r.hiredOn,

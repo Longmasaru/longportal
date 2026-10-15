@@ -1,0 +1,2 @@
+ALTER TABLE "core"."employees" drop column "name_kana";--> statement-breakpoint
+ALTER TABLE "core"."employees" ADD COLUMN "name_kana" text GENERATED ALWAYS AS (case when coalesce(family_name_kana, '') = '' and coalesce(given_name_kana, '') = '' then null when coalesce(family_name_kana, '') = '' then given_name_kana when coalesce(given_name_kana, '') = '' then family_name_kana when family_name_kana like '%・%' then family_name_kana || '・' || given_name_kana else family_name_kana || '　' || given_name_kana end) STORED;
