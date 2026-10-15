@@ -1,6 +1,47 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { employeeWarnings, hasOpenPrimaryAssignment, planTransfer } from "./logic";
+import { employeeWarnings, hasOpenPrimaryAssignment, planAssignmentChange, planTransfer } from "./logic";
+
+test("planAssignmentChange: 変更日に始まった主所属は、その所属の部署・拠点を付け直す", () => {
+  const plan = planAssignmentChange(
+    [{ id: "a1", startDate: "2026-10-15", endDate: null }],
+    "2026-10-15",
+  );
+  assert.deepEqual(plan, { ok: true, kind: "correct", assignmentId: "a1" });
+});
+
+test("planAssignmentChange: それより前に始まった主所属は前日で終了し、新しい所属を始める(異動)", () => {
+  const plan = planAssignmentChange(
+    [{ id: "a1", startDate: "2026-04-01", endDate: null }],
+    "2026-11-01",
+  );
+  assert.deepEqual(plan, {
+    ok: true,
+    kind: "transfer",
+    endCurrent: { id: "a1", endDate: "2026-10-31" },
+  });
+});
+
+test("planAssignmentChange: 有効な主所属がない・後に始まる主所属がある場合は拒否", () => {
+  assert.equal(planAssignmentChange([], "2026-10-15").ok, false);
+  assert.equal(
+    planAssignmentChange(
+      [{ id: "a1", startDate: "2026-01-01", endDate: "2026-03-31" }],
+      "2026-10-15",
+    ).ok,
+    false,
+  );
+  assert.equal(
+    planAssignmentChange(
+      [
+        { id: "a1", startDate: "2026-01-01", endDate: "2026-10-31" },
+        { id: "a2", startDate: "2026-11-01", endDate: null },
+      ],
+      "2026-10-15",
+    ).ok,
+    false,
+  );
+});
 
 const TODAY = "2026-10-07";
 

@@ -70,9 +70,14 @@ export async function EmployeeListPage({
         title="社員管理"
         description="社員の登録・所属(異動履歴)・ログインアカウントを管理します。"
         aside={
-          <Link href="/admin/employees/new" className={`${BUTTON_PRIMARY} inline-block`}>
-            社員を登録
-          </Link>
+          <span className="flex flex-wrap gap-2">
+            <Link href="/admin/employees/assignments" className={`${BUTTON_SECONDARY} inline-block`}>
+              所属の割り当て
+            </Link>
+            <Link href="/admin/employees/new" className={`${BUTTON_PRIMARY} inline-block`}>
+              社員を登録
+            </Link>
+          </span>
         }
       />
 

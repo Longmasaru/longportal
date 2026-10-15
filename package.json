@@ -21,6 +21,9 @@
     "test": "tsx --test \"src/**/*.test.ts\"",
     "sync:manifests": "tsx --env-file=.env.local scripts/sync-manifests.ts",
     "db:grant-admin": "tsx --env-file=.env.local scripts/grant-system-admin.ts",
+    "db:import-employees": "tsx --env-file=.env.local scripts/import-employees.ts",
+    "db:issue-accounts": "tsx --env-file=.env.local scripts/issue-accounts.ts",
+    "db:reset-password": "tsx --env-file=.env.local scripts/reset-password.ts",
     "r2:check": "tsx --env-file=.env.local scripts/r2-check.ts"
   },
   "dependencies": {

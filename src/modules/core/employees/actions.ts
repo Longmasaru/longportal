@@ -1,6 +1,5 @@
 "use server";
 
-import { randomBytes } from "node:crypto";
 import { and, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -9,7 +8,9 @@ import { db } from "@/db/client";
 import { requireGlobalPermission } from "../access";
 import { writeAuditLog } from "../audit";
 import { users } from "../auth/schema";
-import { hashPassword } from "../auth/password";
+import { departments } from "../departments/schema";
+import { locations } from "../locations/schema";
+import { generateTempPassword, hashPassword } from "../auth/password";
 import { clearLoginFailures } from "../auth/throttle";
 import {
   PG_EXCLUSION_VIOLATION,
@@ -21,7 +22,7 @@ import { isIsoDate } from "../shared/date";
 import { todayJst } from "../shared/jst";
 import { evaluateEmployeeAccess } from "../access/evaluate";
 import { LAST_SYSTEM_ADMIN_MESSAGE, isSoleActiveSystemAdmin } from "../roles/protection";
-import { hasOpenPrimaryAssignment, planTransfer } from "./logic";
+import { hasOpenPrimaryAssignment, planAssignmentChange, planTransfer } from "./logic";
 import { employeeAssignments, employees } from "./schema";
 
 // 社員管理の Server Action。すべて requireGlobalPermission("core.employees.manage") で本判定し、変更は監査ログと同じトランザクションで記録する。
@@ -304,14 +305,143 @@ export async function endAssignmentAction(
   return { success: "所属を終了しました。" };
 }
 
-// ---- ログインアカウント --------------------------------------------------------
+// ---- 所属の割り当て(一覧で部署・拠点をまとめて変更) --------------------------------
 
-/** 初期(一時)パスワード。読み間違えにくい文字だけで 12 文字。画面に 1 度だけ表示する。 */
-function generateTempPassword(): string {
-  const alphabet = "abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  const bytes = randomBytes(12);
-  return Array.from(bytes, (b) => alphabet[b % alphabet.length]).join("");
+export type AssignmentsFormState =
+  | { error?: string; success?: string; failures?: { employeeId: string; message: string }[] }
+  | undefined;
+
+const DEPARTMENT_FIELD_PREFIX = "dept_";
+const LOCATION_FIELD_PREFIX = "loc_";
+
+/**
+ * 所属の割り当て画面の保存。各社員の主所属の部署・拠点を、選ばれたものに変える。
+ * 変更日に始まった所属は付け直し、それより前からの所属は異動として扱う(planAssignmentChange)。
+ * 部署も拠点も変わらない社員は何もしない。全員を 1 トランザクションで処理し、1 人でも失敗したら何も変えない。
+ */
+export async function changeAssignmentsAction(
+  _prev: AssignmentsFormState,
+  formData: FormData,
+): Promise<AssignmentsFormState> {
+  const actor = await requireGlobalPermission("core.employees.manage");
+  const raw = formObject(formData);
+  const effectiveDate = raw.effectiveDate ?? "";
+  if (!isIsoDate(effectiveDate)) return { error: "変更日は正しい日付で入力してください。" };
+
+  const selections = Object.keys(raw)
+    .filter((k) => k.startsWith(DEPARTMENT_FIELD_PREFIX))
+    .map((k) => {
+      const employeeId = k.slice(DEPARTMENT_FIELD_PREFIX.length);
+      return {
+        employeeId,
+        departmentId: raw[k],
+        locationId: raw[`${LOCATION_FIELD_PREFIX}${employeeId}`] ?? "",
+      };
+    });
+  if (
+    selections.some(
+      (s) =>
+        !uuid.safeParse(s.employeeId).success ||
+        !uuid.safeParse(s.departmentId).success ||
+        !uuid.safeParse(s.locationId).success,
+    )
+  ) {
+    return { error: "不正なリクエストです。" };
+  }
+
+  const [activeDepartmentIds, activeLocationIds] = await Promise.all([
+    db
+      .select({ id: departments.id })
+      .from(departments)
+      .where(eq(departments.isActive, true))
+      .then((rows) => new Set(rows.map((r) => r.id))),
+    db
+      .select({ id: locations.id })
+      .from(locations)
+      .where(eq(locations.isActive, true))
+      .then((rows) => new Set(rows.map((r) => r.id))),
+  ]);
+  if (
+    selections.some((s) => !activeDepartmentIds.has(s.departmentId) || !activeLocationIds.has(s.locationId))
+  ) {
+    return { error: "選べない部署・拠点が含まれています。画面を読み込み直してください。" };
+  }
+
+  const failures: { employeeId: string; message: string }[] = [];
+  let changed = 0;
+  try {
+    await db.transaction(async (tx) => {
+      for (const { employeeId, departmentId, locationId } of selections) {
+        const primaries = await tx
+          .select()
+          .from(employeeAssignments)
+          .where(and(eq(employeeAssignments.employeeId, employeeId), eq(employeeAssignments.isPrimary, true)));
+        const covering = primaries.find(
+          (p) => p.startDate <= effectiveDate && (p.endDate === null || p.endDate >= effectiveDate),
+        );
+        if (covering?.departmentId === departmentId && covering.locationId === locationId) continue;
+
+        const plan = planAssignmentChange(primaries, effectiveDate);
+        if (!plan.ok) {
+          failures.push({ employeeId, message: plan.error });
+          continue;
+        }
+        if (plan.kind === "correct") {
+          const [after] = await tx
+            .update(employeeAssignments)
+            .set({ departmentId, locationId })
+            .where(eq(employeeAssignments.id, plan.assignmentId))
+            .returning();
+          await writeAuditLog(tx, {
+            actorUserId: actor.userId,
+            action: "employee.assignment.update",
+            targetType: "employee",
+            targetId: employeeId,
+            before: covering,
+            after,
+          });
+        } else {
+          await tx
+            .update(employeeAssignments)
+            .set({ endDate: plan.endCurrent.endDate })
+            .where(eq(employeeAssignments.id, plan.endCurrent.id));
+          const [created] = await tx
+            .insert(employeeAssignments)
+            .values({ employeeId, departmentId, locationId, startDate: effectiveDate, isPrimary: true })
+            .returning();
+          await writeAuditLog(tx, {
+            actorUserId: actor.userId,
+            action: "employee.transfer",
+            targetType: "employee",
+            targetId: employeeId,
+            before: covering,
+            after: { endedPrevious: plan.endCurrent, created },
+          });
+        }
+        changed++;
+      }
+      // 1 人でも失敗したら、全員分を取り消す(一部だけ変わった状態を残さない)。
+      if (failures.length > 0) tx.rollback();
+    });
+  } catch (err) {
+    if (failures.length > 0) {
+      return { error: `${failures.length}名の所属を変更できませんでした。何も変更していません。`, failures };
+    }
+    if (pgErrorCode(err) === PG_EXCLUSION_VIOLATION) {
+      return { error: "主所属の期間が他の所属と重複しています。何も変更していません。" };
+    }
+    throw err;
+  }
+
+  revalidatePath("/admin/employees");
+  revalidatePath("/admin/employees/assignments");
+  return {
+    success: changed === 0 ? "変更はありませんでした。" : `${changed}名の所属を変更しました。`,
+  };
 }
+
+// ---- ログインアカウント --------------------------------------------------------
+// 初期(一時)パスワードは generateTempPassword で作り、画面に 1 度だけ表示する。
 
 const issueAccountSchema = z.object({
   employeeId: uuid,

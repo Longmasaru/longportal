@@ -4,6 +4,8 @@ export const AUDIT_ACTION_LABEL: Record<string, string> = {
   "employee.update": "社員情報の更新",
   "employee.transfer": "異動(主所属の変更)",
   "employee.assignment.end": "所属の終了",
+  "employee.assignment.location": "所属の拠点の付け直し",
+  "employee.assignment.update": "所属の付け直し(部署・拠点)",
   "user.create": "アカウントの発行",
   "user.enable": "アカウントの有効化",
   "user.disable": "アカウントの無効化",

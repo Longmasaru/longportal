@@ -35,6 +35,33 @@ export function planTransfer(
   };
 }
 
+export type AssignmentChangePlan =
+  | { ok: true; kind: "correct"; assignmentId: string }
+  | { ok: true; kind: "transfer"; endCurrent: { id: string; endDate: string } }
+  | { ok: false; error: string };
+
+/**
+ * 今の主所属の部署・拠点を変える計画(所属の割り当て画面用)。
+ * - 変更日に有効な主所属が、変更日に始まったものなら、その所属の部署・拠点を付け直す(同じ日の訂正)。
+ * - それより前に始まったものなら、前日で終了させ、新しい部署・拠点の主所属を変更日から始める(異動)。
+ */
+export function planAssignmentChange(
+  primaries: PrimaryAssignmentFacts[],
+  effectiveDate: string,
+): AssignmentChangePlan {
+  if (primaries.some((p) => p.startDate > effectiveDate)) {
+    return { ok: false, error: "変更日より後に始まる主所属があります。社員の詳細画面で確認してください。" };
+  }
+  const covering = primaries.find(
+    (p) => p.startDate <= effectiveDate && (p.endDate === null || p.endDate >= effectiveDate),
+  );
+  if (!covering) return { ok: false, error: "変更日に有効な主所属がありません。" };
+  if (covering.startDate === effectiveDate) {
+    return { ok: true, kind: "correct", assignmentId: covering.id };
+  }
+  return { ok: true, kind: "transfer", endCurrent: { id: covering.id, endDate: addDays(effectiveDate, -1) } };
+}
+
 /** 終了していない主所属(end_date が NULL か今日以降)があるか。アカウント有効化の条件。 */
 export function hasOpenPrimaryAssignment(
   assignments: { isPrimary: boolean; endDate: string | null }[],

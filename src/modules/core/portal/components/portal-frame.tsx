@@ -92,11 +92,6 @@ export function PortalFrame({
           }`}
         >
           <SidebarNav navigation={navigation} onNavigate={() => setNavOpen(false)} />
-          <p className="text-brand04 mt-auto px-4 pb-4 text-xs leading-relaxed">
-            UIモック表示中
-            <br />
-            表示内容は仮のデータです
-          </p>
         </aside>
 
         <main id="main" className="min-w-0 flex-1">
