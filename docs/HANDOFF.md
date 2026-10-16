@@ -68,6 +68,9 @@
 - 2026-10-15: 氏名を姓・名・姓(かな)・名(かな)に分けた(本番も。DESIGN.md 22 章)。区切りのないかなは、漢字の姓名を手がかりに分けた一覧をユーザーが確認してから入れた(`npm run db:update-name-kana`)。
 - 本番の社内リンク(ユーザーが画面で登録): LINE WORKS・freee勤怠管理Plus・ユニネク(全社)。計測用の `_gl` などや、使い捨ての `state` は URL から除いた。
 
+- 2026-10-16: Audience の条件に「社員」(一覧から名指しで選ぶ)を追加(DESIGN.md 27 章、migration 0013。本番にも適用済み)。
+- **作業中(2026-10-16)**: 本人によるパスワード再設定(DESIGN.md 26 章)。済み: 設計、`core.users.email` / `email_verified_at`、`core.auth_tokens` の schema と migration 0012(本番にも適用済み。まだ使うコードはない)。未着手: `core/mail`(送信。Resend を Vercel Marketplace で接続してから組み込む)、初回ログインでのメール登録、確認メール、`/forgot-password`・`/reset-password`・`/verify-email`(proxy の matcher から除外が必要)、未確認の案内、Cloudflare DNS への Resend の設定。
+
 ### まだ「枠だけ」の部分
 - 見本(架空)のデータは 2026-10-14 に削除した(`mock-data.ts`)。ホームとサイドバーの**お知らせ・アプリ・社内リンク・要対応**は、`queries.ts` の `listVisible*` が空を返す(アプリは apps/sodatsu だけを固定で返す)ので、枠と「まだありません」の表示だけが出る。実装時は、この関数の中身を差し替える。
 - `/notices/*`、`/admin/apps` は「準備中」ページ(`[...slug]` のキャッチオール)。

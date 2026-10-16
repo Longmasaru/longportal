@@ -1,5 +1,6 @@
 import { and, asc, eq, gte, inArray, isNull, lte, or } from "drizzle-orm";
 import { db } from "@/db/client";
+import { evaluateEmployeeAccess } from "../access/evaluate";
 import { departments } from "../departments/schema";
 import { employeeAssignments, employees } from "../employees/schema";
 import { employmentTypes } from "../employment-types/schema";
@@ -91,6 +92,8 @@ export async function getAudience(id: string): Promise<AudienceRecord | null> {
 export type EvaluationPopulation = {
   contexts: EmployeeContext[];
   info: Map<string, { name: string; employeeNumber: string; affiliation: string }>;
+  /** フリガナ(社員の選択欄の絞り込み用)。 */
+  kana: Map<string, string>;
 };
 
 export async function loadPopulation(today: string): Promise<EvaluationPopulation> {
@@ -131,6 +134,7 @@ export async function loadPopulation(today: string): Promise<EvaluationPopulatio
   }
 
   const info: EvaluationPopulation["info"] = new Map();
+  const kana: EvaluationPopulation["kana"] = new Map();
   const contexts = emps.map(({ employee: e, positionIsManagement }): EmployeeContext => {
     const assignments = byEmployee.get(e.id) ?? [];
     const primary = assignments.find((a) => a.isPrimary) ?? assignments[0];
@@ -139,6 +143,7 @@ export async function loadPopulation(today: string): Promise<EvaluationPopulatio
       employeeNumber: e.employeeNumber,
       affiliation: primary ? `${primary.locationName} / ${primary.departmentName}` : "所属未設定",
     });
+    kana.set(e.id, e.nameKana ?? "");
     return {
       employeeId: e.id,
       status: e.status,
@@ -150,7 +155,7 @@ export async function loadPopulation(today: string): Promise<EvaluationPopulatio
       assignments: assignments.map((a) => ({ departmentId: a.departmentId, locationId: a.locationId })),
     };
   });
-  return { contexts, info };
+  return { contexts, info, kana };
 }
 
 /** 条件に当てはまる社員(いまアクセスできる人のみ)。 */
@@ -164,8 +169,11 @@ export function evaluateDefinition(
     .map((ctx) => ({ employeeId: ctx.employeeId, ...population.info.get(ctx.employeeId)! }));
 }
 
-/** 無効・削除済みを含む全マスタの名称(Audience の条件の表示と、無効なマスタの参照の検出用)。 */
-export async function loadMasterLookup(): Promise<MasterLookup> {
+/**
+ * 無効・削除済みを含む全マスタの名称(Audience の条件の表示と、無効なマスタの参照の検出用)。
+ * 社員は、評価用の全社員(population)から作る。いまアクセスできない社員は isActive = false。
+ */
+export async function loadMasterLookup(population: EvaluationPopulation, today: string): Promise<MasterLookup> {
   const [dep, loc, pos, et] = await Promise.all([
     db.select({ id: departments.id, name: departments.name, isActive: departments.isActive }).from(departments),
     db.select({ id: locations.id, name: locations.name, isActive: locations.isActive }).from(locations),
@@ -181,25 +189,57 @@ export async function loadMasterLookup(): Promise<MasterLookup> {
     location: toMap(loc),
     position: toMap(pos),
     employment_type: toMap(et),
+    employee: new Map(
+      population.contexts.map((ctx) => {
+        const i = population.info.get(ctx.employeeId)!;
+        return [
+          ctx.employeeId,
+          { name: `${i.name}(${i.employeeNumber})`, isActive: evaluateEmployeeAccess(ctx, today) === null },
+        ];
+      }),
+    ),
   };
 }
 
 export type MasterOption = { id: string; name: string; isActive: boolean };
+/** 社員の選択肢。isActive は「いまアクセスできる社員か」。 */
+export type EmployeeOption = {
+  id: string;
+  name: string;
+  nameKana: string;
+  employeeNumber: string;
+  affiliation: string;
+  isActive: boolean;
+};
 export type MasterOptions = {
   department: MasterOption[];
   location: MasterOption[];
   position: MasterOption[];
   employment_type: MasterOption[];
+  employee: EmployeeOption[];
 };
 
-export function lookupToOptions(lookup: MasterLookup): MasterOptions {
+export function lookupToOptions(lookup: MasterLookup, population: EvaluationPopulation): MasterOptions {
   const toList = (m: MasterLookup["department"]): MasterOption[] =>
     [...m.entries()].map(([id, v]) => ({ id, name: v.name, isActive: v.isActive })).sort((a, b) => a.name.localeCompare(b.name, "ja"));
+  // 社員は社員番号の順(loadPopulation の並び)
+  const employee = population.contexts.map(({ employeeId }): EmployeeOption => {
+    const i = population.info.get(employeeId)!;
+    return {
+      id: employeeId,
+      name: i.name,
+      nameKana: population.kana.get(employeeId) ?? "",
+      employeeNumber: i.employeeNumber,
+      affiliation: i.affiliation,
+      isActive: lookup.employee.get(employeeId)?.isActive ?? false,
+    };
+  });
   return {
     department: toList(lookup.department),
     location: toList(lookup.location),
     position: toList(lookup.position),
     employment_type: toList(lookup.employment_type),
+    employee,
   };
 }
 

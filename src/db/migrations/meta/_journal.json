@@ -85,6 +85,20 @@
       "when": 1792077034554,
       "tag": "0011_calendar_entries",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1792112855324,
+      "tag": "0012_core_user_email_tokens",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1792112860456,
+      "tag": "0013_core_audience_employee_condition",
+      "breakpoints": true
     }
   ]
 }

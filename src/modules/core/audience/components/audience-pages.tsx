@@ -19,11 +19,8 @@ import { AudienceEditor } from "./audience-editor";
 export async function AudiencesPage() {
   await requireGlobalPermission("core.audiences.manage");
   const today = todayJst();
-  const [audiences, lookup, population] = await Promise.all([
-    listAudiences(),
-    loadMasterLookup(),
-    loadPopulation(today),
-  ]);
+  const [audiences, population] = await Promise.all([listAudiences(), loadPopulation(today)]);
+  const lookup = await loadMasterLookup(population, today);
   const usages = await Promise.all(audiences.map((a) => listAudienceUsages(a.id)));
 
   return (
@@ -96,7 +93,9 @@ export async function AudiencesPage() {
 
 export async function AudienceNewPage() {
   await requireGlobalPermission("core.audiences.manage");
-  const options = lookupToOptions(await loadMasterLookup());
+  const today = todayJst();
+  const population = await loadPopulation(today);
+  const options = lookupToOptions(await loadMasterLookup(population, today), population);
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-8 md:px-8 md:py-10">
@@ -120,7 +119,8 @@ export async function AudienceEditPage({ id }: { id: string }) {
   if (!audience) notFound();
 
   const today = todayJst();
-  const [lookup, population] = await Promise.all([loadMasterLookup(), loadPopulation(today)]);
+  const population = await loadPopulation(today);
+  const lookup = await loadMasterLookup(population, today);
   const matched = audience.isActive ? evaluateDefinition(audience.definition, population, today) : [];
   const usages = await listAudienceUsages(id);
 
@@ -143,7 +143,7 @@ export async function AudienceEditPage({ id }: { id: string }) {
           isActive: audience.isActive,
           definition: audience.definition,
         }}
-        options={lookupToOptions(lookup)}
+        options={lookupToOptions(lookup, population)}
         initialPreview={{ ok: true, count: matched.length, shown: matched.slice(0, 100) }}
       />
     </div>

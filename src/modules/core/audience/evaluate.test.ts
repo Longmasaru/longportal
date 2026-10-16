@@ -174,3 +174,28 @@ test("定義の検証: 正しい定義は通り、不正な定義は拒否され
     false,
   );
 });
+
+test("社員の名指し: 選んだ人だけが対象。退職済みは選ばれていても対象外", () => {
+  const A = "88888888-8888-4888-8888-888888888888";
+  const d = def({ conditions: [{ attribute: "employee", operator: "in", value: [A] }] });
+  assert.equal(matchesAudience(d, emp({ employeeId: A }), TODAY), true);
+  assert.equal(matchesAudience(d, emp(), TODAY), false);
+  assert.equal(matchesAudience(d, emp({ employeeId: A, status: "retired", leftOn: "2026-09-30" }), TODAY), false);
+});
+
+test("社員の名指しは、別のグループにすると「または」で足せる", () => {
+  const A = "88888888-8888-4888-8888-888888888888";
+  const d = def(
+    { conditions: [{ attribute: "department", operator: "in", value: [WELD] }] },
+    { conditions: [{ attribute: "employee", operator: "in", value: [A] }] },
+  );
+  assert.equal(matchesAudience(d, emp({ employeeId: A }), TODAY), true); // ブレーキだが名指しで対象
+  assert.equal(matchesAudience(d, emp(), TODAY), false);
+});
+
+test("社員の名指しは 1 人以上が必要", () => {
+  assert.equal(
+    definitionSchema.safeParse({ groups: [{ conditions: [{ attribute: "employee", operator: "in", value: [] }] }] }).success,
+    false,
+  );
+});
