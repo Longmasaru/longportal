@@ -99,6 +99,13 @@
       "when": 1792112860456,
       "tag": "0013_core_audience_employee_condition",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1792214175259,
+      "tag": "0014_haisou_app",
+      "breakpoints": true
     }
   ]
 }

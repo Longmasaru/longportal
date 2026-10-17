@@ -73,6 +73,8 @@
 
 - **作業中(2026-10-17)**: AI教室(別アプリ。リポジトリ `ai-kyoshitsu`、DESIGN.md 28 章)と、ポータルからのログインの受け渡し(SSO)。ポータル側: 入口 `/apps/launch/<app_key>`、`core/sso`、契約 `modules/apps/external-apps.ts`、環境変数 `SSO_SECRET_AIKYOSHITSU`。本番に出すには: ポータルとアプリの Vercel に同じ鍵を置く → `sync:manifests`(権限の登録)→ `/admin/apps` で external として URL を登録・有効化 → 講師にロールで `aikyoshitsu.materials.manage` を渡す。
 
+- **作業中(2026-10-17)**: 配達ルート(`apps/haisou`、`/apps/haisou`、DESIGN.md 29 章)。Google スプレッドシート「取引先一覧表」の Apps Script「配達ルート作成ツール v5」の移植で、**元のシートとスクリプトは消さない・書き換えない**。ブランチ `feature/haisou-route`(PR で確認中)。本番に出すには: migration `0014_haisou_app` を本番に適用 → `sync:manifests` → Google Maps Platform の鍵(Geocoding API・Routes API)を Vercel に `GOOGLE_MAPS_API_KEY`(Sensitive)で登録 → 切り替えの直前に `npm run db:import-haisou` で元データを取り込む → `/admin/apps` で有効化。配達者へのメールは当面メールソフトを開く形(`core/mail` ができたら戻す)。
+
 ### まだ「枠だけ」の部分
 - 見本(架空)のデータは 2026-10-14 に削除した(`mock-data.ts`)。ホームとサイドバーの**お知らせ・アプリ・社内リンク・要対応**は、`queries.ts` の `listVisible*` が空を返す(アプリは apps/sodatsu だけを固定で返す)ので、枠と「まだありません」の表示だけが出る。実装時は、この関数の中身を差し替える。
 - `/notices/*`、`/admin/apps` は「準備中」ページ(`[...slug]` のキャッチオール)。
