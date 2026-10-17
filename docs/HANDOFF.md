@@ -73,6 +73,8 @@
 
 - 2026-10-17: AI教室(別アプリ。リポジトリ `ai-kyoshitsu`、本番 `https://ai-kyoshitsu.vercel.app`、DESIGN.md 28 章)を本番公開。ログインはポータルの通行証(SSO。入口 `/apps/launch/<app_key>`、`core/sso`、契約 `modules/apps/external-apps.ts`、鍵 `SSO_SECRET_AIKYOSHITSU`)。講師の老川さん(0052)にロール「AI教室 講師」(`aikyoshitsu.materials.manage`)。第1回の資料 4 つを投入済み。同日、**見え方をポータルの中のアプリにした**: サイドバーから同じタブで `/apps/aikyoshitsu` を開き、ポータルの画面の中に埋め込む。`/aikyoshitsu/…` はポータルがアプリへ転送する(multi-zones。`next.config.ts` の `ZONES`、アプリは basePath `/aikyoshitsu`)。
 
+- **作業中(2026-10-17)**: 配達ルート(本番 DB は準備済み: migration 0014・sync:manifests・元データ取り込み(取引先 78・配達者 4・履歴 247・保存ルート 50)。Vercel Production に GOOGLE_MAPS_API_KEY 登録済み)(`apps/haisou`、`/apps/haisou`、DESIGN.md 29 章)。Google スプレッドシート「取引先一覧表」の Apps Script「配達ルート作成ツール v5」の移植で、**元のシートとスクリプトは消さない・書き換えない**。ブランチ `feature/haisou-route`(PR で確認中)。本番に出すには: migration `0014_haisou_app` を本番に適用 → `sync:manifests` → Google Maps Platform の鍵(Geocoding API・Routes API)を Vercel に `GOOGLE_MAPS_API_KEY`(Sensitive)で登録 → 切り替えの直前に `npm run db:import-haisou` で元データを取り込む → `/admin/apps` で有効化。配達者へのメールは当面メールソフトを開く形(`core/mail` ができたら戻す)。
+
 ### まだ「枠だけ」の部分
 - 見本(架空)のデータは 2026-10-14 に削除した(`mock-data.ts`)。ホームとサイドバーの**お知らせ・アプリ・社内リンク・要対応**は、`queries.ts` の `listVisible*` が空を返す(アプリは apps/sodatsu だけを固定で返す)ので、枠と「まだありません」の表示だけが出る。実装時は、この関数の中身を差し替える。
 - `/notices/*`、`/admin/apps` は「準備中」ページ(`[...slug]` のキャッチオール)。
@@ -129,7 +131,7 @@
 ### DB の変更(スキーマ)
 1. スキーマを編集 → `npx drizzle-kit generate --name=...`(EXCLUDE などは `--custom` で手書き)。
 2. 開発 DB に適用: `npx drizzle-kit migrate`(`.env.local`)。
-3. **本番に適用するのは、コードを `main` に送る前**(新しいテーブルを使うコードが先に出ても、ログインは止まらない設計だが、確実にするため)。手順: ユーザーが `.env.production.local` に本番の接続文字列(pooler あり・なし)を保存 → 本番ホストであることを確認 → `set -a; . ./.env.production.local; set +a` のうえで `DB_TARGET=production CONFIRM_PRODUCTION=yes npx drizzle-kit migrate` → 読み取りだけで結果を確認 → ファイルを削除。
+3. **本番に適用するのは、コードを `main` に送る前**(新しいテーブルを使うコードが先に出ても、ログインは止まらない設計だが、確実にするため)。手順: ユーザーが `.env.production.local` に本番の接続文字列(pooler あり・なし)を保存 → 本番ホストであることを確認 → 値を 1 行ずつそのまま読み込んで(`docs/playbooks/new-app-setup.md` のとおり。`set -a; . ./.env.production.local` は使わない)、接続先のホストが本番であることを表示して確かめたうえで `DB_TARGET=production CONFIRM_PRODUCTION=yes npx drizzle-kit migrate` → 読み取りだけで結果を確認 → ファイルを削除。
 4. 初期データ・権限の同期: `npm run db:seed`(冪等)、`npm run sync:manifests`。管理者の復旧: `npm run db:grant-admin -- <login_id>`。
 
 ### その他のコマンド
@@ -140,6 +142,7 @@
 - **シェルのヒアドキュメントで、日本語や記号を含む長い文章が失敗する**ことがある → ファイル作成は **Write ツール**を使う。
 - **`.next/dev/types/routes.d.ts` が壊れて型チェックが落ちる**(開発サーバーと `next typegen` / `build` が同時に書き換える) → `rm -rf .next/dev/types && npx next typegen` のあとに、型チェックとビルドをやり直す。
 - **`drizzle-kit migrate` は、`DATABASE_URL_UNPOOLED` のパスワードが古いと、エラーを表示せずに終了する**(終了コードは 1) → 失敗したら、`DATABASE_URL` から `-pooler` を除いて `UNPOOLED` を作り直す。成功は「migrations applied successfully」で確認する。
+- **`set -a; . ./.env.production.local` で本番の接続文字列を読むと、文字列の中の `&` でシェルが文を区切り、本番の値が読まれない**。そのまま `.env.local`(開発 DB)の値が使われ、「成功」と出ても開発 DB に向いている(2026-10-17 に発生。適用はなく影響なし)→ 値は 1 行ずつそのまま読み込み、実行の直前に接続先のホストを表示して確かめる。
 - **npm の出力に色コードが付き、`grep` が空振りする** → 出力をファイルに書き、`sed 's/\x1b\[[0-9;]*m//g'` で色を除いてから検索する。
 - **`vercel link` は `.env.local` に `VERCEL_OIDC_TOKEN` を足し、`.gitignore` に重複行を足す** → 実行前に `.env.local` をバックアップし、実行後に元へ戻す(`git checkout -- .gitignore`)。
 - **Next.js 16 の `proxy.ts` は、標準で Node.js ランタイム**。Server Action は proxy を通らないことがあるため、認可は各アクションで本判定する。

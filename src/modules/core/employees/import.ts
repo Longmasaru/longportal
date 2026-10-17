@@ -24,8 +24,11 @@ export type ImportRecord = {
 
 export type ImportIssue = { line: number; message: string };
 
-/** RFC 4180 の CSV を行・列に分ける(引用符・引用符内の改行とカンマに対応)。 */
-export function parseCsv(text: string): string[][] {
+/**
+ * RFC 4180 の CSV を行・列に分ける(引用符・引用符内の改行とカンマに対応)。
+ * 空行は除く。行番号を元のファイルとそろえたいときは keepEmptyRows を付ける。
+ */
+export function parseCsv(text: string, options: { keepEmptyRows?: boolean } = {}): string[][] {
   const rows: string[][] = [];
   let row: string[] = [];
   let field = "";
@@ -64,7 +67,7 @@ export function parseCsv(text: string): string[][] {
     row.push(field);
     rows.push(row);
   }
-  // 空行は除く
+  if (options.keepEmptyRows) return rows;
   return rows.filter((r) => r.some((v) => v.trim() !== ""));
 }
 

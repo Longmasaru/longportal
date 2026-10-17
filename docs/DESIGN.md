@@ -683,3 +683,17 @@ TODOSample の TODO を、ポータルの中のアプリ(`modules/apps/todo`、`
   - 埋め込みの許可: ポータルの画面は今までどおり `X-Frame-Options: DENY`。`embedPath` の住所だけはポータルのヘッダーを付けず、アプリが `X-Frame-Options: SAMEORIGIN` と `frame-ancestors 'self'` を返す。`proxy.ts` の matcher から `embedPath` を外す(ログインの確認はアプリ側)。
   - 全画面: iframe に `allow="fullscreen"`。アプリは埋め込まれているとき(`window.self !== window.top`)、自分の上のバーを出さない。
 
+
+## 29. 実装メモ(配達ルート: Google スプレッドシートの Apps Script からの移植)
+
+2026-10-17 にユーザーと決めたこと: Google スプレッドシート「取引先一覧表」に紐づく Apps Script「配達ルート作成ツール(株式会社ロング)v5」を、**ポータルの中のアプリ** `apps/haisou`(`/apps/haisou`)に移す。データはポータルの DB に移し、以後はポータルで見て編集する。**使い勝手は元のツールからほとんど変えない**。**元のスプレッドシートとスクリプトは消さない・書き換えない**(読むだけ)。
+
+- **画面**: 元の HTML(`dialog.html`・`clients.html`)を、ほぼそのまま `ui/dialog.ts`・`ui/clients.ts` の文字列として持ち、Route Handler(`pages.ts` の `renderHaisouPage`)で返す。React に書き直さない(同じ動きを保つため)。`<script>` の前に `ui/shim.ts` を差し込み、`google.script.run.○○(...)` を `POST /apps/haisou/api { fn, args }` に置き換える。ポータルの外枠(サイドバー)は付かない(元と同じ全画面)。
+  - 元はシートを直接見ていた「配達ルート履歴」は、新しい画面 `/apps/haisou/history`(月ごと・配達者で絞り込み・便ごとにまとめる・実時間の入力・便の削除)にした。
+  - 「配達者リスト」の編集は、取引先の管理の「配達者の管理」から行う。
+- **サーバー側**(`service.ts`): 元の `コード.gs` の関数を同じ名前・同じ戻り値の形で移した。入口は `rpc.ts` の `handleRpc`: 同じサイトからの呼び出しか(`Origin` または `Sec-Fetch-Site`)→ `requireAppAccess("haisou")` → 引数の形(zod)→ 処理。想定外のエラーの中身は画面に出さない。
+- **計算**(`schedule.ts`、純粋関数、`schedule.test.ts`): 本社(株式会社ロング 石川県金沢市東蚊爪町1丁目34-3)発着、休憩 12:00-12:45・15:00-15:15・17:30-17:40 にかかったら休憩の終わりまで進める、既定の滞在 10 分、地図のリンクは経由地 9 件ごとに分ける。いずれも元と同じ。
+- **地図**(`maps.ts`): 元の `Maps.Geocoder` / `DirectionFinder` の代わりに、Google Maps Platform の Geocoding API(住所の前に「日本 石川県周辺 」を付ける)と Routes API(`computeRoutes`、経由地の最適化・高速道路を避ける)を使う。鍵は `GOOGLE_MAPS_API_KEY`(Vercel では Sensitive)。鍵がない・失敗したときは、元と同じく 1 区間 15 分の概算で計算し、理由を画面に出す。住所 → 座標は `haisou.geocode_cache` に 30 日控える(元は 6 時間)。
+- **配達者へのメール**: ポータルにはまだメール送信の仕組みがない(26 章)ので、当面は利用者のメールソフトを開き(`mailto:`)、ルート表とマップのリンクを本文に入れる。AM・PM は 1 通にまとめる。`core/mail` ができたら、元と同じくサーバーから送る形に戻す。
+- **DB**(スキーマ `haisou`、migration `0014_haisou_app`): `clients`(取引先。`row_no` は元のシートの行番号を引き継ぐ画面の「No.」で、保存ルートの照合にも使う。新規は最大値 + 1。削除は `deleted_at` を入れるだけ)、`drivers`、`history`(1 訪問 1 行。`batch_id` が 1 回の保存。日付の文字列 `date_label` と、絞り込み用の `delivery_date`)、`saved_routes`(名前つきの保存。同名は上書き。元の 50 件の上限はなくした)、`company_defaults`(会社ごとの前回の入力。**本人ごと**、`user_id`)、`geocode_cache`。前回の入力以外は会社で共有するデータで、アプリを使える人は全員が見て編集できる(元のスプレッドシートと同じ)。専用の権限はない。
+- **元データの取り込み**: `npm run db:import-haisou -- <フォルダ> --actor <ログインID> [--replace] [--apply]`(`scripts/import-haisou.ts`、読み取りは `import.ts`)。各シートを CSV に書き出したもの(`clients.csv`・`drivers.csv`・`history.csv`・`saved-routes.csv`)を読む。既定は確認だけ。取り込み先にデータがあれば止まり、`--replace` で入れ直す。CSV は取引先の情報なので、リポジトリの中に置かない。**元のツールは今も毎日使われているため、本番への取り込みは、ポータルへ切り替える直前に行う**(それまでの分は、取り込み直せば反映される)。
