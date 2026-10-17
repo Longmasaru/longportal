@@ -129,6 +129,10 @@ export const DIALOG_HTML = String.raw`<!DOCTYPE html>
   .rcard .t { font-weight:bold; font-size:14px; }
   .rcard .s { color:#555; font-size:12px; margin:3px 0 6px; }
   .rcard .counts b { font-size:14px; color:var(--navy); }
+  .day-sum { width:auto; margin:4px 0 14px; font-size:13px; }
+  .day-sum td, .day-sum th { padding:4px 10px; }
+  .wait-tag { display:inline-block; background:#fff1d6; color:#8a4b00; border:1px solid var(--amber);
+              border-radius:4px; padding:0 4px; font-size:11px; font-weight:bold; margin-left:4px; white-space:nowrap; }
   .cmp-bar { background:#fdf3e0; border:1px dashed var(--amber); border-radius:6px; padding:8px 10px; margin:6px 0 10px; font-size:12px; }
 </style>
 <style id="pageSizeStyle">@page { size: A4 landscape; margin: 10mm; }</style>
@@ -327,16 +331,14 @@ export const DIALOG_HTML = String.raw`<!DOCTYPE html>
   </div>
 </div>
 
-<!-- ========== 比較画面（保存したルート表を2つ並べて表示） ========== -->
+<!-- ========== 比較画面（保存したルート表を並べて表示。2つの比較と、1日の全トラック） ========== -->
 <div id="pageCompare" style="display:none">
   <div class="head-print">
-    <h2 style="margin:0">🆚 ルート表の比較</h2>
+    <h2 style="margin:0" id="cmpTitle">🆚 ルート表の比較</h2>
     <div class="co">発行: <span id="cmpNow"></span></div>
   </div>
-  <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
-    <div id="compareLeft" style="flex:1;min-width:340px"></div>
-    <div id="compareRight" style="flex:1;min-width:340px"></div>
-  </div>
+  <div id="compareSummary"></div>
+  <div id="compareCols" style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap"></div>
   <div class="foot noprint" style="margin-top:14px">
     <button class="btn gray" onclick="backToSelectFromCompare()">◀ 選択画面に戻る</button>
     <button class="btn amber" onclick="printFull()">🖨 印刷 / PDF保存</button>
@@ -873,7 +875,8 @@ function compareRoutes() {
 }
 
 function renderCompareColumn(label, data) {
-  let html = '<div style="border:1px solid var(--navy);border-radius:8px;padding:10px 12px">';
+  let html = '<div style="border:1px solid var(--navy);border-left:6px solid ' + driverColor(data.driver) +
+    ';border-radius:8px;padding:10px 12px">';
   html += '<div class="shift-result-title" style="margin-top:0">' + esc(label) + '</div>';
   html += '<div style="font-size:12px;color:#555;margin-bottom:8px">' +
     esc(data.date || '（日付未設定）') + '　配達者：' + esc(data.driver || '—') + '</div>';
@@ -885,8 +888,10 @@ function renderCompareColumn(label, data) {
     if (!stops.length && !r) return;
     any = true;
     const shiftLabel = shift === 'AM' ? 'AM便' : 'PM便';
+    const w = r ? totalWait(r) : 0;
     html += '<div style="font-weight:bold;color:var(--navy);margin:8px 0 4px">' + shiftLabel +
       (r ? '　｜　出発 ' + r.startTime + ' ／ 帰着予定 ' + r.backTime +
+           (w ? '<span class="wait-tag">⏳ 待ち 計' + w + '分</span>' : '') +
            '　｜　' + (r.totalKm != null ? r.totalKm + 'km' : '概算') + ' / ' + r.totalMin + '分'
          : '　（未計算）') + '</div>';
     html += '<table style="font-size:12px"><thead><tr>' +
@@ -894,7 +899,8 @@ function renderCompareColumn(label, data) {
       '</tr></thead><tbody>';
     const list = r ? r.schedule : stops.map((s, i) => ({ no: i + 1, name: s.name, arrive: '-', depart: '-' }));
     list.forEach(s => {
-      html += '<tr><td style="text-align:center">' + s.no + '</td><td>' + esc(s.name) + '</td>' +
+      html += '<tr><td style="text-align:center">' + s.no + '</td><td>' + esc(s.name) +
+        (s.wait ? '<span class="wait-tag">⏳' + s.wait + '分</span>' : '') + '</td>' +
         '<td style="text-align:center">' + (s.arrive || '-') + '</td>' +
         '<td style="text-align:center">' + (s.depart || '-') + '</td></tr>';
     });
@@ -909,19 +915,73 @@ function renderCompareColumn(label, data) {
     html += '<div style="margin-top:8px;font-weight:bold;color:var(--navy)">AM＋PM合計　' +
       (bothKm != null ? bothKm + 'km' : '概算') + ' ／ ' + bothMin + '分</div>';
   }
+  html += '<div class="noprint" style="margin-top:8px"><button class="btn small" data-n="' + esc(label) +
+    '" onclick="calLoad(this.dataset.n)">📂 このルート表を開く</button></div>';
   html += '</div>';
   return html;
 }
 
-function showCompare(name1, data1, name2, data2) {
-  document.getElementById('compareLeft').innerHTML = renderCompareColumn(name1, data1);
-  document.getElementById('compareRight').innerHTML = renderCompareColumn(name2, data2);
+/* 1日の全トラックの、便ごとの出発・帰着と待ちの一覧 */
+function renderDaySummary(list) {
+  const cell = (r) => {
+    if (!r) return '<td style="color:#aaa;text-align:center">―</td>';
+    const w = totalWait(r);
+    return '<td style="white-space:nowrap">' + r.startTime + ' → <b>' + r.backTime + '</b>　' + r.schedule.length + '件' +
+      (w ? '<span class="wait-tag">⏳ 待ち ' + w + '分</span>' : '') + '</td>';
+  };
+  let h = '<table class="day-sum"><thead><tr><th>配達者</th><th>ルート表</th><th>AM便（出発 → 帰着）</th><th>PM便（出発 → 帰着）</th></tr></thead><tbody>';
+  list.forEach(o => {
+    const res = (o.data && o.data.results) || {};
+    h += '<tr><td style="white-space:nowrap"><span class="sw" style="display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;background:' +
+      driverColor(o.data.driver) + '"></span>' + esc(o.data.driver || '—') + '</td>' +
+      '<td>' + esc(o.name) + '</td>' + cell(res.AM) + cell(res.PM) + '</tr>';
+  });
+  return h + '</tbody></table>';
+}
+
+/* 並べて表示（list は {name, data} の配列。summary が true なら上に一覧を出す） */
+function showCompareMany(list, title, summary) {
+  document.getElementById('cmpTitle').textContent = title;
+  document.getElementById('compareSummary').innerHTML = summary ? renderDaySummary(list) : '';
+  const minW = list.length >= 3 ? 300 : 340;
+  document.getElementById('compareCols').innerHTML = list.map(o =>
+    '<div style="flex:1;min-width:' + minW + 'px">' + renderCompareColumn(o.name, o.data) + '</div>').join('');
   document.getElementById('cmpNow').textContent = new Date().toLocaleString('ja-JP');
   compareFromCal = document.getElementById('pageCalendar').style.display !== 'none';
   document.getElementById('pageSelect').style.display = 'none';
   document.getElementById('pageResult').style.display = 'none';
   document.getElementById('pageCalendar').style.display = 'none';
   document.getElementById('pageCompare').style.display = 'block';
+  window.scrollTo(0, 0);
+}
+
+/* カレンダーで選んだ日の、全トラックのルート表を並べて表示 */
+function showDayBoard() {
+  if (!calSelKey || calSelKey === 'nodate') return;
+  const items = SAVED_LIST.filter(o => savedDateKey(o) === calSelKey).sort((x, y) =>
+    (DRIVERS.indexOf(x.driver) - DRIVERS.indexOf(y.driver)) || String(x.name).localeCompare(String(y.name), 'ja'));
+  if (!items.length) return;
+  const msg = document.getElementById('calMsg');
+  msg.textContent = '読み込み中...';
+  const loaded = [];
+  const next = (i) => {
+    if (i >= items.length) {
+      msg.textContent = '';
+      const [y, m, d] = calSelKey.split('-').map(Number);
+      const w = ['日', '月', '火', '水', '木', '金', '土'][new Date(y, m - 1, d).getDay()];
+      showCompareMany(loaded, '🚚 ' + m + '月' + d + '日(' + w + ') の配達　' + loaded.length + '件のルート表', true);
+      return;
+    }
+    google.script.run
+      .withSuccessHandler(data => { if (data) loaded.push({ name: items[i].name, data: data }); next(i + 1); })
+      .withFailureHandler(e => { msg.textContent = ''; alert('読み込みエラー（' + items[i].name + '）: ' + e.message); })
+      .loadRouteState(items[i].name);
+  };
+  next(0);
+}
+
+function showCompare(name1, data1, name2, data2) {
+  showCompareMany([{ name: name1, data: data1 }, { name: name2, data: data2 }], '🆚 ルート表の比較', false);
 }
 
 function backToSelectFromCompare() {
@@ -1050,6 +1110,9 @@ function renderCalSide(byDay) {
   }
   let h = '<div style="font-size:16px;font-weight:bold;color:var(--navy);margin-bottom:8px">' + esc(title) +
           '　<span style="color:var(--teal)">' + items.length + '件</span></div>';
+  if (items.length && calSelKey !== 'nodate') {
+    h += '<button class="btn small" style="margin-bottom:6px" onclick="showDayBoard()">🚚 この日の全員を並べて見る</button>';
+  }
 
   // 比較の選択状況
   h += '<div class="cmp-bar">';
