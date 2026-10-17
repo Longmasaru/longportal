@@ -1,0 +1,2 @@
+ALTER TABLE "core"."audience_conditions" DROP CONSTRAINT "audience_conditions_attribute_check";--> statement-breakpoint
+ALTER TABLE "core"."audience_conditions" ADD CONSTRAINT "audience_conditions_attribute_check" CHECK ("core"."audience_conditions"."attribute" in ('department', 'location', 'position', 'employment_type', 'is_management', 'tenure_months', 'employee'));

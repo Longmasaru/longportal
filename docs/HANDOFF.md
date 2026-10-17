@@ -2,7 +2,7 @@
 
 別の環境(デスクトップ版の Claude など)や新しいセッションで、これまでの作業を**途切れなく**続けるための文書。
 設計の正は `docs/DESIGN.md`、こちらは「経緯・約束事・運用手順・落とし穴・現在地」をまとめたもの。
-最終更新: 2026-10-15(手順 0〜5・7、社員データ(本番 54 人)、姓名の分割、ログイン強化、本番公開、Cloudflare R2 の基盤まで完了した時点。次は手順 6)。
+最終更新: 2026-10-17(人事管理アプリの本番公開まで。それ以前の経緯は 4 章)。
 
 ---
 
@@ -55,6 +55,7 @@
 | ログイン強化 | 入力長の上限(ID 50 / PW 200)、失敗回数の制限(ID は 15 分 5 回、接続元は 15 分 50 回。`core.login_attempts`)、セキュリティヘッダー |
 | ファイル保管 | Cloudflare R2 の基盤(`core/storage`、署名付き URL、接続確認 `npm run r2:check`、CORS 設定済み) |
 | 最初の業務アプリ | `apps/sodatsu`(人事ポリシー「育てて、育つ。」の紹介。`/apps/sodatsu`、閲覧のみ・DB なし・専用権限なし。記入欄とふりかえりは端末のブラウザにだけ保存)。サイドバーへの表示は、手順 6 までは `queries.ts` の `listVisibleApps` が固定で返している |
+| 会社カレンダー | `apps/calendar`(`/apps/calendar`。会社の休日・出勤日の月表示、今日・次の休み・残りの出勤日数、年間のまとめ。休日データは `company-calendar.ts` にコードで持つ(2026 年分のみ。紙のカレンダーを写したもので、`logic.test.ts` で照合)。本人だけのメモ・予定は `calendar.entries`(migration `0011_calendar_entries`、`user_id` でスコープ)。専用権限なし。アプリの登録簿(`sync:manifests`)に登録し、入場は `requireAppAccess`。本番で使うには、アプリ管理(`/admin/apps`)で有効にし、表示する相手を決める。2026-10-17 に第 1 弾(連休のカウントダウン・出勤土曜の前日・明日から連休・本人の入社の周年・給料日(毎月 29 日、休みなら前の出勤日)・今日のひとこと。ホームの一番上にも出す。DESIGN.md 33 章。DB の変更なし)。第 2 弾は全社の予定(一斉有給取得日は「休み + 有給の印」で通知なし、臨時休業、行事。管理者が画面で書き込む)の予定 |
 
 ### 社員データ(2026-10-14)
 - 社内サーバーの `社員名簿.xls`(「名簿 (2)」シート)から、在籍 54 人を**開発 DB に取り込み済み**(`npm run db:import-employees`、DESIGN.md 21 章)。**本番は未実施**。
@@ -67,6 +68,18 @@
 - 2026-10-15: 氏名を姓・名・姓(かな)・名(かな)に分けた(本番も。DESIGN.md 22 章)。区切りのないかなは、漢字の姓名を手がかりに分けた一覧をユーザーが確認してから入れた(`npm run db:update-name-kana`)。
 - 本番の社内リンク(ユーザーが画面で登録): LINE WORKS・freee勤怠管理Plus・ユニネク(全社)。計測用の `_gl` などや、使い捨ての `state` は URL から除いた。
 
+- 2026-10-16: Audience の条件に「社員」(一覧から名指しで選ぶ)を追加(DESIGN.md 27 章、migration 0013。本番にも適用済み)。
+- **人事管理(2026-10-17 本番公開)**: `apps/hr`(DESIGN.md 31 章。`/apps/hr`、権限 `hr.records.manage`、migration 0016 `hr_records`・0017 `hr_abilities`。本番 DB に適用・`sync:manifests` 済み、本番のアプリ管理で有効)。元の Google スプレッドシート「人事管理シート」(社員 1 人 1 シート)の 1〜5 章(基本情報・目標と評価・スキルと資格・人柄・コンディション)と、面談・指導・ほめ・異動の記録。本人は自分のページで 1〜3 章と「本人に公開」の記録だけを見る(ユーザーの判断)。画面は「まとめ(名札・能力 5 項目のレーダーチャート・直近の記録)+ タブ」(31.2。5 項目の名前は仮)。記録の内容に「音声入力」と「AIで整える」(31.3、PR #16)。**ユーザーの判断: 人事の文章を AI に送るのは、対象の社員の氏名を「本人」に置き換えてから**。未着手: シートの「評価シート」(自己評価の様式)、部署ごとの担当の割り当て、一覧での能力の比較。
+- **作業中(2026-10-16)**: 本人によるパスワード再設定(DESIGN.md 26 章)。済み: 設計、`core.users.email` / `email_verified_at`、`core.auth_tokens` の schema と migration 0012(本番にも適用済み。まだ使うコードはない)。未着手: `core/mail`(送信。Resend を Vercel Marketplace で接続してから組み込む)、初回ログインでのメール登録、確認メール、`/forgot-password`・`/reset-password`・`/verify-email`(proxy の matcher から除外が必要)、未確認の案内、Cloudflare DNS への Resend の設定。
+
+- 2026-10-17: AI教室(別アプリ。リポジトリ `ai-kyoshitsu`、本番 `https://ai-kyoshitsu.vercel.app`、DESIGN.md 28 章)を本番公開。ログインはポータルの通行証(SSO。入口 `/apps/launch/<app_key>`、`core/sso`、契約 `modules/apps/external-apps.ts`、鍵 `SSO_SECRET_AIKYOSHITSU`)。講師の老川さん(0052)にロール「AI教室 講師」(`aikyoshitsu.materials.manage`)。第1回の資料 4 つを投入済み。同日、**見え方をポータルの中のアプリにした**: サイドバーから同じタブで `/apps/aikyoshitsu` を開き、ポータルの画面の中に埋め込む。`/aikyoshitsu/…` はポータルがアプリへ転送する(multi-zones。`next.config.ts` の `ZONES`、アプリは basePath `/aikyoshitsu`)。
+
+- **作業中(2026-10-17)**: 配達ルート(本番 DB は準備済み: migration 0014・sync:manifests・元データ取り込み(取引先 78・配達者 4・履歴 247・保存ルート 50)。Vercel Production に GOOGLE_MAPS_API_KEY 登録済み)(`apps/haisou`、`/apps/haisou`、DESIGN.md 29 章)。Google スプレッドシート「取引先一覧表」の Apps Script「配達ルート作成ツール v5」の移植で、**元のシートとスクリプトは消さない・書き換えない**。ブランチ `feature/haisou-route`(PR で確認中)。本番に出すには: migration `0014_haisou_app` を本番に適用 → `sync:manifests` → Google Maps Platform の鍵(Geocoding API・Routes API)を Vercel に `GOOGLE_MAPS_API_KEY`(Sensitive)で登録 → 切り替えの直前に `npm run db:import-haisou` で元データを取り込む → `/admin/apps` で有効化。配達者へのメールは当面メールソフトを開く形(`core/mail` ができたら戻す)。
+
+- **作業中(2026-10-17)**: ロングの教科書(`apps/kyokasho`、`/apps/kyokasho`、DESIGN.md 30 章)。部署ごとの教科書を 1 つのアプリに並べる。正本は Google ドキュメント(持ち主は外部支援のアカウント)で、Word(.docx)で保存したものを `npm run db:import-kyokasho` で取り込む。中身と画像はリポジトリに入れない(DB と R2)。本番に出すには: migration `0015_kyokasho_app` を本番に適用 → `sync:manifests` → 教科書を取り込む → `/admin/apps` で有効化 → `/apps/kyokasho/manage` で公開。
+
+- **教科書の「ツッコミ」(2026-10-17 本番公開)**: DESIGN.md 32 章。読んだ人の疑問・付け足し・まちがい(右下のボタン、文を選んで引用、音声入力、「AIで整える」)、教科書チームの返事と採用、ありがとう、教科書をよくしてくれた人。migration `0018_kyokasho_comments`(本番に適用済み)、権限 `kyokasho.comments.manage`(本番に sync 済み。今は system_admin と `kyokasho.books.manage` の人が返事できる)。未着手: 新しいツッコミの通知(`core/mail` ができてから)。
+
 ### まだ「枠だけ」の部分
 - 見本(架空)のデータは 2026-10-14 に削除した(`mock-data.ts`)。ホームとサイドバーの**お知らせ・アプリ・社内リンク・要対応**は、`queries.ts` の `listVisible*` が空を返す(アプリは apps/sodatsu だけを固定で返す)ので、枠と「まだありません」の表示だけが出る。実装時は、この関数の中身を差し替える。
 - `/notices/*`、`/admin/apps` は「準備中」ページ(`[...slug]` のキャッチオール)。
@@ -75,7 +88,7 @@
 1. ~~**手順 6**~~(2026-10-15 完了。DESIGN.md 24 章。登録簿 `/admin/apps`、ポータルの中のアプリは `requireAppAccess` で入場を制限、別プロジェクトのアプリは URL で登録。自動ログイン(SSO)と、アプリごとの開発者・管理者の指定は、あとの段階):  app registry(コード側の manifest + DB の運用設定)、manifest の同期(`npm run sync:manifests` に、アプリの権限と `app_registry` を追加)、`canAccessApp` / `requireAppAccess`。サイドバーとホームのアプリ表示を、Audience の判定につなぐ。Audience の「利用先」の表示と「利用中は削除不可」(`listAudienceUsages`)もここで有効にする。
 2. ~~**手順 7**~~(2026-10-15 完了・本番反映済み): お知らせ(全社・Audience・個人指定、通常・重要・緊急、ホームのバナー、既読、確認ボタン)と社内リンク。管理画面 `/admin/notices`・`/admin/links`、権限 `core.notices.manage`・`core.links.manage`。DESIGN.md 23 章。
 3. ~~**手順 8**~~(2026-10-16 完了・本番反映済み。DESIGN.md 25 章。`/apps/todo`。カテゴリは仕事向け 9 種、Claude Haiku 5.5 で自動分類、添付は 25MB まで。本番のアプリ管理ではまだ「無効」。Vercel Production に `ANTHROPIC_API_KEY`(Sensitive)、手元の `.env.local` にも同名のキーを登録済み): TODO アプリの移植(TODOSample から。TODO は `user_id` に紐づく個人データ。Claude による自動分類、R2 添付ファイルも含む)。添付のメタ情報テーブル(ファイル名・サイズ・所有者)は、このときに migration で追加する。
-4. **ありがとうカード**(2026-10-15 実装。DESIGN.md 26 章。`/apps/arigato`、集計は `/apps/arigato/stats`。「育てて、育つ。」を風土として根づかせる最初の参加型アプリ): 2026-10-17 に「ありがとう番付」(`/apps/arigato/banzuke`。四股名・年六場所・白星・昇進・伝達式・今週の一枚スタンプカード)を追加し、テーブル `arigato.shikona`・`arigato.banzuke` も同じ `0011_arigato_cards` に含めた(まだどの DB にも適用していないため)。本番に出すときは、コードを `main` に送る前に migration `0011_arigato_cards` を本番 DB に適用し、`npm run sync:manifests`(権限 `arigato.stats.view`・`arigato.cards.manage` とアプリの登録)を実行してから、`/admin/apps` で有効にする。集計・削除の権限は、管理画面でロールに付ける(system_admin には sync で自動付与)。
+4. **ありがとうカード**(2026-10-15 実装。DESIGN.md 34 章。`/apps/arigato`、集計は `/apps/arigato/stats`。「育てて、育つ。」を風土として根づかせる最初の参加型アプリ): 2026-10-17 に「ありがとう番付」(`/apps/arigato/banzuke`。四股名・年六場所・白星・昇進・伝達式・今週の一枚スタンプカード)を追加し、テーブル `arigato.shikona`・`arigato.banzuke` も同じ migration に含めた。2026-10-17 に main(0018 まで)へそろえ、migration は `0019_arigato_cards` に作り直した。本番に出すときは、コードを `main` に送る前に migration `0019_arigato_cards` を本番 DB に適用し、`npm run sync:manifests`(権限 `arigato.stats.view`・`arigato.cards.manage` とアプリの登録)を実行してから、`/admin/apps` で有効にする。集計・削除の権限は、管理画面でロールに付ける(system_admin には sync で自動付与)。
 5. 以後: 教育・スキル、改善提案、出し直し管理、マニュアル、設備管理など。
 
 ### 社員にアカウントを配る前のチェック(未了)
@@ -124,7 +137,7 @@
 ### DB の変更(スキーマ)
 1. スキーマを編集 → `npx drizzle-kit generate --name=...`(EXCLUDE などは `--custom` で手書き)。
 2. 開発 DB に適用: `npx drizzle-kit migrate`(`.env.local`)。
-3. **本番に適用するのは、コードを `main` に送る前**(新しいテーブルを使うコードが先に出ても、ログインは止まらない設計だが、確実にするため)。手順: ユーザーが `.env.production.local` に本番の接続文字列(pooler あり・なし)を保存 → 本番ホストであることを確認 → `set -a; . ./.env.production.local; set +a` のうえで `DB_TARGET=production CONFIRM_PRODUCTION=yes npx drizzle-kit migrate` → 読み取りだけで結果を確認 → ファイルを削除。
+3. **本番に適用するのは、コードを `main` に送る前**(新しいテーブルを使うコードが先に出ても、ログインは止まらない設計だが、確実にするため)。手順: ユーザーが `.env.production.local` に本番の接続文字列(pooler あり・なし)を保存 → 本番ホストであることを確認 → 値を 1 行ずつそのまま読み込んで(`docs/playbooks/new-app-setup.md` のとおり。`set -a; . ./.env.production.local` は使わない)、接続先のホストが本番であることを表示して確かめたうえで `DB_TARGET=production CONFIRM_PRODUCTION=yes npx drizzle-kit migrate` → 読み取りだけで結果を確認 → ファイルを削除。
 4. 初期データ・権限の同期: `npm run db:seed`(冪等)、`npm run sync:manifests`。管理者の復旧: `npm run db:grant-admin -- <login_id>`。
 
 ### その他のコマンド
@@ -135,6 +148,7 @@
 - **シェルのヒアドキュメントで、日本語や記号を含む長い文章が失敗する**ことがある → ファイル作成は **Write ツール**を使う。
 - **`.next/dev/types/routes.d.ts` が壊れて型チェックが落ちる**(開発サーバーと `next typegen` / `build` が同時に書き換える) → `rm -rf .next/dev/types && npx next typegen` のあとに、型チェックとビルドをやり直す。
 - **`drizzle-kit migrate` は、`DATABASE_URL_UNPOOLED` のパスワードが古いと、エラーを表示せずに終了する**(終了コードは 1) → 失敗したら、`DATABASE_URL` から `-pooler` を除いて `UNPOOLED` を作り直す。成功は「migrations applied successfully」で確認する。
+- **`set -a; . ./.env.production.local` で本番の接続文字列を読むと、文字列の中の `&` でシェルが文を区切り、本番の値が読まれない**。そのまま `.env.local`(開発 DB)の値が使われ、「成功」と出ても開発 DB に向いている(2026-10-17 に発生。適用はなく影響なし)→ 値は 1 行ずつそのまま読み込み、実行の直前に接続先のホストを表示して確かめる。
 - **npm の出力に色コードが付き、`grep` が空振りする** → 出力をファイルに書き、`sed 's/\x1b\[[0-9;]*m//g'` で色を除いてから検索する。
 - **`vercel link` は `.env.local` に `VERCEL_OIDC_TOKEN` を足し、`.gitignore` に重複行を足す** → 実行前に `.env.local` をバックアップし、実行後に元へ戻す(`git checkout -- .gitignore`)。
 - **Next.js 16 の `proxy.ts` は、標準で Node.js ランタイム**。Server Action は proxy を通らないことがあるため、認可は各アクションで本判定する。

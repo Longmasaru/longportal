@@ -11,7 +11,7 @@ export const MAX_CONDITIONS_PER_GROUP = 10;
 /** 所属条件: 1 件の所属(部署と拠点の組)に対して評価する。 */
 export const ASSIGNMENT_ATTRIBUTES = ["department", "location"] as const;
 /** 社員条件: 社員本人に対して評価する。 */
-export const EMPLOYEE_ATTRIBUTES = ["position", "employment_type", "is_management", "tenure_months"] as const;
+export const EMPLOYEE_ATTRIBUTES = ["position", "employment_type", "is_management", "tenure_months", "employee"] as const;
 export const CONDITION_ATTRIBUTES = [...ASSIGNMENT_ATTRIBUTES, ...EMPLOYEE_ATTRIBUTES] as const;
 export type ConditionAttribute = (typeof CONDITION_ATTRIBUTES)[number];
 
@@ -29,7 +29,9 @@ export type AudienceCondition =
   | AssignmentCondition
   | { attribute: "position" | "employment_type"; operator: "in"; value: string[] }
   | { attribute: "is_management"; operator: "is"; value: boolean }
-  | { attribute: "tenure_months"; operator: "lt" | "gte"; value: number };
+  | { attribute: "tenure_months"; operator: "lt" | "gte"; value: number }
+  /** 社員を名指しで選ぶ(社員 ID)。DESIGN.md 27 章。 */
+  | { attribute: "employee"; operator: "in"; value: string[] };
 
 export type AudienceGroup = { conditions: AudienceCondition[] };
 export type AudienceDefinition = { groups: AudienceGroup[] };
@@ -41,9 +43,15 @@ export const ATTRIBUTE_LABEL: Record<ConditionAttribute, string> = {
   employment_type: "雇用区分",
   is_management: "管理職",
   tenure_months: "入社からの期間",
+  employee: "社員",
 };
 
 const idList = z.array(z.uuid()).min(1, "選択肢を 1 つ以上選んでください。").max(100);
+export const MAX_EMPLOYEES_PER_CONDITION = 500;
+const employeeIdList = z
+  .array(z.uuid())
+  .min(1, "社員を 1 人以上選んでください。")
+  .max(MAX_EMPLOYEES_PER_CONDITION, `1 つの条件で選べる社員は ${MAX_EMPLOYEES_PER_CONDITION} 人までです。`);
 
 const conditionSchema = z.discriminatedUnion("attribute", [
   z.object({ attribute: z.literal("department"), operator: z.literal("in"), value: idList }),
@@ -56,6 +64,7 @@ const conditionSchema = z.discriminatedUnion("attribute", [
     operator: z.enum(["lt", "gte"]),
     value: z.number().int("期間は整数(か月)で入力してください。").min(0).max(1200),
   }),
+  z.object({ attribute: z.literal("employee"), operator: z.literal("in"), value: employeeIdList }),
 ]);
 
 export const definitionSchema = z.object({

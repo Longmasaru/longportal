@@ -19,7 +19,7 @@ import type { ArigatoTag } from "./constants";
 import { listReceivable, pointsExpr, primaryDepartments } from "./queries";
 import { arigatoBanzuke, arigatoCards, arigatoShikona } from "./schema";
 
-// ありがとう番付の読み書き(docs/DESIGN.md 26 章)。
+// ありがとう番付の読み書き(docs/DESIGN.md 34 章)。
 
 type Range = { start: string; end: string };
 const inRange = (r: Range) => and(gte(arigatoCards.sentOn, r.start), lte(arigatoCards.sentOn, r.end));

@@ -59,7 +59,7 @@ export const audienceConditions = core.table(
     index("audience_conditions_group_id_idx").on(t.groupId),
     check(
       "audience_conditions_attribute_check",
-      sql`${t.attribute} in ('department', 'location', 'position', 'employment_type', 'is_management', 'tenure_months')`,
+      sql`${t.attribute} in ('department', 'location', 'position', 'employment_type', 'is_management', 'tenure_months', 'employee')`,
     ),
     check("audience_conditions_operator_check", sql`${t.operator} in ('in', 'is', 'lt', 'gte')`),
   ],

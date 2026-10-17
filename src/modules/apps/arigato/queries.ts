@@ -15,7 +15,7 @@ import {
 } from "./constants";
 import { arigatoCards, arigatoLikes } from "./schema";
 
-// ありがとうカードの読み取り(docs/DESIGN.md 26 章)。
+// ありがとうカードの読み取り(docs/DESIGN.md 34 章)。
 // 「本人にだけ」(private)のカードは、送った人と受け取った人以外には本文を返さない。
 
 export type Recipient = { userId: string; name: string; departmentName: string | null };
@@ -206,7 +206,7 @@ export async function getWeekStatus(userId: string, today: string): Promise<Week
 }
 
 /**
- * 加点(docs/DESIGN.md 26 章): 送ったカード 1 枚につき 1 点。ただし同じ相手には 1 日 1 点まで
+ * 加点(docs/DESIGN.md 34 章): 送ったカード 1 枚につき 1 点。ただし同じ相手には 1 日 1 点まで
  * (同じ日に同じ人へ何枚送っても 1 点)。「本人にだけ」のカードも数え、取り消したカードは数えない。
  */
 export const pointsExpr = sql<number>`count(distinct (${arigatoCards.toUserId}, ${arigatoCards.sentOn}))::int`;

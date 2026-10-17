@@ -72,7 +72,7 @@ function Key({ children }: { children: ReactNode }) {
  */
 export async function SodatsuPage() {
   const actor = await requireAppAccess(manifest.appKey);
-  // ありがとうカード(apps/arigato)は直接参照せず、使えるかどうかと URL だけを使う(docs/DESIGN.md 26 章)。
+  // ありがとうカード(apps/arigato)は直接参照せず、使えるかどうかと URL だけを使う(docs/DESIGN.md 34 章)。
   return <SodatsuContent userId={actor.userId} showArigato={await canAccessApp(actor, "arigato")} />;
 }
 

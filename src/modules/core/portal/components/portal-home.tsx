@@ -16,6 +16,7 @@ export async function PortalHome({ appPendingItems = [] }: { appPendingItems?: P
       <UrgentBanner notices={data.urgentBanners} />
       <PersonalNotices
         notices={data.personalNotices}
+        hiddenCount={data.hiddenNoticeCount}
         actionRequiredCount={data.actionRequiredCount}
       />
       <PendingItems items={[...data.pendingItems, ...appPendingItems]} />

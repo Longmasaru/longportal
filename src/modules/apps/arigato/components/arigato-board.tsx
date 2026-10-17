@@ -6,7 +6,7 @@ import { deleteCardAction, sendCardAction, toggleLikeAction } from "../actions";
 import { ARIGATO_TAGS, ARIGATO_TAG_LABEL, MESSAGE_MAX_LENGTH, type ArigatoTag } from "../constants";
 import type { CardRow, Recipient, WeekStatus } from "../queries";
 
-// ありがとうカードの画面(docs/DESIGN.md 26 章)。「みんな」「送る」「自分あて」の 3 つのタブ。
+// ありがとうカードの画面(docs/DESIGN.md 34 章)。「みんな」「送る」「自分あて」の 3 つのタブ。
 
 type Tab = "feed" | "send" | "mine";
 

@@ -14,6 +14,7 @@ const lookup: MasterLookup = {
   ]),
   position: new Map(),
   employment_type: new Map(),
+  employee: new Map([["99999999-9999-4999-8999-999999999999", { name: "退職 太郎(0099)", isActive: false }]]),
 };
 
 test("条件を文章にする(グループ内は かつ)", () => {
@@ -70,5 +71,14 @@ test("無効・不明なマスタの参照を検出する", () => {
     lookup,
   );
   assert.deepEqual(d.groups, ["拠点: 旧工場(無効) かつ 部署: (不明)"]);
+  assert.equal(d.hasStaleReference, true);
+});
+
+test("社員の名指し: 対象外(退職など)の社員を参照していれば警告", () => {
+  const d = describeDefinition(
+    { groups: [{ conditions: [{ attribute: "employee", operator: "in", value: ["99999999-9999-4999-8999-999999999999"] }] }] },
+    lookup,
+  );
+  assert.deepEqual(d.groups, ["社員: 退職 太郎(0099)(対象外)"]);
   assert.equal(d.hasStaleReference, true);
 });

@@ -42,6 +42,8 @@ function employeeConditionHolds(c: AudienceCondition, ctx: EmployeeContext, toda
       const months = monthsOfTenure(ctx.hiredOn, today);
       return c.operator === "lt" ? months < c.value : months >= c.value;
     }
+    case "employee":
+      return c.value.includes(ctx.employeeId);
     default:
       // 所属条件(department / location)は assignmentConditionHolds で評価する。
       return true;

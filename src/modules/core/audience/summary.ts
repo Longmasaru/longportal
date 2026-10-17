@@ -6,8 +6,14 @@ import {
   type MasterListAttribute,
 } from "./definition";
 
-/** マスタの ID → 名称・有効状態。無効・削除済みのマスタを参照していないかの検出にも使う。 */
-export type MasterLookup = Record<MasterListAttribute, Map<string, { name: string; isActive: boolean }>>;
+/**
+ * マスタの ID → 名称・有効状態。無効・削除済みのマスタを参照していないかの検出にも使う。
+ * employee の isActive は「いまアクセスできる社員か」(退職・入社前などは false)。
+ */
+export type MasterLookup = Record<
+  MasterListAttribute | "employee",
+  Map<string, { name: string; isActive: boolean }>
+>;
 
 export type ConditionDescription = {
   text: string;
@@ -20,7 +26,8 @@ export function describeCondition(c: AudienceCondition, lookup: MasterLookup): C
     case "department":
     case "location":
     case "position":
-    case "employment_type": {
+    case "employment_type":
+    case "employee": {
       let stale = false;
       const names = c.value.map((id) => {
         const m = lookup[c.attribute].get(id);
@@ -30,7 +37,7 @@ export function describeCondition(c: AudienceCondition, lookup: MasterLookup): C
         }
         if (!m.isActive) {
           stale = true;
-          return `${m.name}(無効)`;
+          return `${m.name}(${c.attribute === "employee" ? "対象外" : "無効"})`;
         }
         return m.name;
       });

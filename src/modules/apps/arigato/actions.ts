@@ -18,7 +18,7 @@ import { manifest } from "./manifest";
 import { checkRecipient, countSentOn, getCard, getMonthPoints, type CardRow } from "./queries";
 import { arigatoBanzuke, arigatoCards, arigatoLikes, arigatoShikona } from "./schema";
 
-// ありがとうカードの Server Action(docs/DESIGN.md 26 章)。画面以外からも呼べるため、
+// ありがとうカードの Server Action(docs/DESIGN.md 34 章)。画面以外からも呼べるため、
 // 毎回 requireAppAccess(アプリを使えるか)を通し、引数を zod で検証する。
 
 const Id = z.uuid("不正なリクエストです。");

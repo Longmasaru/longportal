@@ -1,4 +1,4 @@
-// ありがとう番付の決まり(docs/DESIGN.md 26 章)。DB に依存しない純粋な関数だけを置く。
+// ありがとう番付の決まり(docs/DESIGN.md 34 章)。DB に依存しない純粋な関数だけを置く。
 import { addDays, weekRange } from "./constants";
 
 /** 位。上から順。maezumo = 前相撲(番付に載る前)。 */

@@ -1,6 +1,13 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { isNoticeAddressedTo, isNoticeBanner, isNoticeLive, summarize, type NoticeFacts } from "./logic";
+import {
+  isNoticeAddressedTo,
+  isNoticeBanner,
+  isNoticeLive,
+  splitBodyLinks,
+  summarize,
+  type NoticeFacts,
+} from "./logic";
 
 const TODAY = "2026-10-15";
 const base: NoticeFacts = {
@@ -45,4 +52,19 @@ test("isNoticeBanner: 全社宛・緊急・バナーの最終日まで・掲載�
 test("summarize: 改行をまとめ、長ければ省略", () => {
   assert.equal(summarize("1行目\n\n2行目"), "1行目 2行目");
   assert.equal(summarize("あ".repeat(100), 10), `${"あ".repeat(10)}…`);
+});
+
+test("splitBodyLinks: 本文の URL をリンクに分け、文末の句読点やかっこは含めない", () => {
+  assert.deepEqual(splitBodyLinks("資料はこちら\n▶ https://board.example.com/a?t=1&b=my&x=false"), [
+    { type: "text", text: "資料はこちら\n▶ " },
+    { type: "link", url: "https://board.example.com/a?t=1&b=my&x=false" },
+  ]);
+  assert.deepEqual(splitBodyLinks("見てください(https://example.com/x)。"), [
+    { type: "text", text: "見てください(" },
+    { type: "link", url: "https://example.com/x" },
+    { type: "text", text: ")。" },
+  ]);
+  assert.deepEqual(splitBodyLinks("URL なし"), [{ type: "text", text: "URL なし" }]);
+  // javascript: などは URL として扱わない
+  assert.deepEqual(splitBodyLinks("javascript:alert(1)"), [{ type: "text", text: "javascript:alert(1)" }]);
 });

@@ -66,7 +66,6 @@ export function buildNavigation(input: {
         label: app.displayName,
         href: app.href,
         icon: app.icon,
-        external: app.external,
       })),
       emptyText: "利用できるアプリはまだありません",
     },

@@ -30,7 +30,8 @@ export type IconName =
   | "user"
   | "key"
   | "logout"
-  | "alert";
+  | "alert"
+  | "calendar";
 
 /** ログイン中ユーザー(core.users + core.employees + 現在有効な主所属 + 役職)。 */
 export type PortalUser = {
@@ -87,8 +88,6 @@ export type PortalApp = {
   description: string;
   icon: IconName;
   href: string;
-  /** 別プロジェクトのアプリ(別タブで開く)。 */
-  external?: boolean;
   /** アプリ側が提供する未処理件数などの要約。 */
   summary?: { label: string; tone: BadgeTone };
 };
@@ -153,8 +152,11 @@ export type PortalHomeData = {
   /** ホーム上部に出す緊急・重要な全社連絡。該当がなければ空。 */
   urgentBanners: Notice[];
   /** あなたへのお知らせ(要対応・未読を優先)。 */
+  /** あなたへのお知らせ(個人宛・全社宛の、未読と要対応。要対応 → 未読 → 新しい順)。 */
   personalNotices: Notice[];
-  /** personalNotices のうち、対応が必要なものの件数(表示件数ではなく全体の件数)。 */
+  /** 件数の上限で表示しきれなかった件数。 */
+  hiddenNoticeCount: number;
+  /** あなたへのお知らせのうち、対応が必要なものの件数(表示件数ではなく全体の件数)。 */
   actionRequiredCount: number;
   /** 各アプリが報告する未対応・要確認の件数。該当がなければ空(セクションごと非表示)。 */
   pendingItems: PendingItem[];

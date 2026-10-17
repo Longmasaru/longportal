@@ -26,7 +26,7 @@ import {
   type ConditionAttribute,
   type MasterListAttribute,
 } from "../definition";
-import type { MasterOptions } from "../queries";
+import type { EmployeeOption, MasterOptions } from "../queries";
 
 // 編集中の条件は、どの種類でも同じ形(ids / flag / months)で持ち、保存・プレビューの直前に定義へ変換する。
 type DraftCondition = {
@@ -51,6 +51,7 @@ function toDefinition(groups: DraftGroup[]): AudienceDefinition {
     groups: groups.map((g) => ({
       conditions: g.conditions.map((c): AudienceCondition => {
         if (isListAttribute(c.attribute)) return { attribute: c.attribute, operator: "in", value: c.ids };
+        if (c.attribute === "employee") return { attribute: "employee", operator: "in", value: c.ids };
         if (c.attribute === "is_management") return { attribute: "is_management", operator: "is", value: c.flag };
         return {
           attribute: "tenure_months",
@@ -144,6 +145,7 @@ export function AudienceEditor({
             グループの中の条件は「かつ」(すべて満たす人)、グループどうしは「または」(どれかに当てはまる人)です。
             条件のないグループは、いまアクセスできる全社員が対象になります。グループが 1 つもなければ、誰も対象になりません。
             部署と拠点は、<strong className="text-brand01">同じ 1 つの所属</strong>が両方を満たす場合だけ当てはまります(兼務の人は、別々の所属では当てはまりません)。
+            特定の人を名指しで選ぶときは、項目の「社員」を使います。ほかの条件の人に足したいときは、「社員」だけのグループを追加してください。
           </p>
 
           {groups.length === 0 ? (
@@ -234,6 +236,13 @@ export function AudienceEditor({
                               ) : null}
                             </div>
                           </fieldset>
+                        ) : c.attribute === "employee" ? (
+                          <EmployeePicker
+                            conditionKey={c.key}
+                            options={options.employee}
+                            selected={c.ids}
+                            onChange={(ids) => updateCondition(group.key, c.key, { ids })}
+                          />
                         ) : c.attribute === "is_management" ? (
                           <div>
                             <label htmlFor={`flag-${c.key}`} className="text-brand04 mb-1 block text-xs font-bold">
@@ -412,5 +421,119 @@ export function AudienceEditor({
         </form>
       ) : null}
     </div>
+  );
+}
+
+// 絞り込み用の正規化: 空白を除き、カタカナをひらがなに、英字を小文字にそろえる。
+function normalizeForSearch(s: string): string {
+  return s
+    .replace(/[\s　]/g, "")
+    .replace(/[ァ-ヶ]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) - 0x60))
+    .toLowerCase();
+}
+
+/** 社員を一覧から選ぶ欄(社員番号・氏名・フリガナ・主所属で絞り込める)。 */
+function EmployeePicker({
+  conditionKey,
+  options,
+  selected,
+  onChange,
+}: {
+  conditionKey: number;
+  options: EmployeeOption[];
+  selected: string[];
+  onChange: (ids: string[]) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const selectedSet = new Set(selected);
+  const byId = new Map(options.map((o) => [o.id, o]));
+  // いまアクセスできる社員と、選択済みの社員(退職などで対象外になった人も外せるように残す)
+  const candidates = options.filter((o) => o.isActive || selectedSet.has(o.id));
+  const q = normalizeForSearch(query);
+  const shown = q
+    ? candidates.filter((o) =>
+        normalizeForSearch(`${o.employeeNumber} ${o.name} ${o.nameKana} ${o.affiliation}`).includes(q),
+      )
+    : candidates;
+  const toggle = (id: string, on: boolean) =>
+    onChange(on ? [...selected, id] : selected.filter((x) => x !== id));
+
+  return (
+    <fieldset className="flex flex-col gap-2">
+      <legend className="text-brand04 mb-1 text-xs font-bold">社員(選んだ人のどれかに当てはまる)</legend>
+
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="text-brand01 text-sm">
+          選択中 <span className="font-bold">{selected.length}</span> 人
+        </span>
+        {selected.map((id) => {
+          const o = byId.get(id);
+          return (
+            <span key={id} className="bg-bg01 text-brand01 inline-flex items-center gap-1 px-2 py-0.5 text-xs">
+              {o ? o.name : "(不明な社員)"}
+              {o && !o.isActive ? <StatusTag tone="muted">対象外</StatusTag> : null}
+              <button
+                type="button"
+                onClick={() => toggle(id, false)}
+                className="text-brand04 hover:text-brand01 ml-0.5 font-bold"
+                aria-label={`${o ? o.name : "不明な社員"}を外す`}
+              >
+                ×
+              </button>
+            </span>
+          );
+        })}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          id={`emp-q-${conditionKey}`}
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="社員番号・氏名・フリガナ・部署で絞り込み"
+          aria-label="社員を絞り込む"
+          className={`${FIELD_CLASS} !w-72 max-w-full`}
+        />
+        <button
+          type="button"
+          onClick={() => onChange([...new Set([...selected, ...shown.filter((o) => o.isActive).map((o) => o.id)])])}
+          disabled={shown.length === 0}
+          className={BUTTON_SECONDARY}
+        >
+          表示中をすべて選ぶ
+        </button>
+        <button type="button" onClick={() => onChange([])} disabled={selected.length === 0} className={BUTTON_SECONDARY}>
+          選択をすべて外す
+        </button>
+      </div>
+
+      <div className="border-brand01/20 max-h-72 overflow-y-auto border">
+        {shown.length === 0 ? (
+          <p className="text-brand04 px-3 py-4 text-sm">
+            {candidates.length === 0 ? "選べる社員がいません。" : "当てはまる社員がいません。"}
+          </p>
+        ) : (
+          <ul>
+            {shown.map((o) => (
+              <li key={o.id} className="border-brand04/30 border-b last:border-b-0">
+                <label className="hover:bg-bg01/60 flex cursor-pointer items-center gap-3 px-3 py-1.5 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={selectedSet.has(o.id)}
+                    onChange={(e) => toggle(o.id, e.target.checked)}
+                    className="size-4 shrink-0"
+                  />
+                  <span className="font-heading text-brand04 w-12 shrink-0 text-xs">{o.employeeNumber}</span>
+                  <span className="text-brand01 font-bold whitespace-nowrap">{o.name}</span>
+                  {!o.isActive ? <StatusTag tone="muted">対象外</StatusTag> : null}
+                  <span className="text-brand04 ml-auto min-w-0 truncate text-xs">{o.affiliation}</span>
+                </label>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </fieldset>
   );
 }

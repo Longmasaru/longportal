@@ -5,11 +5,16 @@ import type { Notice } from "../../types";
 import { Icon } from "../icons";
 import { SectionHeading } from "../section-heading";
 
+const LINK_CLASS = "text-brand01 hover:text-brand03 font-bold transition-colors";
+
+/** あなたへのお知らせ(個人宛・全社宛の、未読と要対応)。ホームを、お知らせの入口にする。 */
 export function PersonalNotices({
   notices,
+  hiddenCount,
   actionRequiredCount,
 }: {
   notices: Notice[];
+  hiddenCount: number;
   actionRequiredCount: number;
 }) {
   return (
@@ -25,11 +30,11 @@ export function PersonalNotices({
                 要対応 {actionRequiredCount}件
               </span>
             ) : null}
-            <Link
-              href="/notices/personal"
-              className="text-brand01 hover:text-brand03 font-bold transition-colors"
-            >
-              個人のお知らせ一覧へ
+            <Link href="/notices/personal" className={LINK_CLASS}>
+              個人の一覧
+            </Link>
+            <Link href="/notices/company" className={LINK_CLASS}>
+              全社の一覧
             </Link>
           </span>
         }
@@ -52,6 +57,16 @@ export function PersonalNotices({
                 </time>
                 <div className="min-w-0 flex-1">
                   <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    {notice.target === "company" ? (
+                      <span className="border-brand01 text-brand01 border px-1.5 text-xs leading-[1.125rem] font-bold">
+                        全社
+                      </span>
+                    ) : null}
+                    {notice.priority !== "normal" ? (
+                      <span className="bg-brand03/15 text-brand03 px-1.5 text-xs leading-5 font-bold">
+                        {notice.priority === "urgent" ? "緊急" : "重要"}
+                      </span>
+                    ) : null}
                     {notice.requiresAction ? (
                       <span className="bg-brand03 px-1.5 text-xs leading-5 font-bold text-white">
                         要対応
@@ -82,6 +97,11 @@ export function PersonalNotices({
           ))}
         </ul>
       )}
+      {hiddenCount > 0 ? (
+        <p className="text-brand04 mt-3 text-right text-sm">
+          ほかに {hiddenCount} 件あります(個人・全社の一覧で見られます)
+        </p>
+      ) : null}
     </section>
   );
 }

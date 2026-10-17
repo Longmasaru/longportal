@@ -5,6 +5,7 @@ import { requireActor } from "../../access";
 import { formatDateDot } from "../../shared/format";
 import { LINK_CLASS, PageHeading, StatusTag } from "../../shared/ui/form";
 import { NOTICE_KIND_LABEL, NOTICE_PRIORITY_LABEL } from "../labels";
+import { splitBodyLinks } from "../logic";
 import { getNoticeForActor, listNoticesForActor, recordNoticeRead, type ViewerNotice } from "../queries";
 import { AcknowledgeButton } from "./acknowledge-button";
 
@@ -114,8 +115,22 @@ export async function NoticeDetailPage({ id }: { id: string }) {
       </div>
       {notice.requiresAction ? <AcknowledgeButton id={notice.id} acknowledged={notice.isAcknowledged} /> : null}
       {notice.body ? (
-        <div className="border-brand01/15 text-brand01 border-y py-6 leading-relaxed whitespace-pre-wrap">
-          {notice.body}
+        <div className="border-brand01/15 text-brand01 border-y py-6 leading-relaxed break-words whitespace-pre-wrap">
+          {splitBodyLinks(notice.body).map((part, i) =>
+            part.type === "link" ? (
+              <a
+                key={i}
+                href={part.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-link hover:text-brand03 break-all underline transition-colors"
+              >
+                {part.url}
+              </a>
+            ) : (
+              <span key={i}>{part.text}</span>
+            ),
+          )}
         </div>
       ) : null}
       <p className="text-sm">

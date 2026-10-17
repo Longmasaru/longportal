@@ -8,7 +8,7 @@ import { listLinksForActor } from "../links";
 import { listNoticesForActor } from "../notices";
 import { todayJst } from "../shared/jst";
 import { ADMIN_NAV, buildNavigation } from "./navigation";
-import { comparePersonalNotices, isBannerActive, noticeChannel } from "./notices";
+import { comparePersonalNotices, isBannerActive } from "./notices";
 import type {
   NavLeaf,
   Notice,
@@ -19,7 +19,7 @@ import type {
   PortalUser,
 } from "./types";
 
-const HOME_PERSONAL_NOTICE_LIMIT = 5;
+const HOME_NOTICE_LIMIT = 8;
 const HOME_BANNER_LIMIT = 2;
 
 // ---- 利用者に見せる情報 ----
@@ -32,8 +32,8 @@ async function listVisibleApps(actor: Actor): Promise<PortalApp[]> {
     displayName: a.displayName,
     description: a.description,
     icon: a.icon,
-    href: a.kind === "external" ? a.url! : a.route!,
-    external: a.kind === "external",
+    // 別プロジェクトのアプリも、ポータルの中のページ(/apps/<app_key>)から開く(同じタブ。docs/DESIGN.md 28 章)
+    href: a.kind === "external" ? `/apps/${a.appKey}` : a.route!,
   }));
 }
 
@@ -118,26 +118,22 @@ export async function getPortalContext(): Promise<PortalContext> {
 
 /**
  * ポータルホーム用。毎日開いて価値のある情報だけを返す:
- * 緊急の全社連絡(バナー)・本人宛のお知らせ・要対応。通常の全社連絡は含めない。
+ * 緊急の全社連絡(バナー)・あなたへのお知らせ(個人宛・全社宛の、未読と要対応)・アプリの要対応。
  */
 export async function getPortalHome(): Promise<PortalHomeData> {
   const actor = await requirePortalActor();
   const today = todayJst();
   const [notices, apps] = await Promise.all([listVisibleNotices(actor), listVisibleApps(actor)]);
 
-  const personal = notices.filter((n) => noticeChannel(n) === "personal");
-  const personalSorted = [...personal].sort(comparePersonalNotices);
-  // 既読で対応も不要なものは、ホームには出さない(一覧は個人のお知らせ画面で見る)。
-  // 全社宛でも、確認が必要でまだ確認していないものは、ホームに出す(見落とし防止)。
-  const companyActions = notices.filter((n) => noticeChannel(n) === "company" && n.requiresAction);
-  const personalForHome = [...personalSorted.filter((n) => n.requiresAction || !n.isRead), ...companyActions]
-    .sort(comparePersonalNotices)
-    .slice(0, HOME_PERSONAL_NOTICE_LIMIT);
+  // ホームはお知らせの入口。個人宛・全社宛を問わず、未読のものと要対応(確認がまだ)のものを出す。
+  // 既読で対応も済んだものは出さない(一覧はサイドバーの「個人」「重要・全社」で見る)。
+  const forHome = notices.filter((n) => n.requiresAction || !n.isRead).sort(comparePersonalNotices);
 
   return {
     urgentBanners: notices.filter((n) => isBannerActive(n, today)).slice(0, HOME_BANNER_LIMIT),
-    personalNotices: personalForHome,
-    actionRequiredCount: personal.filter((n) => n.requiresAction).length + companyActions.length,
+    personalNotices: forHome.slice(0, HOME_NOTICE_LIMIT),
+    hiddenNoticeCount: Math.max(0, forHome.length - HOME_NOTICE_LIMIT),
+    actionRequiredCount: forHome.filter((n) => n.requiresAction).length,
     // 実装後は各アプリの manifest が提供する「未対応件数」を集める。
     pendingItems: apps.flatMap((app) =>
       app.summary?.tone === "attention"

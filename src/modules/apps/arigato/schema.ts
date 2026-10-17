@@ -5,7 +5,7 @@ import { departments } from "@/modules/core/departments/schema";
 import type { Rank, Side } from "./banzuke";
 import type { ArigatoTag, ArigatoVisibility } from "./constants";
 
-// ありがとうカードのテーブル(docs/DESIGN.md 26 章)。
+// ありがとうカードのテーブル(docs/DESIGN.md 34 章)。
 export const arigato = pgSchema("arigato");
 
 export const arigatoCards = arigato.table(
@@ -67,7 +67,7 @@ export const arigatoShikona = arigato.table(
 );
 
 /**
- * 番付(場所 × ユーザー)。場所が変わって最初に画面が開かれたときに作る(docs/DESIGN.md 26 章)。
+ * 番付(場所 × ユーザー)。場所が変わって最初に画面が開かれたときに作る(docs/DESIGN.md 34 章)。
  * wins・received・yusho は、その場所が終わって次の番付を作るときに書き込む。
  */
 export const arigatoBanzuke = arigato.table(

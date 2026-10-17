@@ -1,6 +1,6 @@
 import type { AppManifest } from "@/modules/core/apps";
 
-// アプリの技術的な存在・契約(docs/DESIGN.md 8 章・24 章・26 章)。npm run sync:manifests で app_registry に登録する。
+// アプリの技術的な存在・契約(docs/DESIGN.md 8 章・24 章・34 章)。npm run sync:manifests で app_registry に登録する。
 // 表示名・説明・アイコンは初回登録時の値で、以後は管理画面(/admin/apps)の設定が優先される。
 // 送る・読むは、表示する相手に当てはまる社員なら誰でもできる。集計と削除だけ、専用の権限にする。
 export const manifest = {

@@ -88,6 +88,90 @@ const eslintConfig = defineConfig([
     },
   },
   {
+    // 業務アプリ同士は直接依存しない(apps/calendar から他のアプリを参照しない)
+    files: ["src/modules/apps/calendar/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["@/app", "@/app/*"],
+              message: "modules から src/app(ルーティング層)を参照しないでください。",
+            },
+            {
+              group: ["@/modules/apps/*", "!@/modules/apps/calendar", "!@/modules/apps/calendar/*"],
+              message: "業務アプリ同士は直接参照しないでください(core を経由する)。",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    // 業務アプリ同士は直接依存しない(apps/haisou から他のアプリを参照しない)
+    files: ["src/modules/apps/haisou/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["@/app", "@/app/*"],
+              message: "modules から src/app(ルーティング層)を参照しないでください。",
+            },
+            {
+              group: ["@/modules/apps/*", "!@/modules/apps/haisou", "!@/modules/apps/haisou/*"],
+              message: "業務アプリ同士は直接参照しないでください(core を経由する)。",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    // 業務アプリ同士は直接依存しない(apps/kyokasho から他のアプリを参照しない)
+    files: ["src/modules/apps/kyokasho/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["@/app", "@/app/*"],
+              message: "modules から src/app(ルーティング層)を参照しないでください。",
+            },
+            {
+              group: ["@/modules/apps/*", "!@/modules/apps/kyokasho", "!@/modules/apps/kyokasho/*"],
+              message: "業務アプリ同士は直接参照しないでください(core を経由する)。",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    // 業務アプリ同士は直接依存しない(apps/hr から他のアプリを参照しない)
+    files: ["src/modules/apps/hr/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["@/app", "@/app/*"],
+              message: "modules から src/app(ルーティング層)を参照しないでください。",
+            },
+            {
+              group: ["@/modules/apps/*", "!@/modules/apps/hr", "!@/modules/apps/hr/*"],
+              message: "業務アプリ同士は直接参照しないでください(core を経由する)。",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     // 業務アプリ同士は直接依存しない(apps/arigato から他のアプリを参照しない)
     files: ["src/modules/apps/arigato/**/*.{ts,tsx}"],
     rules: {
