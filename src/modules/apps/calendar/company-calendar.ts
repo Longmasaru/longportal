@@ -11,6 +11,12 @@ export type CompanyYear = {
   notes: Record<string, string>;
 };
 
+/**
+ * 給料日(毎月の日にち。その月にない日なら月末)。休みに当たるときは前の出勤日にずらす。
+ * 2026-10-17 にユーザーが確認: 毎月 29 日。土日・休日に当たるときは前の出勤日。null にすると画面に出さない。docs/DESIGN.md 33 章。
+ */
+export const PAYDAY: number | null = 29;
+
 export const COMPANY_CALENDAR: Record<number, CompanyYear> = {
   2026: {
     weekdayHolidays: {

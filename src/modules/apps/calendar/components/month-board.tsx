@@ -9,6 +9,8 @@ import type { CalendarEntry, EntryFormState } from "../types";
 type Props = {
   weeks: (CalendarDay | null)[][];
   entries: CalendarEntry[];
+  /** 日付ごとの印(給料日・入社記念日など) */
+  marks: Record<string, string[]>;
   today: string;
   initialDate: string;
 };
@@ -20,7 +22,7 @@ function dateTone(day: CalendarDay): string {
 }
 
 /** 月の表と、選んだ日のメモ・予定。 */
-export function MonthBoard({ weeks, entries, today, initialDate }: Props) {
+export function MonthBoard({ weeks, entries, marks, today, initialDate }: Props) {
   const [selected, setSelected] = useState(initialDate);
   const byDate = new Map<string, CalendarEntry[]>();
   for (const e of entries) byDate.set(e.date, [...(byDate.get(e.date) ?? []), e]);
@@ -56,7 +58,7 @@ export function MonthBoard({ weeks, entries, today, initialDate }: Props) {
                       type="button"
                       onClick={() => setSelected(day.date)}
                       aria-pressed={isSelected}
-                      aria-label={`${shortDate(day.date)} ${day.kind === "off" ? "休み" : day.kind === "work" ? "出勤日" : ""} ${day.label ?? ""} 予定${items.length}件`}
+                      aria-label={`${shortDate(day.date)} ${day.kind === "off" ? "休み" : day.kind === "work" ? "出勤日" : ""} ${day.label ?? ""} ${(marks[day.date] ?? []).join(" ")} 予定${items.length}件`}
                       className={`hover:bg-bg01 flex h-full w-full flex-col items-stretch gap-0.5 p-1 text-left transition-colors md:p-1.5 ${
                         isSelected ? "outline-brand01 outline-2 -outline-offset-2" : ""
                       } ${day.kind === "off" ? "bg-brand03/5" : ""}`}
@@ -74,6 +76,14 @@ export function MonthBoard({ weeks, entries, today, initialDate }: Props) {
                             出勤
                           </span>
                         ) : null}
+                        {(marks[day.date] ?? []).map((m) => (
+                          <span key={m} aria-hidden>
+                            <span className="bg-link inline-block size-2 rounded-full md:hidden" />
+                            <span className="bg-link hidden px-0.5 text-[0.625rem] leading-tight font-bold whitespace-nowrap text-white md:inline">
+                              {m}
+                            </span>
+                          </span>
+                        ))}
                       </span>
                       {day.label ? (
                         <span className="text-brand04 hidden truncate text-[0.6875rem] leading-tight md:block">
@@ -110,13 +120,18 @@ export function MonthBoard({ weeks, entries, today, initialDate }: Props) {
       </table>
 
       {selectedDay ? (
-        <DayPanel key={selectedDay.date} day={selectedDay} items={byDate.get(selectedDay.date) ?? []} />
+        <DayPanel
+          key={selectedDay.date}
+          day={selectedDay}
+          marks={marks[selectedDay.date] ?? []}
+          items={byDate.get(selectedDay.date) ?? []}
+        />
       ) : null}
     </div>
   );
 }
 
-function DayPanel({ day, items }: { day: CalendarDay; items: CalendarEntry[] }) {
+function DayPanel({ day, marks, items }: { day: CalendarDay; marks: string[]; items: CalendarEntry[] }) {
   const [editingId, setEditingId] = useState<string | null>(null);
 
   return (
@@ -127,6 +142,7 @@ function DayPanel({ day, items }: { day: CalendarDay; items: CalendarEntry[] }) 
           {day.kind === "off" ? "休み" : day.kind === "work" ? "出勤日" : "会社カレンダー未登録"}
           {day.label ? ` ・ ${day.label}` : ""}
         </p>
+        {marks.length > 0 ? <p className="text-link text-sm font-bold">{marks.join(" ・ ")}</p> : null}
       </div>
 
       {items.length > 0 ? (
