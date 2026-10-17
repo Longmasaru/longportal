@@ -6,7 +6,19 @@ import { changePasswordAction, type FormState } from "../actions";
 import { MIN_PASSWORD_LENGTH } from "../password-policy";
 import { FIELD_CLASS, LABEL_CLASS, Notice, SUBMIT_CLASS } from "./auth-shell";
 
-export function PasswordForm({ forced }: { forced: boolean }) {
+/**
+ * パスワードの変更。requireEmail のとき(初回ログイン・メール未登録)は、メールアドレスの登録も必須にする
+ * (パスワードを忘れたときの連絡先。docs/DESIGN.md 26 章)。
+ */
+export function PasswordForm({
+  forced,
+  requireEmail,
+  currentEmail,
+}: {
+  forced: boolean;
+  requireEmail: boolean;
+  currentEmail: string | null;
+}) {
   const [state, action, pending] = useActionState<FormState, FormData>(
     changePasswordAction,
     undefined,
@@ -16,7 +28,7 @@ export function PasswordForm({ forced }: { forced: boolean }) {
     <form action={action} className="flex flex-col gap-5">
       {forced ? (
         <Notice tone="info">
-          初回ログインのため、パスワードの変更が必要です。新しいパスワードを設定してください。
+          初回ログインのため、パスワードの変更と、メールアドレスの登録が必要です。
         </Notice>
       ) : null}
       {state?.error ? <Notice tone="error">{state.error}</Notice> : null}
@@ -62,6 +74,25 @@ export function PasswordForm({ forced }: { forced: boolean }) {
           className={FIELD_CLASS}
         />
       </div>
+      {requireEmail ? (
+        <div>
+          <label htmlFor="email" className={LABEL_CLASS}>
+            メールアドレス
+          </label>
+          <input
+            id="email"
+            name="email"
+            type="email"
+            autoComplete="email"
+            required
+            defaultValue={currentEmail ?? ""}
+            className={FIELD_CLASS}
+          />
+          <p className="text-brand04 mt-1 text-xs">
+            パスワードを忘れたときに、再設定の案内が届きます。登録すると確認のメールが届くので、リンクを開いてください。
+          </p>
+        </div>
+      ) : null}
       <button type="submit" disabled={pending} className={SUBMIT_CLASS}>
         {pending ? "変更中…" : "パスワードを変更"}
       </button>

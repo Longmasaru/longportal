@@ -3,6 +3,7 @@
 // アプリはアプリの登録簿(core/apps)で判定する。見本の架空データは出さない。
 import { redirect } from "next/navigation";
 import { canGlobally, requireActor, type Actor } from "../access";
+import { getEmailStatus } from "../auth/recovery";
 import { listAppsForActor } from "../apps";
 import { listLinksForActor } from "../links";
 import { listNoticesForActor } from "../notices";
@@ -69,7 +70,7 @@ function visibleAdminItems(actor: Actor) {
   );
 }
 
-function toPortalUser(actor: Actor, isAdmin: boolean): PortalUser {
+function toPortalUser(actor: Actor, isAdmin: boolean, emailStatus: PortalUser["emailStatus"]): PortalUser {
   const primary = actor.assignments[0];
   const subtitle = actor.employee
     ? [
@@ -87,6 +88,7 @@ function toPortalUser(actor: Actor, isAdmin: boolean): PortalUser {
     employeeNumber: actor.employee?.employeeNumber ?? null,
     roleNames: [...new Set(actor.roles.map((r) => r.name))],
     isAdmin,
+    emailStatus,
   };
 }
 
@@ -104,12 +106,17 @@ async function requirePortalActor(): Promise<Actor> {
 export async function getPortalContext(): Promise<PortalContext> {
   const actor = await requirePortalActor();
   const adminItems = visibleAdminItems(actor);
-  const user = toPortalUser(actor, adminItems.length > 0);
-  const [apps, notices, links] = await Promise.all([
+  const [apps, notices, links, email] = await Promise.all([
     listVisibleApps(actor),
     listVisibleNotices(actor),
     listVisibleLinks(actor),
+    getEmailStatus(actor.userId),
   ]);
+  const user = toPortalUser(
+    actor,
+    adminItems.length > 0,
+    !email.email ? "none" : email.verified ? "verified" : "unverified",
+  );
   return {
     user,
     navigation: buildNavigation({ adminItems, apps, notices, links }),

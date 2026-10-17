@@ -7,7 +7,10 @@ import { z } from "zod";
 import { db } from "@/db/client";
 import { requireActor } from "../access";
 import { signIn, signOut } from "./auth";
+import { PG_UNIQUE_VIOLATION, pgErrorCode } from "../shared/db-errors";
 import { newPasswordSchema } from "./password-policy";
+import { sendVerificationMail } from "./recovery";
+import { emailSchema } from "./recovery-policy";
 import { hashPassword, verifyPassword } from "./password";
 import { MAX_LOGIN_ID_LENGTH, MAX_LOGIN_PASSWORD_LENGTH } from "./throttle-policy";
 import { users } from "./schema";
@@ -84,7 +87,7 @@ export async function changePasswordAction(
   }
 
   const [row] = await db
-    .select({ passwordHash: users.passwordHash })
+    .select({ passwordHash: users.passwordHash, email: users.email })
     .from(users)
     .where(eq(users.id, actor.userId))
     .limit(1);
@@ -92,10 +95,31 @@ export async function changePasswordAction(
     return { error: "現在のパスワードが違います。" };
   }
 
-  await db
-    .update(users)
-    .set({ passwordHash: await hashPassword(newPassword), mustChangePassword: false })
-    .where(eq(users.id, actor.userId));
+  // 初回ログインのときは、パスワードを忘れたときの連絡先として、メールアドレスを必須にする(docs/DESIGN.md 26 章)。
+  // それ以外のメールの登録・変更は、updateEmailAction で行う。
+  let newEmail: string | null = null;
+  if (actor.mustChangePassword) {
+    const email = emailSchema.safeParse(String(formData.get("email") ?? ""));
+    if (!email.success) return { error: email.error.issues[0]?.message ?? "メールアドレスを確認してください。" };
+    if (email.data !== row.email) newEmail = email.data;
+  }
 
-  redirect("/");
+  try {
+    await db
+      .update(users)
+      .set({
+        passwordHash: await hashPassword(newPassword),
+        mustChangePassword: false,
+        ...(newEmail ? { email: newEmail, emailVerifiedAt: null } : {}),
+      })
+      .where(eq(users.id, actor.userId));
+  } catch (err) {
+    if (pgErrorCode(err) === PG_UNIQUE_VIOLATION) {
+      return { error: "このメールアドレスは、ほかのアカウントで使われています。" };
+    }
+    throw err;
+  }
+  if (newEmail) await sendVerificationMail(actor.userId, newEmail);
+
+  redirect(newEmail ? "/?email=sent" : "/");
 }

@@ -45,6 +45,8 @@ export type PortalUser = {
   roleNames: string[];
   /** 管理メニューを出すか。手順4で role / permission に接続するまでは暫定値。 */
   isAdmin: boolean;
+  /** パスワードを忘れたときの連絡先(メール)の状態。未登録・未確認なら、画面の上部に案内を出す。 */
+  emailStatus: "none" | "unverified" | "verified";
 };
 
 // ---- サイドバー ------------------------------------------------------------

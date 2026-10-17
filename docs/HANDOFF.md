@@ -2,7 +2,7 @@
 
 別の環境(デスクトップ版の Claude など)や新しいセッションで、これまでの作業を**途切れなく**続けるための文書。
 設計の正は `docs/DESIGN.md`、こちらは「経緯・約束事・運用手順・落とし穴・現在地」をまとめたもの。
-最終更新: 2026-10-17(人事管理アプリの本番公開まで。それ以前の経緯は 4 章)。
+最終更新: 2026-10-18(本人によるパスワード再設定(メール)まで。それ以前の経緯は 4 章)。
 
 ---
 
@@ -70,7 +70,7 @@
 
 - 2026-10-16: Audience の条件に「社員」(一覧から名指しで選ぶ)を追加(DESIGN.md 27 章、migration 0013。本番にも適用済み)。
 - **人事管理(2026-10-17 本番公開)**: `apps/hr`(DESIGN.md 31 章。`/apps/hr`、権限 `hr.records.manage`、migration 0016 `hr_records`・0017 `hr_abilities`。本番 DB に適用・`sync:manifests` 済み、本番のアプリ管理で有効)。元の Google スプレッドシート「人事管理シート」(社員 1 人 1 シート)の 1〜5 章(基本情報・目標と評価・スキルと資格・人柄・コンディション)と、面談・指導・ほめ・異動の記録。本人は自分のページで 1〜3 章と「本人に公開」の記録だけを見る(ユーザーの判断)。画面は「まとめ(名札・能力 5 項目のレーダーチャート・直近の記録)+ タブ」(31.2。5 項目の名前は仮)。記録の内容に「音声入力」と「AIで整える」(31.3、PR #16)。**ユーザーの判断: 人事の文章を AI に送るのは、対象の社員の氏名を「本人」に置き換えてから**。未着手: シートの「評価シート」(自己評価の様式)、部署ごとの担当の割り当て、一覧での能力の比較。
-- **作業中(2026-10-16)**: 本人によるパスワード再設定(DESIGN.md 26 章)。済み: 設計、`core.users.email` / `email_verified_at`、`core.auth_tokens` の schema と migration 0012(本番にも適用済み。まだ使うコードはない)。未着手: `core/mail`(送信。Resend を Vercel Marketplace で接続してから組み込む)、初回ログインでのメール登録、確認メール、`/forgot-password`・`/reset-password`・`/verify-email`(proxy の matcher から除外が必要)、未確認の案内、Cloudflare DNS への Resend の設定。
+- **本人によるパスワード再設定(2026-10-18)**: DESIGN.md 26 章。`core/mail`(Resend。送り元 `no-reply@long-ishikawa.com`。Vercel Marketplace の「longportal-mail」、Vercel に `RESEND_API_KEY` が自動で入る。DNS は Cloudflare、手順は playbook の G2)。初回のパスワード変更でメールの登録が必須 → 確認メール(`/verify-email`)。ログイン画面の「パスワードを忘れた方」→ `/forgot-password` → `/reset-password`(30 分・1 回限り、1 時間に 3 通まで)。未確認・未登録の人には、ポータルの上に案内が出る。`/password` でメールの変更・確認メールの再送。DB の変更はなし(migration 0012 は本番に適用済み)。開発で通しの流れと、本物のメールが届くことを確認済み。Resend の画面へは Vercel の Integrations から入る。Resend に登録しかけた `e-long.co.jp`(未確認)は削除してよい。
 
 - 2026-10-17: AI教室(別アプリ。リポジトリ `ai-kyoshitsu`、本番 `https://ai-kyoshitsu.vercel.app`、DESIGN.md 28 章)を本番公開。ログインはポータルの通行証(SSO。入口 `/apps/launch/<app_key>`、`core/sso`、契約 `modules/apps/external-apps.ts`、鍵 `SSO_SECRET_AIKYOSHITSU`)。講師の老川さん(0052)にロール「AI教室 講師」(`aikyoshitsu.materials.manage`)。第1回の資料 4 つを投入済み。同日、**見え方をポータルの中のアプリにした**: サイドバーから同じタブで `/apps/aikyoshitsu` を開き、ポータルの画面の中に埋め込む。`/aikyoshitsu/…` はポータルがアプリへ転送する(multi-zones。`next.config.ts` の `ZONES`、アプリは basePath `/aikyoshitsu`)。
 

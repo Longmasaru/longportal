@@ -13,12 +13,13 @@ const DENIED_REASONS = new Set([
 ]);
 
 export default async function LoginPage(props: PageProps<"/login">) {
-  const { reason } = await props.searchParams;
+  const { reason, reset } = await props.searchParams;
   const denied = typeof reason === "string" && DENIED_REASONS.has(reason);
+  const info = reset === "done" ? "パスワードを変更しました。新しいパスワードでログインしてください。" : undefined;
 
   return (
     <AuthShell title="ログイン">
-      <LoginForm notice={denied ? REASON_MESSAGE : undefined} />
+      <LoginForm notice={denied ? REASON_MESSAGE : undefined} info={info} />
     </AuthShell>
   );
 }

@@ -16,5 +16,8 @@ export default auth((req) => {
 
 // /aikyoshitsu/… は別プロジェクトのアプリへの転送(next.config の rewrites)。ログインの確認はアプリ側が行う。
 export const config = {
-  matcher: ["/((?!api/auth|login|_next/static|_next/image|favicon.ico|aikyoshitsu(?:/|$)).*)"],
+  // ログインしていなくても開ける画面: ログイン、パスワードを忘れた方・再設定・メールの確認(docs/DESIGN.md 26 章)。
+  matcher: [
+    "/((?!api/auth|login|forgot-password|reset-password|verify-email|_next/static|_next/image|favicon.ico|aikyoshitsu(?:/|$)).*)",
+  ],
 };

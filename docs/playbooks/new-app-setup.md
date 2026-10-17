@@ -52,6 +52,7 @@
 | 公開 | Vercel(個人スコープ `longmasaru`) | Hobby は個人・非商用向け。会社の業務利用は Pro が必要になる可能性 |
 | DB | Neon(PostgreSQL) | **開発用と本番用のブランチを分ける**。実行時は pooler、migration は direct |
 | ファイル | Cloudflare R2 | 非公開のバケット + 署名付き URL(5 分) |
+| メール | Resend(Vercel Marketplace) | 送り元は DNS が Cloudflare にあるドメイン。手順 G2 |
 | ログイン | Auth.js v5 beta(Credentials、JWT) | 秘密は `AUTH_SECRET`(環境ごとに別の値) |
 
 ### 環境変数の置き場所
@@ -172,6 +173,24 @@ vercel logs https://<本番URL> --since 30m --level error             # エラ�
 - 保存キー: `<プレフィックス><アプリのキー>/<所有者ID>/<UUID>.<拡張子>`(拡張子は小文字。無いと、ダウンロードしたときに拡張子が消える)。
 - 独自ドメインを足す・開発サーバーのポートを変えたときは、**CORS の許可オリジンも更新**する(設定は R2 側にだけ残る)。
 
+### G2. メール送信(Resend。ユーザー + Claude)
+パスワード再設定・確認メールなど、アプリからメールを送るとき。LONG PORTAL で 2026-10-18 に確立した流れ(送り元 `no-reply@long-ishikawa.com`)。
+1. **送り元のドメインを決める**: DNS が **Cloudflare にあるドメイン**を使う(Cloudflare の「Domains」の一覧にあるか、先に確認する)。会社のドメイン `e-long.co.jp` の DNS は Cloudflare になく、別の会社が管理しているため使えない(使うなら、その会社に依頼が必要)。迷ったら、アプリの独自ドメイン(例: `long-ishikawa.com`)にする。
+2. **ユーザー**(アカウント作成・規約への同意は、ユーザーが押す): `https://vercel.com/marketplace/resend` → **Install** → 「Create New Resend Account」→ Continue → チームは **longmasaru's projects** → 規約の画面で **Accept and Create** → Domain(1 で決めたもの)・Region は **Tokyo (ap-northeast-1)**・プランは **Free**(月 3,000 通・1 日 100 通)→ Create → **Connect a Project** で対象のプロジェクトだけを選ぶ(Custom Prefix は空、Sensitive はオン)→ Connect。これで Vercel に `RESEND_API_KEY` と `RESEND_EMAIL_DOMAIN` が自動で登録される。
+   - Resend の画面には、Resend のログイン画面からではなく、**Vercel の Integrations → Resend → <リソース名> → Open in Resend** から入る(Vercel 経由で作ったアカウントのため)。
+3. **Claude**(内蔵ブラウザが Resend にログイン済みなら、Claude が操作してよい。ユーザーに一言断ってから): Resend → Domains → **Add domain** → ドメイン名を入れる(Region は Tokyo のまま)→ Add domain → DNS の入れ方は **Manual setup**(「Auto configure」は Resend に DNS を書き換える許可を渡すので使わない)。
+   - 表示される値は途中が「[…]」で省略されている。**正確な値は、各セルの「Copy …」ボタンの aria-label から読む**(内蔵ブラウザで `javascript_tool` を使う)。
+4. **ユーザー**: Cloudflare → ドメイン → **DNS → Records → Add record** で、次を 1 行ずつ入れる(Claude は 1 行ずつ案内し、スクショで確認する)。
+   - TXT `resend._domainkey` = `p=MIGf…`(DKIM。長い値を 1 行で)
+   - CNAME `rsend` → `rsend-apne1.forge.rmta.net`(**Proxy は灰色の DNS only**)
+   - CNAME `send` → `send.forge.rmta.net`(**DNS only**)
+   - TXT `_dmarc` = `v=DMARC1; p=none;`(すでに `_dmarc` があれば入れない)
+   - **入れないもの**: 「MX `@` inbound-smtp…」(Resend でメールを**受け取る**設定。会社のメールの受信に影響しうる)。
+   - 古い方式の画面では、MX `send` → `feedback-smtp.ap-northeast-1.amazonses.com`(優先度 10)と TXT `send` = `v=spf1 include:amazonses.com ~all` が出ることがある。そのときも、ルートの MX は入れない。
+5. **Claude**: 公開 DNS で反映を確認(`curl "https://cloudflare-dns.com/dns-query?name=<名前>&type=<種類>" -H "accept: application/dns-json"`)→ Resend のドメインの画面で **Verify DNS Records** → 状態が **Verified** になるのを確認(数分)。
+6. 手元の開発で実際に送るときだけ、ユーザーに Vercel の Resend の画面の「**Show secret**」で `re_…` をコピーしてもらい、`.env.local` の `RESEND_API_KEY=` に貼ってもらう(チャットに貼らせない)。鍵がなければ、開発では送る内容をログに出すだけにする(LONG PORTAL の `src/modules/core/mail/`)。
+7. **Claude**: SDK は `resend`(版を固定)。送り元は `<表示名> <no-reply@<ドメイン>>`。メールに書くリンクの先頭は、リクエストのホスト名ではなく `APP_URL`(本番の既定値)から作る。
+
 ### H. 仕上げ(Claude)
 - 本番の `/login` が 200、未ログインの `/` がログイン画面へ送られることを確認。
 - 追跡対象に秘密の値がないことを確認 → ドキュメント(設計・引き継ぎ・この手順書の更新点)とメモリを更新。
@@ -200,6 +219,9 @@ vercel logs https://<本番URL> --since 30m --level error             # エラ�
 - **Cloudflare のトークンは、権限を最小に**(オブジェクトの読み書き・特定バケットのみ)。既存のトークンが「管理者・全バケット」と広い場合(TODOSample)は、見直しを提案する。
 - **Neon の接続文字列は、`development` と `production` で別のホスト**。実行前に、必ずホスト名を確認する。
 - **Hobby の Vercel は個人・非商用向け**、**DB が海外**の場合は、個人情報の取り扱いの社内確認が要る。
+- **Turbopack は、作業用フォルダ(worktree)の外を指す `node_modules` の近道(ジャンクション)を読めない**(「Symlink … points out of the filesystem root」で開発サーバーが止まる)→ 作業用フォルダで `npm ci` する。
+- **Vercel の画面で、別のプロジェクト(long-calendar など)を開いていないか**を、画面の上のプロジェクト名で必ず確かめる(環境変数の登録先を間違えやすい)。
+- **Vercel 経由で作った Resend のアカウントは、Resend のログイン画面からは入れない** → Vercel の Integrations から開く。
 
 ## 6. 完了の確認(チェックリスト)
 - [ ] GitHub: Private、`main` に最新、作者メールが正しい
@@ -208,5 +230,36 @@ vercel logs https://<本番URL> --since 30m --level error             # エラ�
 - [ ] 本番 DB に migration と seed、初期管理者がパスワードを変更済み
 - [ ] Vercel: 環境変数(Secret)、Functions の地域、本番が Ready、`/login` が 200
 - [ ] Cloudflare R2: 非公開、権限最小のトークン、接続テスト OK、CORS 設定済み、Vercel に登録済み
+- [ ] メールを送るなら: Resend のドメインが Verified、Vercel に `RESEND_API_KEY`、実際に 1 通届くことを確認
 - [ ] 一時ファイルは削除済み、秘密の値が追跡対象にない
 - [ ] 引き継ぎ書・設計ドキュメント・メモリを更新済み
+
+## 7. LONG PORTAL で確立した進め方(2026-10)
+繰り返し使う作業の型。新しいアプリでも、同じやり方をとる。
+
+### 7.1 本番 DB を変える(migration・データ投入・sync)
+1. **Claude**: 2 行だけの雛形を作り、メモ帳で開く: `printf 'DATABASE_URL=\nDATABASE_URL_UNPOOLED=\n' > .env.production.local` → `Start-Process notepad.exe -ArgumentList '<パス>'`(`.gitignore` の対象であることを `git check-ignore` で確認)。
+2. **ユーザー**: Neon → **production** ブランチ → Connect → 「Connection pooling」**オン**の Copy snippet を 1 行目に、**オフ**の Copy snippet を 2 行目に、`=` のすぐ右へ貼って保存。
+3. **Claude**: 値を出さずに確認(各行の `host` だけを表示。本番は `ep-square-credit-…`、開発は `ep-royal-bonus-…`)。2 行目の値が次の行に入っていたら、Claude がつなげて直す。
+4. **Claude**: 書き込まずに試す(各スクリプトの既定は確認だけ)→ 結果をユーザーに見せ、**OK をもらってから** `DB_TARGET=production CONFIRM_PRODUCTION=yes` で実行。migration は `node --env-file=.env.production.local node_modules/drizzle-kit/bin.cjs migrate`(`set -a; . ./file` は、URL の `&` で壊れるので使わない)。
+5. **Claude**: 読み取りだけで結果を確認 → **`.env.production.local` を削除**。
+6. 順番: **本番 DB の変更 → コードの push**(新しい表を読むコードが先に出ると、画面が開けなくなる)。初回登録のアプリを「無効」で登録する sync のあと、既存の表示を保つ必要があれば、その場で有効に戻す(監査ログに残す)。
+
+### 7.2 別の作業と並行するとき(作業用フォルダ)
+- 元のフォルダが別のブランチ・別のチャットの作業中なら、**触らずに**、`git worktree add ../<名前> -b <ブランチ> origin/main` で別のフォルダを作る。そこで `npm ci`、`npx next typegen`、`.env.local` は元のフォルダから写す(`.gitignore` の対象)。
+- 画面の確かめは、そのフォルダで `npx next dev -p 3001`(R2 の CORS は 3001 も許可済み)。終わったら、プロセスを確かめてから止める(3000 は止めない)。
+- main へ取り込むとき(gh にログインしていない場合): `git fetch` → `git merge origin/main`(main は別の作業で頻繁に進む。2 回以上かかることもある)→ lint・型チェック・テスト(部品が増えていたら `npm ci`)→ `git push origin <ブランチ>` → `git push origin HEAD:main`。
+
+### 7.3 個人情報(社員の名簿など)
+- 名簿のファイルは、**必要な列だけ**を、リポジトリの外(Claude の一時フォルダ)に CSV で抜き出す。住所・電話・家族・生年月日は取り込まない。チャットには件数と、部署・役職の名前だけを出す。
+- コミットの前に、**名簿の氏名・フリガナが差分にないか**を、実際の値で検索する(テストの例・設計書の例に、画面で見た実名を書かない。例は「山田 太郎」「LE QUOC AN」など架空の名前)。
+- 使い終わった CSV・配布用ファイルの扱いは、ユーザーに伝える(初期パスワードの配布用 CSV は、配り終えたら削除してもらう)。
+
+### 7.4 試しのデータと、画面での確かめ
+- 開発 DB に作る確かめ用のデータは、名前の頭に `zz_`(アカウントは `zz-…`)を付け、確認が済んだら、関連する記録(R2 のファイル、監査ログ、ログイン試行)ごと消す。
+- 確かめ用のアカウントのパスワードは Claude が作り、一時フォルダのファイルにだけ置く(チャットに出さない)。内蔵ブラウザで、Claude が通しの流れ(初回ログイン → メール登録 → 確認 → 再設定 など)を操作して確かめる。メールは、鍵がなければ開発サーバーのログにリンクが出る。
+- ユーザーに確かめてもらうときは、Chrome で開く URL と、見るべき点を 1 つずつ伝え、スクショで確認する。
+
+### 7.5 Claude が代わりに操作してよいこと・いけないこと
+- **代わりにしてよい**(ユーザーに断ってから): 内蔵ブラウザでログイン済みの画面での設定(Resend のドメイン追加など)、値の読み取り(秘密でないもの)、DNS の反映の確認。
+- **ユーザーに押してもらう**: アカウントの作成、利用規約への同意、ログイン(パスワードの入力)、秘密の値の表示(Show secret)とコピー。秘密の値は、ファイルに貼ってもらう。
