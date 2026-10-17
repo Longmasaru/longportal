@@ -41,3 +41,39 @@ export function splitBold(text: string): Segment[] {
 export function phrases(text: string): string[] {
   return text ? parser.parse(text) : [];
 }
+
+// 文の区切りで終わる行と、項目の始まりの行(・① ※ 1) など)。この前後の改行は、意味のある改行として残す。
+const HARD_END = /[。．！？!?：:≫》】」』]$/;
+const ITEM_START = /^(?:[・●■▼◆★☆※≪《【①-⑳]|[A-Za-z0-9０-９]{1,2}[).）．])/;
+
+/**
+ * 狭い表のセルに収めるために手で入れた改行か(「火花が|散って|引火する」など)。
+ * スマホでは幅が変わるので、こうした改行はつないで、画面の幅で折り返させる。
+ */
+export function isSoftBreak(prev: string, next: string): boolean {
+  const p = prev.replace(/[ 　\t]+$/, "");
+  const n = next.replace(/^[ 　\t]+/, "");
+  if (!p || !n || HARD_END.test(p) || ITEM_START.test(n)) return false;
+  // 語の途中・文の途中で切れているときだけ(前がかなや読点で終わる、または後ろがかな・括弧で始まる)。
+  // 「寸法線|引出線」のような語の並びは、つながない。
+  return /[ぁ-んー、，]$/.test(p) || /^[ぁ-んー、。）)（(]/.test(n);
+}
+
+/** 行をつなぐ(英数字どうしの間だけ空白を入れる)。 */
+export function joinLines(prev: string, next: string): string {
+  const p = prev.replace(/[ 　\t]+$/, "");
+  const n = next.replace(/^[ 　\t]+/, "");
+  return /[A-Za-z0-9]$/.test(p) && /^[A-Za-z0-9]/.test(n) ? `${p} ${n}` : p + n;
+}
+
+/** 文の中の手で入れた改行をつなぐ。 */
+export function softenLines(text: string): string {
+  const lines = text.split("\n");
+  const out: string[] = [];
+  for (const line of lines) {
+    const last = out[out.length - 1];
+    if (last !== undefined && isSoftBreak(last, line)) out[out.length - 1] = joinLines(last, line);
+    else out.push(line);
+  }
+  return out.join("\n");
+}

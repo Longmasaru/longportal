@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { cleanText, phrases, splitBold } from "./typeset";
+import { cleanText, isSoftBreak, phrases, softenLines, splitBold } from "./typeset";
 
 test("cleanText: 見えない文字を除き、位置合わせの全角スペースを詰める", () => {
   assert.equal(cleanText("**\u200b運転の準備\u200b**"), "**運転の準備**");
@@ -25,4 +25,14 @@ test("phrases: 語の途中では区切らない", () => {
   assert.equal(parts.join(""), "装置の運転中、操作者以外は装置の側に近寄らない。");
   assert.ok(parts.includes("近寄らない。"));
   assert.deepEqual(phrases(""), []);
+});
+
+test("softenLines: セルの中で手で入れた改行はつなぎ、文の終わりや項目の始まりの改行は残す", () => {
+  assert.equal(softenLines("火花が\n　散って\n引火する\n（火傷）"), "火花が散って引火する（火傷）");
+  assert.equal(softenLines("≪業務内容≫\n工作機械を扱います。\n溶接後に確認します。"), "≪業務内容≫\n工作機械を扱います。\n溶接後に確認します。");
+  assert.equal(softenLines("寸法線\n引出線"), "寸法線\n引出線");
+  assert.equal(softenLines("サンダー加工\nにより火花や\n刃が\n飛散"), "サンダー加工により火花や刃が飛散");
+  assert.equal(softenLines("注意点\n・火花\n・漏電"), "注意点\n・火花\n・漏電");
+  assert.equal(softenLines("M6 x\n12 の\nネジ"), "M6 x\n12 のネジ");
+  assert.ok(!isSoftBreak("手順1)", ""));
 });

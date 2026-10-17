@@ -1,6 +1,6 @@
 import { Fragment, type ReactNode } from "react";
 import type { Block, CellSpan, Inline } from "../content";
-import { cleanText, phrases, splitBold } from "../typeset";
+import { cleanText, isSoftBreak, joinLines, phrases, softenLines, splitBold } from "../typeset";
 import { Quiz } from "./quiz";
 
 // 教科書の中身(content.ts の部品)を描く。画像は /apps/kyokasho/images/<id>(見られる人だけに、R2 の署名付き URL へ転送)。
@@ -8,6 +8,10 @@ import { Quiz } from "./quiz";
 // 文節の区切り(<wbr>)でだけ折り返す。長い英数字だけは、はみ出さないよう途中でも折る。
 export const PHRASE_WRAP = "[word-break:keep-all] [overflow-wrap:anywhere]";
 // 本文は 1 行が長すぎないように(和文で 1 行おおむね 40 字)。
+// 本文の書体。ポータルの Zen Kaku Gothic は、かなを詰める設定(palt)が効かず、長い文では字の間が空いて見える。
+// 教科書の本文だけ、端末の読みやすい書体(iPhone・Mac はヒラギノ、Windows は BIZ UDP ゴシック)にする。
+export const READING_FONT =
+  "[font-family:\"Hiragino_Sans\",\"Hiragino_Kaku_Gothic_ProN\",\"BIZ_UDPGothic\",\"Noto_Sans_JP\",\"Yu_Gothic_UI\",Meiryo,sans-serif]";
 const PROSE = `text-ink max-w-[40em] ${PHRASE_WRAP}`;
 
 export function imageUrl(id: string): string {
@@ -119,11 +123,139 @@ function BlockView({ block, quizKey, compact }: { block: Block; quizKey: string;
         />
       );
     case "table":
-      return (
+      return <TableView block={block} quizKey={quizKey} />;
+    case "quiz":
+      return <Quiz questions={block.questions} storageKey={quizKey} />;
+  }
+}
+
+type TableBlock = Extract<Block, { type: "table" }>;
+
+/** 表の見せ方を、形で選ぶ(スマホで横にはみ出さないように)。 */
+function TableView({ block, quizKey }: { block: TableBlock; quizKey: string }) {
+  const rows = block.rows.map((row) => row.map(prepareCell));
+  const cols = Math.max(...rows.map((r) => r.length));
+  const spanned = (block.spans?.length ?? 0) > 0;
+
+  // 1 列だけの表(枠で囲んだ説明など)は、枠の箱にする。
+  if (cols === 1 && !spanned) {
+    return (
+      <div className="flex flex-col gap-3">
+        {rows.map((row, r) =>
+          row[0].length ? (
+            <div key={r} className="border-brand01/20 bg-bg01 border px-4 py-3">
+              <BlockList blocks={row[0]} quizKey={`${quizKey}-t${r}`} compact />
+            </div>
+          ) : null,
+        )}
+      </div>
+    );
+  }
+
+  const grid = <GridTable block={block} rows={rows} quizKey={quizKey} />;
+  const cards = (rows.length >= 2 ? toCards(rows, block.spans) : null) ?? stackedCards(rows);
+  // 見出しの行がある表は、スマホでは 1 件ずつのカードにする(表の形のままだと右が切れる)。
+  return (
+    <>
+      <div className="flex flex-col gap-3 md:hidden">
+        {cards.map((card, i) => (
+          <div key={i} className="border-brand01/20 border bg-white">
+            {card.title ? (
+              <div className="bg-bg01 border-brand01/20 border-b px-4 py-2.5">
+                {card.title.label ? (
+                  <p className="text-brand01 mb-0.5 text-xs font-bold">{card.title.label}</p>
+                ) : null}
+                <div className="font-bold">
+                  <BlockList blocks={card.title.blocks} quizKey={`${quizKey}-m${i}-0`} compact />
+                </div>
+              </div>
+            ) : null}
+            {card.items.length ? (
+              <div className="flex flex-col gap-3 px-4 py-3">
+                {card.items.map((item, j) => (
+                  <div key={j} className={item.divider ? "border-brand01/15 border-t pt-3" : ""}>
+                    {item.label ? <p className="text-brand01 mb-1 text-xs font-bold">{item.label}</p> : null}
+                    <BlockList blocks={item.blocks} quizKey={`${quizKey}-m${i}-${j + 1}`} compact />
+                  </div>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        ))}
+      </div>
+      <div className="hidden md:block">{grid}</div>
+    </>
+  );
+}
+
+type CardPart = { label: string; blocks: Block[]; divider?: boolean };
+
+/** 見出しの行として扱えない表(写真を並べた表など)は、行ごとに、セルを縦に並べる。 */
+function stackedCards(rows: Block[][][]): Card[] {
+  return rows
+    .map((row) => ({ title: null, items: row.filter((c) => c.length).map((blocks) => ({ label: "", blocks })) }))
+    .filter((c) => c.items.length);
+}
+type Card = { title: CardPart | null; items: CardPart[] };
+
+/**
+ * 1 行目を見出しとして、表を 1 件ずつのカードにする。結合したセルも、表と同じ位置(列)として扱う。
+ * 1 列目が縦に結合しているときは、その行をまとめて 1 枚のカードにする(「太い実線」の役割とポイントなど)。
+ * 見出しの行が縦に結合しているなど、カードにしにくい表は null(表のまま)。
+ */
+function toCards(rows: Block[][][], spans: CellSpan[] | undefined): Card[] | null {
+  type Ref = { r: number; c: number; col: number; colSpan: number };
+  const grid: Ref[][] = rows.map(() => []);
+  rows.forEach((row, r) => {
+    let col = 0;
+    row.forEach((_, c) => {
+      while (grid[r][col]) col++;
+      const span = findSpan(spans, r, c);
+      const ref = { r, c, col, colSpan: span?.colSpan ?? 1 };
+      for (let rr = r; rr < Math.min(rows.length, r + (span?.rowSpan ?? 1)); rr++) {
+        for (let cc = col; cc < col + ref.colSpan; cc++) grid[rr][cc] = ref;
+      }
+      col += ref.colSpan;
+    });
+  });
+  if (grid[0].some((ref) => ref && ref.r === 0 && (findSpan(spans, 0, ref.c)?.rowSpan ?? 1) > 1)) return null;
+  const headerText = grid[0].map((ref) => (ref ? cellLabel(rows[0][ref.c]) : ""));
+  const label = (ref: Ref) =>
+    [...new Set(headerText.slice(ref.col, ref.col + ref.colSpan).filter(Boolean))].join("・");
+
+  const cards: Card[] = [];
+  for (let r = 1; r < rows.length; r++) {
+    const first = grid[r][0];
+    // 1 列目が上の行から縦に続いているときは、上のカードに足す。
+    const continued = first !== undefined && first.r < r && cards.length > 0;
+    const card: Card = continued ? cards[cards.length - 1] : { title: null, items: [] };
+    if (!continued) cards.push(card);
+    const seen = new Set<Ref>();
+    let firstOfRow = continued;
+    for (const ref of grid[r]) {
+      // 縦に結合したセルは、最初の行でだけ出す。横に結合したセルは 1 回だけ。
+      if (!ref || ref.r < r || seen.has(ref)) continue;
+      seen.add(ref);
+      const blocks = rows[ref.r][ref.c];
+      if (!blocks.length) continue;
+      const part = { label: label(ref), blocks };
+      if (ref === first) card.title = part;
+      else {
+        card.items.push(firstOfRow ? { ...part, divider: true } : part);
+        firstOfRow = false;
+      }
+    }
+  }
+  return cards.filter((c) => c.title || c.items.length);
+}
+
+
+function GridTable({ block, rows, quizKey }: { block: TableBlock; rows: Block[][][]; quizKey: string }) {
+  return (
         <div className="-mx-4 overflow-x-auto px-4 md:mx-0 md:px-0">
           <table className="border-brand01/20 w-full min-w-[32rem] border-collapse border bg-white text-sm">
             <tbody>
-              {block.rows.map((row, r) => (
+              {rows.map((row, r) => (
                 <tr key={r} className={r === 0 ? "bg-bg01" : ""}>
                   {row.map((cell, c) => {
                     const span = findSpan(block.spans, r, c);
@@ -143,10 +275,49 @@ function BlockView({ block, quizKey, compact }: { block: Block; quizKey: string;
             </tbody>
           </table>
         </div>
-      );
-    case "quiz":
-      return <Quiz questions={block.questions} storageKey={quizKey} />;
+  );
+}
+
+/** 文字だけを取り出す(カードの見出しに使う)。 */
+function cellLabel(cell: Block[]): string {
+  return cell
+    .map((b) =>
+      b.type === "paragraph" ? b.inlines.map((i) => i.text).join("") : b.type === "heading" ? b.text : "",
+    )
+    .join(" ")
+    .replace(/\*\*/g, "")
+    .trim();
+}
+
+/**
+ * 表のセルの中身を整える。狭い列に収めるために手で入れた改行と字下げを外し、画面の幅で折り返させる
+ * (「火花が|散って|引火する」→「火花が散って引火する」)。
+ */
+function prepareCell(cell: Block[]): Block[] {
+  const out: Block[] = [];
+  for (const block of cell) {
+    if (block.type !== "paragraph") {
+      out.push(block);
+      continue;
+    }
+    const inlines = block.inlines.map((i) => ({ ...i, text: softenLines(cleanText(i.text)) }));
+    inlines[0] = { ...inlines[0], text: inlines[0].text.replace(/^[ 　]+/, "") };
+    const prev = out[out.length - 1];
+    if (prev?.type === "paragraph" && !isLabel(block)) {
+      const last = prev.inlines[prev.inlines.length - 1];
+      if (isSoftBreak(last.text.split("\n").at(-1) ?? "", inlines[0].text)) {
+        const joined = joinLines(last.text, inlines[0].text);
+        if (Boolean(last.bold) === Boolean(inlines[0].bold) && last.href === inlines[0].href) {
+          prev.inlines = [...prev.inlines.slice(0, -1), { ...last, text: joined }, ...inlines.slice(1)];
+        } else {
+          prev.inlines = [...prev.inlines, ...inlines];
+        }
+        continue;
+      }
+    }
+    out.push({ type: "paragraph", inlines });
   }
+  return out;
 }
 
 function findSpan(spans: CellSpan[] | undefined, row: number, cell: number): CellSpan | undefined {
@@ -188,5 +359,9 @@ function BlockList({ blocks, quizKey, compact }: { blocks: Block[]; quizKey: str
 
 /** 章の本文。quizKey はテストの結果を端末に保存するときの名前の頭(教科書・章ごとに一意)。 */
 export function Blocks({ blocks, quizKey }: { blocks: Block[]; quizKey: string }) {
-  return <BlockList blocks={blocks} quizKey={quizKey} compact={false} />;
+  return (
+    <div className={READING_FONT}>
+      <BlockList blocks={blocks} quizKey={quizKey} compact={false} />
+    </div>
+  );
 }
