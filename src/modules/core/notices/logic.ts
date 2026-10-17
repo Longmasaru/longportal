@@ -62,3 +62,26 @@ export function summarize(body: string, max = 80): string {
   const flat = body.replace(/\s+/g, " ").trim();
   return flat.length > max ? `${flat.slice(0, max)}…` : flat;
 }
+
+export type BodyPart = { type: "text"; text: string } | { type: "link"; url: string };
+
+/**
+ * 本文を、文字と URL(https:// / http:// で始まるもの)に分ける。URL は画面でリンクにする。
+ * 文末の句読点・閉じかっこは URL に含めない(「…を見てください。https://example.com)。」など)。
+ */
+export function splitBodyLinks(body: string): BodyPart[] {
+  const parts: BodyPart[] = [];
+  const pattern = /https?:\/\/[^\s<>"'「」『』()（）、。]+/g;
+  let last = 0;
+  for (const match of body.matchAll(pattern)) {
+    let url = match[0];
+    const trailing = /[.,;:!?)\]]+$/.exec(url)?.[0] ?? "";
+    url = url.slice(0, url.length - trailing.length);
+    const start = match.index ?? 0;
+    if (start > last) parts.push({ type: "text", text: body.slice(last, start) });
+    parts.push({ type: "link", url });
+    last = start + url.length;
+  }
+  if (last < body.length) parts.push({ type: "text", text: body.slice(last) });
+  return parts;
+}

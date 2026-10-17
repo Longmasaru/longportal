@@ -14,6 +14,7 @@ export async function PortalHome() {
       <UrgentBanner notices={data.urgentBanners} />
       <PersonalNotices
         notices={data.personalNotices}
+        hiddenCount={data.hiddenNoticeCount}
         actionRequiredCount={data.actionRequiredCount}
       />
       <PendingItems items={data.pendingItems} />
