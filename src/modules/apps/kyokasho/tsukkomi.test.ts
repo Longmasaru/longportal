@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { canDeleteOwnComment, isAdopted, isCommentKind, isCommentStatus, rankContributors } from "./tsukkomi";
+import { canDeleteOwnComment, isAdopted, isCommentKind, isCommentStatus, notifyChannelFor, rankContributors } from "./tsukkomi";
 
 test("ツッコミの種類・受け止め方の判定", () => {
   assert.equal(isCommentKind("question"), true);
@@ -39,4 +39,17 @@ test("本人が消せるのは、返事のついていない、まだ見てい�
   assert.equal(canDeleteOwnComment({ authorUserId: "u1", status: "adopted", reply: "" }, "u1"), false);
   assert.equal(canDeleteOwnComment({ authorUserId: "u1", status: "open", reply: "ありがとう" }, "u1"), false);
   assert.equal(canDeleteOwnComment({ authorUserId: null, status: "open", reply: "" }, "u1"), false);
+});
+
+test("知らせの送り先: 教科書の slug → 部署 → なければ全体用", () => {
+  const env = {
+    KYOKASHO_LINEWORKS_CHANNELS: JSON.stringify({ stud: "ch-stud", ブレーキ部: " ch-brake ", 技術部: "ch-tech" }),
+    KYOKASHO_LINEWORKS_CHANNEL_ID: "ch-all",
+  };
+  assert.equal(notifyChannelFor({ slug: "stud", department: "ブレーキ部" }, env), "ch-stud");
+  assert.equal(notifyChannelFor({ slug: "shokyu", department: "ブレーキ部" }, env), "ch-brake");
+  assert.equal(notifyChannelFor({ slug: "kyotsu", department: "全部署共通" }, env), "ch-all");
+  const broken = { KYOKASHO_LINEWORKS_CHANNELS: "壊れた値", KYOKASHO_LINEWORKS_CHANNEL_ID: "ch-all" };
+  assert.equal(notifyChannelFor({ slug: "stud", department: "ブレーキ部" }, broken), "ch-all");
+  assert.equal(notifyChannelFor({ slug: "stud", department: "ブレーキ部" }, {}), undefined);
 });
