@@ -17,12 +17,15 @@ export type QuizQuestion = {
   explanation: string;
 };
 
+/** 表のセルの結合(縦・横につながったセル)。row・cell は rows の中の位置。結合のないセルは載せない。 */
+export type CellSpan = { row: number; cell: number; rowSpan: number; colSpan: number };
+
 export type Block =
   | { type: "heading"; level: 2 | 3 | 4; id: string; text: string }
   | { type: "paragraph"; inlines: Inline[] }
   | { type: "list"; ordered: boolean; items: Inline[][] }
   | { type: "image"; id: string; alt: string }
-  | { type: "table"; rows: Block[][][] }
+  | { type: "table"; rows: Block[][][]; spans?: CellSpan[] }
   | { type: "quiz"; questions: QuizQuestion[] };
 
 export type Chapter = {

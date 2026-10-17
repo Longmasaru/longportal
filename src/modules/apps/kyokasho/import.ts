@@ -8,7 +8,7 @@ import { createHash, randomUUID } from "node:crypto";
 import mammoth from "mammoth";
 import sharp from "sharp";
 import { parse, NodeType, type HTMLElement, type Node } from "node-html-parser";
-import type { Block, BookContent, Chapter, Inline } from "./content";
+import type { Block, BookContent, CellSpan, Chapter, Inline } from "./content";
 import { extractQuizzes } from "./quiz";
 
 export type ExtractedImage = {
@@ -198,10 +198,11 @@ function collectInlines(node: Node, resolveImage: (src: string) => string | null
   };
   walk(node, false, undefined);
   // 前後の空白を整える(中身が空白だけなら空にする)。
+  // 行頭の全角スペースは、続きの行をそろえる字下げなので残す(「手順2)」の次の行など)。
   while (inlines.length && !inlines[0].text.trim()) inlines.shift();
   while (inlines.length && !inlines[inlines.length - 1].text.trim()) inlines.pop();
   if (inlines.length) {
-    inlines[0].text = inlines[0].text.replace(/^\s+/, "");
+    inlines[0].text = inlines[0].text.replace(/^[ \t\r\n]+/, "");
     const last = inlines[inlines.length - 1];
     last.text = last.text.replace(/\s+$/, "");
   }
@@ -228,6 +229,11 @@ function listItems(list: HTMLElement, ctx: Ctx): Inline[][] {
     for (const n of nested) if (isElement(n)) items.push(...listItems(n, ctx));
   }
   return items;
+}
+
+function spanOf(cell: HTMLElement, name: "rowspan" | "colspan"): number {
+  const n = Number(cell.getAttribute(name) ?? 1);
+  return Number.isInteger(n) && n > 1 ? Math.min(n, 50) : 1;
 }
 
 /** 要素の並びを部品にする(章の本文と、表のセルの中で共通)。 */
@@ -257,14 +263,23 @@ function convertNodes(nodes: Node[], ctx: Ctx, inTable: boolean): Block[] {
     }
     if (tag === "table") {
       const rows: Block[][][] = [];
+      const spans: CellSpan[] = [];
       for (const tr of node.querySelectorAll("tr")) {
         // 入れ子の表の行は、その表の中で扱う。
         if (tr.closest("table") !== node) continue;
         const cells = tr.childNodes.filter((c): c is HTMLElement => tagOf(c) === "td" || tagOf(c) === "th");
-        rows.push(cells.map((cell) => convertNodes(cell.childNodes, ctx, true)));
+        const converted = cells.map((cell) => convertNodes(cell.childNodes, ctx, true));
+        // 中身のない行は捨てる(縦に結合したセルが掛かる行は、表の形を保つために残す)。
+        const covered = spans.some((s) => s.row + s.rowSpan > rows.length);
+        if (!covered && !converted.some((c) => c.length > 0)) continue;
+        cells.forEach((cell, i) => {
+          const rowSpan = spanOf(cell, "rowspan");
+          const colSpan = spanOf(cell, "colspan");
+          if (rowSpan > 1 || colSpan > 1) spans.push({ row: rows.length, cell: i, rowSpan, colSpan });
+        });
+        rows.push(converted);
       }
-      const nonEmpty = rows.filter((r) => r.some((c) => c.length > 0));
-      if (nonEmpty.length) blocks.push({ type: "table", rows: nonEmpty });
+      if (rows.length) blocks.push(spans.length ? { type: "table", rows, spans } : { type: "table", rows });
       continue;
     }
     // 段落(p)と、その他の要素
