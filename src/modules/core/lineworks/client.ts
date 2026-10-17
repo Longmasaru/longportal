@@ -42,11 +42,13 @@ export function signAssertion(config: LineWorksConfig, nowSeconds: number): stri
   return `${header}.${payload}.${signer.sign(config.privateKey).toString("base64url")}`;
 }
 
-let cached: { token: string; expiresAt: number } | null = null;
+// scope ごとに、期限まで使い回す(知らせは bot、準備のときの名簿の読み取りは user.read)。
+const cached = new Map<string, { token: string; expiresAt: number }>();
 
-async function accessToken(config: LineWorksConfig): Promise<string> {
+async function accessToken(config: LineWorksConfig, scope = "bot"): Promise<string> {
   const now = Date.now();
-  if (cached && cached.expiresAt > now + 60_000) return cached.token;
+  const hit = cached.get(scope);
+  if (hit && hit.expiresAt > now + 60_000) return hit.token;
   const res = await fetch(TOKEN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -55,14 +57,14 @@ async function accessToken(config: LineWorksConfig): Promise<string> {
       grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
       client_id: config.clientId,
       client_secret: config.clientSecret,
-      scope: "bot",
+      scope,
     }),
     signal: AbortSignal.timeout(TIMEOUT_MS),
   });
   if (!res.ok) throw new Error(`LINE WORKS のトークンを取れませんでした(${res.status})`);
   const data = (await res.json()) as { access_token?: string; expires_in?: string | number };
   if (!data.access_token) throw new Error("LINE WORKS のトークンが返りませんでした");
-  cached = { token: data.access_token, expiresAt: now + Number(data.expires_in ?? 3600) * 1000 };
+  cached.set(scope, { token: data.access_token, expiresAt: now + Number(data.expires_in ?? 3600) * 1000 });
   return data.access_token;
 }
 
@@ -103,4 +105,43 @@ export async function createLineWorksChannel(members: string[], title: string): 
   const data = (await res.json()) as { channelId?: string };
   if (!data.channelId) throw new Error("channelId が返りませんでした。");
   return data.channelId;
+}
+
+export type LineWorksUser = { userId: string; email: string; lastName: string; firstName: string; orgUnitIds: string[] };
+
+/** 会社の LINE WORKS の利用者の一覧(準備のとき、トークルームに入れる人の ID を名前から探すために使う。scope user.read)。 */
+export async function listLineWorksUsers(): Promise<LineWorksUser[]> {
+  const config = lineWorksConfig();
+  if (!config) throw new Error("LINEWORKS_* の環境変数が足りません。");
+  const token = await accessToken(config, "user.read");
+  const users: LineWorksUser[] = [];
+  let cursor: string | undefined;
+  do {
+    const url = new URL(`${API_BASE}/users`);
+    url.searchParams.set("count", "100");
+    if (cursor) url.searchParams.set("cursor", cursor);
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(TIMEOUT_MS) });
+    if (!res.ok) throw new Error(`LINE WORKS の利用者の一覧を取れませんでした(${res.status})`);
+    const data = (await res.json()) as {
+      users?: {
+        userId?: string;
+        email?: string;
+        userName?: { lastName?: string; firstName?: string };
+        organizations?: { orgUnits?: { orgUnitId?: string }[] }[];
+      }[];
+      responseMetaData?: { nextCursor?: string | null };
+    };
+    for (const u of data.users ?? []) {
+      if (!u.userId) continue;
+      users.push({
+        userId: u.userId,
+        email: u.email ?? "",
+        lastName: u.userName?.lastName ?? "",
+        firstName: u.userName?.firstName ?? "",
+        orgUnitIds: (u.organizations ?? []).flatMap((o) => (o.orgUnits ?? []).flatMap((x) => (x.orgUnitId ? [x.orgUnitId] : []))),
+      });
+    }
+    cursor = data.responseMetaData?.nextCursor ?? undefined;
+  } while (cursor);
+  return users;
 }
