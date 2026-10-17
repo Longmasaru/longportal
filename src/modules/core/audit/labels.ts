@@ -30,6 +30,12 @@ export const AUDIT_ACTION_LABEL: Record<string, string> = {
   "app.create": "アプリの登録(別プロジェクト)",
   "app.update": "アプリの設定の変更",
   "app.delete": "アプリの登録の削除",
+  "hr.record.create": "人事管理: 記録の追加",
+  "hr.record.update": "人事管理: 記録の更新",
+  "hr.record.delete": "人事管理: 記録の削除",
+  "hr.profile.update": "人事管理: シートの更新",
+  "hr.item.create": "人事管理: 一覧の行の追加",
+  "hr.item.delete": "人事管理: 一覧の行の削除",
 };
 
 export function auditActionLabel(action: string): string {
