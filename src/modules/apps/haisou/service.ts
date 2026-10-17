@@ -5,7 +5,17 @@ import { and, asc, desc, eq, gte, isNull, lt, max, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { DEFAULT_STAY, GEOCODE_PREFIX, HISTORY_DETAIL_MAX, HISTORY_DETAIL_SCAN } from "./constants";
 import { computeRoute, geocode, mapsApiKey } from "./maps";
-import { buildMapLinks, buildSchedule, formatDateLabel, legsFrom, parseDateLabel, type MapLink, type ScheduleEntry, type Stop } from "./schedule";
+import {
+  buildMapLinks,
+  buildSchedule,
+  formatDateLabel,
+  legsFrom,
+  parseDateLabel,
+  rescheduleTimes,
+  type MapLink,
+  type ScheduleEntry,
+  type Stop,
+} from "./schedule";
 import {
   haisouClients,
   haisouCompanyDefaults,
@@ -233,6 +243,11 @@ export async function calcRoute(payload: CalcPayload, today: string): Promise<Ro
     schedule,
     links,
   };
+}
+
+/** 待ち時間を入れ直したルート表の時刻を付け直す(地図サービスは呼ばない)。 */
+export function reschedule(result: RouteResult): RouteResult {
+  return rescheduleTimes(result);
 }
 
 // ---- 配達履歴 ------------------------------------------------------------------------

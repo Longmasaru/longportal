@@ -12,6 +12,8 @@ export type Stop = {
   yoken: string;
   detail: string;
   stay: number;
+  /** 配達先での待ち(分)。前のトラックがいて、すぐに受け入れてもらえなかったときなど。 */
+  wait?: number;
 };
 
 export type ScheduleEntry = {
@@ -25,6 +27,7 @@ export type ScheduleEntry = {
   yoken: string;
   detail: string;
   stay: number;
+  wait: number;
   travelMin: number;
   travelKm: number | null;
   arrive: string;
@@ -109,7 +112,8 @@ export function buildSchedule(
     const travel = advanceClock(clock, legMins[i]);
     clock = travel.time;
     const arrive = clock;
-    const stay = advanceClock(clock, s.stay);
+    const wait = advanceClock(clock, s.wait ?? 0);
+    const stay = advanceClock(wait.time, s.stay);
     clock = stay.time;
     schedule.push({
       no: i + 1,
@@ -122,15 +126,29 @@ export function buildSchedule(
       yoken: s.yoken || "納品",
       detail: s.detail || "",
       stay: s.stay,
+      wait: s.wait ?? 0,
       travelMin: legMins[i],
       travelKm: legKm[i],
       arrive: formatClock(arrive),
       depart: formatClock(clock),
-      breaksCrossed: travel.crossed.concat(stay.crossed).map((b) => b.label),
+      breaksCrossed: travel.crossed.concat(wait.crossed, stay.crossed).map((b) => b.label),
     });
   });
   clock = advanceClock(clock, legMins[ordered.length]).time;
   return { schedule, backTime: formatClock(clock) };
+}
+
+/**
+ * 計算済みのルート表の時刻だけを付け直す(待ち時間を変えたとき)。
+ * 順番と移動時間はそのままなので、地図サービスは呼ばない。
+ */
+export function rescheduleTimes<
+  T extends { startTime: string; lastLegMin: number; lastLegKm: number | null; schedule: ScheduleEntry[] },
+>(result: T): T {
+  const legMins = result.schedule.map((e) => e.travelMin).concat(result.lastLegMin);
+  const legKm = result.schedule.map((e) => e.travelKm).concat(result.lastLegKm);
+  const { schedule, backTime } = buildSchedule(result.schedule, result.startTime, legMins, legKm);
+  return { ...result, schedule, backTime };
 }
 
 /** Google マップのルートのリンク。経由地は 1 本に 9 件まで、超えたら分けて続ける。 */
