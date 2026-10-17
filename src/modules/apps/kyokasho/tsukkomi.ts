@@ -73,17 +73,23 @@ export function canDeleteOwnComment(
 
 /**
  * 新しいツッコミを知らせる LINE WORKS のトークルーム(docs/DESIGN.md 33 章)。
- * 教科書の部署ごとのトークルームは KYOKASHO_LINEWORKS_CHANNELS(JSON。{"部署名": "channelId"})に置く。
- * そこにない部署(全部署共通など)は、全体用の KYOKASHO_LINEWORKS_CHANNEL_ID へ送る(届け漏れを防ぐため)。
+ * 教科書ごと・部署ごとのトークルームは KYOKASHO_LINEWORKS_CHANNELS(JSON。{"教科書の slug か部署名": "channelId"})に置く。
+ * 同じ部署に教科書が何冊もある(ブレーキ部の初級編・スタッド・メタルエステ)ので、slug を先に見て、次に部署名を見る。
+ * どちらにもないもの(全部署共通など)は、全体用の KYOKASHO_LINEWORKS_CHANNEL_ID へ送る(届け漏れを防ぐため)。
  */
-export function notifyChannelFor(department: string, env: Record<string, string | undefined>): string | undefined {
+export function notifyChannelFor(
+  book: { slug: string; department: string },
+  env: Record<string, string | undefined>,
+): string | undefined {
   const raw = env.KYOKASHO_LINEWORKS_CHANNELS?.trim();
   if (raw) {
     try {
       const map: unknown = JSON.parse(raw);
       if (map && typeof map === "object" && !Array.isArray(map)) {
-        const id = (map as Record<string, unknown>)[department.trim()];
-        if (typeof id === "string" && id.trim()) return id.trim();
+        for (const key of [book.slug, book.department]) {
+          const id = (map as Record<string, unknown>)[key.trim()];
+          if (typeof id === "string" && id.trim()) return id.trim();
+        }
       }
     } catch {
       console.error("[kyokasho] KYOKASHO_LINEWORKS_CHANNELS が JSON として読めません。");

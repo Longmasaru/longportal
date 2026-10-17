@@ -41,14 +41,15 @@ test("本人が消せるのは、返事のついていない、まだ見てい�
   assert.equal(canDeleteOwnComment({ authorUserId: null, status: "open", reply: "" }, "u1"), false);
 });
 
-test("知らせの送り先: 部署のトークルーム → なければ全体用", () => {
+test("知らせの送り先: 教科書の slug → 部署 → なければ全体用", () => {
   const env = {
-    KYOKASHO_LINEWORKS_CHANNELS: JSON.stringify({ スタッド: "ch-stud", メタルエステ: " ch-metal " }),
+    KYOKASHO_LINEWORKS_CHANNELS: JSON.stringify({ stud: "ch-stud", ブレーキ部: " ch-brake ", 技術部: "ch-tech" }),
     KYOKASHO_LINEWORKS_CHANNEL_ID: "ch-all",
   };
-  assert.equal(notifyChannelFor("スタッド", env), "ch-stud");
-  assert.equal(notifyChannelFor("メタルエステ", env), "ch-metal");
-  assert.equal(notifyChannelFor("全部署共通", env), "ch-all");
-  assert.equal(notifyChannelFor("スタッド", { KYOKASHO_LINEWORKS_CHANNELS: "壊れた値", KYOKASHO_LINEWORKS_CHANNEL_ID: "ch-all" }), "ch-all");
-  assert.equal(notifyChannelFor("スタッド", {}), undefined);
+  assert.equal(notifyChannelFor({ slug: "stud", department: "ブレーキ部" }, env), "ch-stud");
+  assert.equal(notifyChannelFor({ slug: "shokyu", department: "ブレーキ部" }, env), "ch-brake");
+  assert.equal(notifyChannelFor({ slug: "kyotsu", department: "全部署共通" }, env), "ch-all");
+  const broken = { KYOKASHO_LINEWORKS_CHANNELS: "壊れた値", KYOKASHO_LINEWORKS_CHANNEL_ID: "ch-all" };
+  assert.equal(notifyChannelFor({ slug: "stud", department: "ブレーキ部" }, broken), "ch-all");
+  assert.equal(notifyChannelFor({ slug: "stud", department: "ブレーキ部" }, {}), undefined);
 });

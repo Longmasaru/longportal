@@ -115,7 +115,7 @@ export async function postCommentAction(_prev: TsukkomiFormState, formData: Form
   ]
     .filter(Boolean)
     .join("\n");
-  after(() => sendLineWorksChannelText(notifyChannelFor(book.department, process.env), message).then(() => undefined));
+  after(() => sendLineWorksChannelText(notifyChannelFor(book, process.env), message).then(() => undefined));
 
   return { success: "ツッコミを送りました。ありがとうございます!", at: Date.now() };
 }
