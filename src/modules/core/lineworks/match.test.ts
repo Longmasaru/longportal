@@ -33,3 +33,19 @@ test("名指し: 名字だけで 1 人に決まれば入れる。何人もいる
   assert.match(r.problems[0], /松本.*2 人/);
   assert.match(r.problems[1], /無量江/);
 });
+
+test("括弧書き・中黒・空白・英字の大小は無視し、名簿のフリガナでも探す。ID の直接指定も入れる", () => {
+  const roster2 = [
+    { familyName: "長井", givenName: "勉", department: "総務" },
+    { familyName: "MAI", givenName: "VAN SON", familyNameKana: "マイ ヴァン", givenNameKana: "ソン", department: "ブレーキ" },
+    { familyName: "BUI", givenName: "THANH PHOUNG", department: "ブレーキ" },
+  ];
+  const directory2 = [
+    { userId: "nagai@x", lastName: "長井", firstName: "勉(社長)" },
+    { userId: "mai@x", lastName: "マイ・ヴァン・", firstName: "ソン" },
+    { userId: "bui@x", lastName: "BUI THANH", firstName: "PHUONG" },
+  ];
+  const r = resolveRoom({ key: "*", title: "t", all: true, lineWorksIds: ["bui@x"] }, roster2, directory2);
+  assert.deepEqual(r.memberIds.sort(), ["bui@x", "mai@x", "nagai@x"]);
+  assert.deepEqual(r.notInLineWorks, ["BUI THANH PHOUNG"]);
+});

@@ -1,5 +1,7 @@
 // トークルームに入れる人を、ポータルの社員名簿と LINE WORKS の利用者の名前で突き合わせる(準備のときだけ使う純粋関数)。
-// docs/DESIGN.md 33 章。LINE WORKS の ID は社員番号と結びついていないので、氏名(空白を除いて全角・半角をそろえたもの)で探す。
+// docs/DESIGN.md 33 章。LINE WORKS の ID は社員番号と結びついていないので、氏名で探す。
+// 空白・中黒・括弧書き(「長井 勉(社長)」)は無視し、英字の大小・ひらがなとカタカナの違いもそろえる。
+// LINE WORKS では外国籍の方の名前がカタカナのことがあるので、名簿のフリガナでも探す。
 
 export type RoomSpec = {
   /** 送り先の名前(教科書の slug か部署名。"*" は全体用)。 */
@@ -11,9 +13,17 @@ export type RoomSpec = {
   departments?: string[];
   /** 名字だけ、または「名字 名前」で名指し。 */
   members?: string[];
+  /** 名前で突き合わせられない人を、LINE WORKS の ID で直接入れる。 */
+  lineWorksIds?: string[];
 };
 
-export type RosterEmployee = { familyName: string; givenName: string | null; department: string | null };
+export type RosterEmployee = {
+  familyName: string;
+  givenName: string | null;
+  familyNameKana?: string | null;
+  givenNameKana?: string | null;
+  department: string | null;
+};
 export type DirectoryUser = { userId: string; lastName: string; firstName: string };
 
 export type ResolvedRoom = {
@@ -25,7 +35,18 @@ export type ResolvedRoom = {
 };
 
 export function normalizeName(value: string): string {
-  return value.normalize("NFKC").replace(/\s+/g, "");
+  return value
+    .normalize("NFKC")
+    .replace(/\([^)]*\)/g, "")
+    .replace(/[\s・･·.,、]/g, "")
+    .replace(/[\u3041-\u3096]/g, (c) => String.fromCharCode(c.charCodeAt(0) + 0x60))
+    .toUpperCase();
+}
+
+function nameKeys(e: RosterEmployee): string[] {
+  const keys = [normalizeName(`${e.familyName}${e.givenName ?? ""}`)];
+  if (e.familyNameKana) keys.push(normalizeName(`${e.familyNameKana}${e.givenNameKana ?? ""}`));
+  return [...new Set(keys.filter(Boolean))];
 }
 
 function fullName(e: RosterEmployee): string {
@@ -56,10 +77,10 @@ export function resolveRoom(spec: RoomSpec, roster: RosterEmployee[], directory:
     const key = normalizeName(`${u.lastName}${u.firstName}`);
     byName.set(key, [...(byName.get(key) ?? []), u.userId]);
   }
-  const memberIds = new Set<string>();
+  const memberIds = new Set<string>(spec.lineWorksIds ?? []);
   const notInLineWorks: string[] = [];
   for (const e of picked) {
-    const ids = byName.get(normalizeName(fullName(e))) ?? [];
+    const ids = [...new Set(nameKeys(e).flatMap((k) => byName.get(k) ?? []))];
     if (ids.length === 1) memberIds.add(ids[0]);
     else if (ids.length === 0) notInLineWorks.push(fullName(e));
     else problems.push(`LINE WORKS に「${fullName(e)}」さんが ${ids.length} 人います`);

@@ -7,6 +7,7 @@
 //    JSON: { "rooms": [ { "key": "stud", "title": "教科書 スタッド", "members": ["稲荷", "上田"] },
 //                       { "key": "ブレーキ部", "title": "…", "departments": ["ブレーキ部"] },
 //                       { "key": "*", "title": "…", "all": true } ] }
+//    名前で合わない人は、部屋に "lineWorksIds": ["<LINE WORKS の ID>"] で直接入れられる。
 //    key は送り先の名前(教科書の slug か部署名。"*" は全体用)。氏名が入るので、JSON はリポジトリの外に置く。
 //    最後に、Vercel に登録する KYOKASHO_LINEWORKS_CHANNELS / KYOKASHO_LINEWORKS_CHANNEL_ID の値を表示する。
 //
@@ -29,7 +30,13 @@ function arg(name: string): string | undefined {
 async function loadRoster(): Promise<RosterEmployee[]> {
   const today = todayJst();
   return db
-    .select({ familyName: employees.familyName, givenName: employees.givenName, department: departments.name })
+    .select({
+      familyName: employees.familyName,
+      givenName: employees.givenName,
+      familyNameKana: employees.familyNameKana,
+      givenNameKana: employees.givenNameKana,
+      department: departments.name,
+    })
     .from(employees)
     .leftJoin(
       employeeAssignments,
