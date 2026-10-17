@@ -4,6 +4,7 @@ import { canAccessApp, requireAppAccess } from "@/modules/core/apps";
 import { manifest } from "../manifest";
 import { getMonthPoints, getWeekStatus, listFeed, listReceived, listRecipients } from "../queries";
 import { ArigatoBoard } from "./arigato-board";
+import { BanzukeSummary } from "./banzuke-summary";
 
 /** ありがとうカードの入口。アプリ管理で有効にし、表示する相手に当てはまる人だけ(それ以外は 404)。 */
 export async function ArigatoPage() {
@@ -39,6 +40,7 @@ export async function ArigatoPage() {
           ) : null}
         </p>
       </header>
+      <BanzukeSummary userId={actor.userId} today={actor.today} />
       <ArigatoBoard
         viewerId={actor.userId}
         canManage={canGlobally(actor, "arigato.cards.manage")}

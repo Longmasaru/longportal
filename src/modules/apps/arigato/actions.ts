@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
 import { canGlobally } from "@/modules/core/access";
@@ -12,9 +12,11 @@ import {
   DAILY_SEND_LIMIT,
   MESSAGE_MAX_LENGTH,
 } from "./constants";
+import { KOJO_WORDS, bashoOf, shikonaCandidates } from "./banzuke";
+import { getFamilyName, takenShikona } from "./banzuke-queries";
 import { manifest } from "./manifest";
 import { checkRecipient, countSentOn, getCard, getMonthPoints, type CardRow } from "./queries";
-import { arigatoCards, arigatoLikes } from "./schema";
+import { arigatoBanzuke, arigatoCards, arigatoLikes, arigatoShikona } from "./schema";
 
 // ありがとうカードの Server Action(docs/DESIGN.md 26 章)。画面以外からも呼べるため、
 // 毎回 requireAppAccess(アプリを使えるか)を通し、引数を zod で検証する。
@@ -111,4 +113,52 @@ export async function deleteCardAction(idInput: string): Promise<{ myPoints: num
     });
   });
   return myPoints();
+}
+
+export type SimpleResult = { ok: true } | { ok: false; error: string };
+
+/** 四股名を選ぶ(姓から作った候補の中からだけ。全社で重複しない)。 */
+export async function chooseShikonaAction(nameInput: string): Promise<SimpleResult> {
+  const actor = await requireAppAccess(manifest.appKey);
+  const name = z.string().trim().min(1).max(12).safeParse(nameInput);
+  if (!name.success) return { ok: false, error: "四股名を選んでください。" };
+  const familyName = await getFamilyName(actor.userId);
+  if (!familyName || !shikonaCandidates(familyName).includes(name.data)) {
+    return { ok: false, error: "候補の中から選んでください。" };
+  }
+  if ((await takenShikona([name.data], actor.userId)).size > 0) {
+    return { ok: false, error: "その四股名は、ほかの人が使っています。" };
+  }
+  try {
+    await db
+      .insert(arigatoShikona)
+      .values({ userId: actor.userId, name: name.data })
+      .onConflictDoUpdate({ target: arigatoShikona.userId, set: { name: name.data, updatedAt: new Date() } });
+  } catch {
+    // 同時に同じ名前を選んだ場合(一意制約)
+    return { ok: false, error: "その四股名は、ほかの人が使っています。" };
+  }
+  return { ok: true };
+}
+
+/** 伝達式の口上(新しく大関・横綱に上がった本人が、その場所で 1 回だけ選ぶ)。 */
+export async function chooseKojoAction(wordInput: string): Promise<SimpleResult> {
+  const actor = await requireAppAccess(manifest.appKey);
+  const word = KOJO_WORDS.find((w) => w.word === wordInput)?.word;
+  if (!word) return { ok: false, error: "四字熟語を選んでください。" };
+  const basho = bashoOf(actor.today);
+  const updated = await db
+    .update(arigatoBanzuke)
+    .set({ kojoWord: word })
+    .where(
+      and(
+        eq(arigatoBanzuke.basho, basho.key),
+        eq(arigatoBanzuke.userId, actor.userId),
+        eq(arigatoBanzuke.promoted, true),
+        isNull(arigatoBanzuke.kojoWord),
+      ),
+    )
+    .returning({ userId: arigatoBanzuke.userId });
+  if (updated.length === 0) return { ok: false, error: "口上は、昇進した場所で 1 回だけ選べます。" };
+  return { ok: true };
 }

@@ -41,7 +41,7 @@ const fromEmployee = alias(employees, "from_employee");
 const toEmployee = alias(employees, "to_employee");
 
 /** 基準日に有効な主所属の部署(社員でない・未配属なら null)。 */
-async function primaryDepartments(employeeIds: string[], today: string): Promise<Map<string, { id: string; name: string }>> {
+export async function primaryDepartments(employeeIds: string[], today: string): Promise<Map<string, { id: string; name: string }>> {
   if (employeeIds.length === 0) return new Map();
   const rows = await db
     .select({ employeeId: employeeAssignments.employeeId, id: departments.id, name: departments.name })
@@ -69,7 +69,7 @@ function receivableWhere(today: string) {
 }
 
 /** 在籍中でアカウントのある社員(フリガナ順)。除く人を指定できる。 */
-async function listReceivable(today: string, excludeUserId?: string): Promise<Recipient[]> {
+export async function listReceivable(today: string, excludeUserId?: string): Promise<Recipient[]> {
   const rows = await db
     .select({ userId: users.id, employeeId: employees.id, name: employees.name })
     .from(users)
@@ -209,7 +209,7 @@ export async function getWeekStatus(userId: string, today: string): Promise<Week
  * 加点(docs/DESIGN.md 26 章): 送ったカード 1 枚につき 1 点。ただし同じ相手には 1 日 1 点まで
  * (同じ日に同じ人へ何枚送っても 1 点)。「本人にだけ」のカードも数え、取り消したカードは数えない。
  */
-const pointsExpr = sql<number>`count(distinct (${arigatoCards.toUserId}, ${arigatoCards.sentOn}))::int`;
+export const pointsExpr = sql<number>`count(distinct (${arigatoCards.toUserId}, ${arigatoCards.sentOn}))::int`;
 
 function monthWhere(month: string) {
   const range = monthRange(month);

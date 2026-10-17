@@ -1,9 +1,143 @@
 {
-  "id": "b493737d-32d1-44ad-93de-344af0333f23",
+  "id": "2708c3fa-8893-4f57-a338-0297198d8f11",
   "prevId": "dda9edd3-a870-45cb-9713-d1de65364b78",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
+    "arigato.banzuke": {
+      "name": "banzuke",
+      "schema": "arigato",
+      "columns": {
+        "basho": {
+          "name": "basho",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "position": {
+          "name": "position",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "rank": {
+          "name": "rank",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "side": {
+          "name": "side",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "promoted": {
+          "name": "promoted",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "kojo_word": {
+          "name": "kojo_word",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "wins": {
+          "name": "wins",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "received": {
+          "name": "received",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "yusho": {
+          "name": "yusho",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "banzuke_user_id_idx": {
+          "name": "banzuke_user_id_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "banzuke_user_id_users_id_fk": {
+          "name": "banzuke_user_id_users_id_fk",
+          "tableFrom": "banzuke",
+          "tableTo": "users",
+          "schemaTo": "core",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "banzuke_basho_user_id_pk": {
+          "name": "banzuke_basho_user_id_pk",
+          "columns": [
+            "basho",
+            "user_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "banzuke_basho_check": {
+          "name": "banzuke_basho_check",
+          "value": "\"arigato\".\"banzuke\".\"basho\" ~ '^[0-9]{4}-(01|03|05|07|09|11)$'"
+        },
+        "banzuke_rank_check": {
+          "name": "banzuke_rank_check",
+          "value": "\"arigato\".\"banzuke\".\"rank\" in ('yokozuna', 'ozeki', 'sekiwake', 'komusubi', 'maegashira', 'juryo', 'makushita', 'jonokuchi', 'maezumo')"
+        },
+        "banzuke_side_check": {
+          "name": "banzuke_side_check",
+          "value": "\"arigato\".\"banzuke\".\"side\" in ('east', 'west')"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "arigato.cards": {
       "name": "cards",
       "schema": "arigato",
@@ -274,6 +408,66 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "arigato.shikona": {
+      "name": "shikona",
+      "schema": "arigato",
+      "columns": {
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "shikona_user_id_users_id_fk": {
+          "name": "shikona_user_id_users_id_fk",
+          "tableFrom": "shikona",
+          "tableTo": "users",
+          "schemaTo": "core",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "shikona_name_unique": {
+          "name": "shikona_name_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "name"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "shikona_name_length_check": {
+          "name": "shikona_name_length_check",
+          "value": "char_length(\"arigato\".\"shikona\".\"name\") between 1 and 12"
+        }
+      },
       "isRLSEnabled": false
     },
     "todo.attachments": {
