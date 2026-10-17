@@ -2,13 +2,16 @@
 
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { notFound } from "next/navigation";
+import { after } from "next/server";
 import { z } from "zod";
 import { db } from "@/db/client";
 import type { Actor } from "@/modules/core/access";
 import { requireAppAccess } from "@/modules/core/apps";
 import { matchedAudienceIds } from "@/modules/core/audience";
 import { writeAuditLog } from "@/modules/core/audit";
+import { sendLineWorksChannelText } from "@/modules/core/lineworks";
 import { chapterOutline } from "./content";
 import { canViewBook } from "./logic";
 import { manifest } from "./manifest";
@@ -18,11 +21,13 @@ import { kyokashoBooks, kyokashoCommentThanks, kyokashoComments } from "./schema
 import {
   BODY_MAX,
   COMMENT_KINDS,
+  KIND_LABELS,
   COMMENT_STATUSES,
   POLISH_MIN,
   QUOTE_MAX,
   REPLY_MAX,
   canDeleteOwnComment,
+  notifyChannelFor,
 } from "./tsukkomi";
 import { canHandleComments } from "./tsukkomi-queries";
 
@@ -85,18 +90,33 @@ export async function postCommentAction(_prev: TsukkomiFormState, formData: Form
   // 節の題名は、送られてきた値ではなく、教科書の中身から写す。
   const section = v.sectionId ? chapterOutline(chapter).find((h) => h.id === v.sectionId) : undefined;
 
+  const sectionTitle = section ? section.text.replace(/\*\*/g, "").slice(0, 200) : "";
   await db.insert(kyokashoComments).values({
     bookId: book.id,
     chapterNo: v.chapterNo,
     chapterTitle: chapter.title.slice(0, 200),
     sectionId: section ? section.id : null,
-    sectionTitle: section ? section.text.replace(/\*\*/g, "").slice(0, 200) : "",
+    sectionTitle,
     quote: v.quote,
     kind: v.kind,
     body: v.body,
     authorUserId: actor.userId,
   });
   revalidatePath(BASE, "layout");
+
+  // その部署の教科書チームの LINE WORKS のトークルームへ知らせる(設定があるときだけ。返事を待たずに画面を返す)。
+  const host = (await headers()).get("host");
+  const where = [`${book.department} ${book.title}`, chapter.title, sectionTitle].filter(Boolean).join(" › ");
+  const message = [
+    `📝 教科書に新しいツッコミ【${KIND_LABELS[v.kind].label}】`,
+    where,
+    `${actor.employee?.name ?? actor.loginId} さん: ${v.body.length > 120 ? `${v.body.slice(0, 120)}…` : v.body}`,
+    host ? `https://${host}${BASE}/manage/tsukkomi` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+  after(() => sendLineWorksChannelText(notifyChannelFor(book, process.env), message).then(() => undefined));
+
   return { success: "ツッコミを送りました。ありがとうございます!", at: Date.now() };
 }
 

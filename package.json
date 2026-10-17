@@ -27,7 +27,8 @@
     "db:update-name-kana": "tsx --env-file=.env.local scripts/update-name-kana.ts",
     "db:import-haisou": "tsx --env-file=.env.local scripts/import-haisou.ts",
     "db:import-kyokasho": "tsx --env-file=.env.local scripts/import-kyokasho.ts",
-    "r2:check": "tsx --env-file=.env.local scripts/r2-check.ts"
+    "r2:check": "tsx --env-file=.env.local scripts/r2-check.ts",
+    "lineworks:setup": "tsx --env-file=.env.local scripts/lineworks-setup.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.131.0",

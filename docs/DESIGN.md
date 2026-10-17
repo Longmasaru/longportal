@@ -784,7 +784,7 @@ TODOSample の TODO を、ポータルの中のアプリ(`modules/apps/todo`、`
 - **お礼**: 教科書チームの返事(「ツッコミありがとうございます!」をボタンで入れられる)と、読んだ人どうしの「ありがとう」(自分のツッコミには送れない。送った人の名前が出る)。
 - **教科書チーム**: 権限 `kyokasho.comments.manage`(全社。`kyokasho.books.manage` を持つ人もできる)。`/apps/kyokasho/manage/tsukkomi` で受け止め方ごとに一覧し(返事待ちは古い順)、返事と受け止め方を決める。章のページでも同じ操作ができる。不適切なツッコミは消せる。返事・削除は監査ログ(`kyokasho.comment.handle` / `kyokasho.comment.delete`)。
 - **本人の削除**: 返事がつく前(返事待ち・返事なし)の自分のツッコミだけ。
-- **まだしないこと**: 新しいツッコミの通知(メールは `core/mail` ができてから)。ツッコミの書き直し(消して書き直す)。
+- **まだしないこと**: ツッコミの書き直し(消して書き直す)。新しいツッコミの知らせは 35 章(LINE WORKS)。
 
 ## 33. 実装メモ(会社カレンダー: 第 1 弾の楽しみ・お知らせ)
 
@@ -823,3 +823,15 @@ TODOSample の TODO を、ポータルの中のアプリ(`modules/apps/todo`、`
   - 書体は、筆文字の Web 書体(Yuji Boku)を太らせて相撲字に寄せる(四股名・位など漢字だけのところ)。ひらがなが入る文は、筆文字のかなが崩れて読みにくいため、太い Zen Antique にする(2026-10-17 ユーザーの指摘)。本物の相撲字の有料書体(DynaFont 相撲体・藍原相撲字など。Web での利用許諾の確認が必要)を買ったら、書体の指定だけを差し替える。
   - **テーブル**: `arigato.shikona`(ユーザーごとに 1 件。四股名は一意)、`arigato.banzuke`(場所 × ユーザー。位置・位・東西・新昇進・口上、場所が終わったあとの白星・懸賞・優勝)。評価に使う加点(上限なし)は、これまでどおり月ごとに数える。
 - 「育てて、育つ。」のページの「今日から、あなたにできること」から、このアプリを使える人にだけ入口を出す(アプリ同士は参照せず、`canAccessApp(actor, "arigato")` と URL だけを使う)。
+
+## 35. 実装メモ(LINE WORKS への知らせ)
+
+2026-10-17 のユーザーの判断: 新しいツッコミの知らせは、メールではなく LINE WORKS で教科書チームに送る(メールより早く気づけるため)。
+
+- **`core/lineworks`**(サーバー側専用): LINE WORKS API 2.0 の Bot。サービスアカウントの JWT(RS256。iss = クライアント ID、sub = サービスアカウント)で `https://auth.worksmobile.com/oauth2/v2.0/token` からアクセストークンを取り(scope `bot`。期限まで使い回す)、`https://www.worksapis.com/v1.0/bots/{botId}/channels/{channelId}/messages` に文字を送る。外部のライブラリは使わない。
+- **鍵**: 環境変数 `LINEWORKS_CLIENT_ID`・`LINEWORKS_CLIENT_SECRET`・`LINEWORKS_SERVICE_ACCOUNT`・`LINEWORKS_PRIVATE_KEY`・`LINEWORKS_BOT_ID`(Vercel では Sensitive)。送り先のトークルームはアプリごとの環境変数。
+- **失敗しても本来の操作は止めない**: 設定がなければ送らない。送れなければログに残すだけ(ツッコミは保存されたまま)。送るのは `after()` で、画面を返したあと。
+- **準備**: Bot が入ったトークルームは `npm run lineworks:setup` で作り、試しに 1 通送って channelId を表示する。`--rooms <JSON>` を渡すと、教科書ごとの届け先(全社員・部署の全員・名指し)を、ポータルの社員名簿と LINE WORKS の利用者(scope `user.read`)の氏名で突き合わせてまとめて作り、Vercel に登録する値を表示する(既定は確認だけ、`--apply` で作る。突き合わせは `core/lineworks/match.ts`)。JSON は氏名が入るのでリポジトリの外に置く。LINE WORKS を使っていない社員は入らない。
+- **教科書のツッコミの送り先**(2026-10-17 のユーザーの判断「部署による」): 教科書の部署ごとにトークルームを分け、その部署の教科書チームにだけ知らせる。教科書ごと・部署ごとの channelId は `KYOKASHO_LINEWORKS_CHANNELS`(JSON。`{"教科書の slug か部署名": "channelId"}`。ブレーキ部には初級編・スタッド・メタルエステがあり、チームが教科書で違うので slug を先に見る)、どちらにもないもの(全部署共通など)は全体用の `KYOKASHO_LINEWORKS_CHANNEL_ID` へ送る(届け漏れを防ぐ)。判定は `notifyChannelFor`(`apps/kyokasho/tsukkomi.ts`)。
+- **教科書のツッコミ**: 新しいツッコミが届くと「📝 教科書に新しいツッコミ【種類】/ 教科書 › 章 › 節 / 名前 さん: 本文(120 字まで)/ 届いたツッコミの画面の URL」を送る。
+
