@@ -17,8 +17,8 @@ import { Quiz } from "./quiz";
 
 // 文節の区切り(<wbr>)でだけ折り返す。長い英数字だけは、はみ出さないよう途中でも折る。
 export const PHRASE_WRAP = "[word-break:keep-all] [overflow-wrap:anywhere]";
-// 本文は 1 行が長すぎないように(和文で 1 行おおむね 40 字)。
-const PROSE = `font-prose text-ink max-w-[40em] ${PHRASE_WRAP}`;
+// 本文は、スマホでは 1 行が長すぎないように(和文でおおむね 40 字)。PC では区切らず、画面の幅いっぱいに書く(短く区切ると「事故・故障に|つながる。」のように窮屈に見えるため)。
+const PROSE = `font-prose text-ink max-w-[40em] md:max-w-none ${PHRASE_WRAP}`;
 // 写真・図の枠(続く写真は、この枠をそろえて並べる)。
 const FRAME = "border-brand01/10 rounded-sm border bg-white";
 
@@ -212,7 +212,7 @@ function TableView({ block, quizKey }: { block: TableBlock; quizKey: string }) {
   const kind = tableKind(block);
   if (kind === "callout") {
     return (
-      <div className="bg-bg01 border-brand01/40 max-w-[44em] rounded-sm border-l-4 px-4 py-3">
+      <div className="bg-bg01 border-brand01/40 rounded-sm border-l-4 px-4 py-3">
         <BlockList
           blocks={flowCell(block.rows[0][0])}
           quizKey={`${quizKey}-c`}
@@ -250,7 +250,7 @@ function CardView({
 }) {
   return (
     <section
-      className={`border-brand01/15 overflow-hidden rounded-md border bg-white ${wide ? "max-w-[44em]" : ""}`}
+      className={`border-brand01/15 overflow-hidden rounded-md border bg-white ${wide ? "max-w-3xl" : ""}`}
     >
       {card.title.length ? (
         <CardTitle blocks={card.title} quizKey={quizKey} />
@@ -406,7 +406,7 @@ function gridCols(count: number, compact: boolean): string {
 /** 続く写真・図。同じ大きさの枠にそろえて並べる(押すと元の大きさで開く)。 */
 function ImageGrid({ ids, compact }: { ids: string[]; compact: boolean }) {
   return (
-    <div className={`grid max-w-[44em] gap-2 ${gridCols(ids.length, compact)}`}>
+    <div className={`grid max-w-4xl gap-2 ${gridCols(ids.length, compact)}`}>
       {ids.map((id) => (
         <a
           key={id}

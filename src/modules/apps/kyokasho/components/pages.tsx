@@ -16,7 +16,7 @@ const BASE = "/apps/kyokasho";
 /** wide: 章のページ(本文・表・写真を PC で広く見せる)。 */
 function Shell({ children, wide = false }: { children: ReactNode; wide?: boolean }) {
   return (
-    <div className={`mx-auto flex w-full ${wide ? "max-w-5xl" : "max-w-4xl"} flex-col gap-8 px-4 py-8 md:px-8 md:py-10`}>
+    <div className={`mx-auto flex w-full ${wide ? "max-w-6xl" : "max-w-4xl"} flex-col gap-8 px-4 py-8 md:px-8 md:py-10`}>
       {children}
     </div>
   );
