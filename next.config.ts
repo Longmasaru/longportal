@@ -8,9 +8,24 @@ const securityHeaders = [
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
 ];
 
+// ポータルの住所の中で表示する、別プロジェクトのアプリ(Next.js の multi-zones。docs/DESIGN.md 28 章)。
+// path への要求を origin のアプリへ転送する。アプリ側は basePath を同じ path にする。
+// path は modules/apps/external-apps.ts の embedPath と同じにする。
+const ZONES = [
+  { path: "/aikyoshitsu", origin: process.env.AIKYOSHITSU_ORIGIN ?? "https://ai-kyoshitsu.vercel.app" },
+];
+
 const nextConfig: NextConfig = {
   async headers() {
-    return [{ source: "/:path*", headers: securityHeaders }];
+    // 転送先のアプリの住所は、アプリが自分のヘッダー(同じ住所からの埋め込みだけ許す)を返す。
+    const notZone = ZONES.map((z) => z.path.slice(1)).join("|");
+    return [{ source: `/((?!(?:${notZone})(?:/|$)).*)`, headers: securityHeaders }];
+  },
+  async rewrites() {
+    return ZONES.flatMap((z) => [
+      { source: z.path, destination: `${z.origin}${z.path}` },
+      { source: `${z.path}/:path+`, destination: `${z.origin}${z.path}/:path+` },
+    ]);
   },
 };
 

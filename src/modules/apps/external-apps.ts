@@ -8,6 +8,8 @@ export const EXTERNAL_APP_CONTRACTS: readonly ExternalAppContract[] = [
     // AI教室(リポジトリ ai-kyoshitsu)。社内AI講習会の資料を回ごとに開いて、全画面で映す。
     appKey: "aikyoshitsu",
     ssoSecretEnv: "SSO_SECRET_AIKYOSHITSU",
+    // ポータルの住所の中(/aikyoshitsu/…)で、ポータルの画面に埋め込んで表示する。転送先は next.config.ts。
+    embedPath: "/aikyoshitsu",
     permissions: [{ code: "aikyoshitsu.materials.manage", description: "AI教室: 回と資料の登録・変更・削除" }],
   },
 ];

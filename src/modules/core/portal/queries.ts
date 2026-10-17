@@ -32,9 +32,8 @@ async function listVisibleApps(actor: Actor): Promise<PortalApp[]> {
     displayName: a.displayName,
     description: a.description,
     icon: a.icon,
-    // 別プロジェクトのアプリは入口(/apps/launch)を通す(ログインの受け渡しのため)
-    href: a.kind === "external" ? `/apps/launch/${a.appKey}` : a.route!,
-    external: a.kind === "external",
+    // 別プロジェクトのアプリも、ポータルの中のページ(/apps/<app_key>)から開く(同じタブ。docs/DESIGN.md 28 章)
+    href: a.kind === "external" ? `/apps/${a.appKey}` : a.route!,
   }));
 }
 
