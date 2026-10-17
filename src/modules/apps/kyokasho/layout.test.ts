@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Block } from "./content";
-import { flowCell, groupImages, joinBrokenLines, tableCards, tableKind } from "./layout";
+import { flowCell, groupImages, joinBrokenLines, tableCards, tableKind, tablePairs } from "./layout";
 
 const p = (text: string, bold = false): Block => ({ type: "paragraph", inlines: [bold ? { text, bold } : { text }] });
 const img = (id: string): Block => ({ type: "image", id, alt: "" });
@@ -63,6 +63,26 @@ test("tableKind: セル 1 つは囲み、見出しの行がある表はカード
       spans: [{ row: 0, cell: 0, rowSpan: 2, colSpan: 1 }],
     }),
     "table",
+  );
+});
+
+test("tableKind: 1 列目が項目名の 2 列の表は、1 枚のカード(pairs)", () => {
+  const pairs = {
+    type: "table" as const,
+    rows: [[[p("ダイ名")], [p("1Vダイ")]], [[p("画像")], []], [[p("用途")], [p("V溝が1つ")]]],
+  };
+  assert.equal(tableKind(pairs), "pairs");
+  assert.deepEqual(tablePairs(pairs), {
+    title: [],
+    fields: [
+      { label: [p("ダイ名")], value: [p("1Vダイ")] },
+      { label: [p("画像")], value: [] },
+      { label: [p("用途")], value: [p("V溝が1つ")] },
+    ],
+  });
+  assert.equal(
+    tableKind({ type: "table", rows: [[[p("項目")], [p("内容")]], [[p("機密漏洩")], [p("話さない")]]] }),
+    "cards",
   );
 });
 

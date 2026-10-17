@@ -13,8 +13,13 @@ import { Blocks, PHRASE_WRAP, Phrased } from "./blocks";
 
 const BASE = "/apps/kyokasho";
 
-function Shell({ children }: { children: ReactNode }) {
-  return <div className="mx-auto flex w-full max-w-4xl flex-col gap-8 px-4 py-8 md:px-8 md:py-10">{children}</div>;
+/** wide: 章のページ(本文・表・写真を PC で広く見せる)。 */
+function Shell({ children, wide = false }: { children: ReactNode; wide?: boolean }) {
+  return (
+    <div className={`mx-auto flex w-full ${wide ? "max-w-5xl" : "max-w-4xl"} flex-col gap-8 px-4 py-8 md:px-8 md:py-10`}>
+      {children}
+    </div>
+  );
 }
 
 function Eyebrow({ ja }: { ja: string }) {
@@ -183,7 +188,7 @@ export async function ChapterPage({ slug, chapter: chapterParam }: { slug: strin
   const next = index + 1 < chapters.length ? index + 2 : null;
 
   return (
-    <Shell>
+    <Shell wide>
       <div className="flex flex-col gap-3">
         <Breadcrumb
           items={[
@@ -195,7 +200,7 @@ export async function ChapterPage({ slug, chapter: chapterParam }: { slug: strin
             { label: chapter.title },
           ]}
         />
-        <h1 className={`text-brand01 text-2xl font-bold ${PHRASE_WRAP}`}>
+        <h1 className={`text-brand01 text-2xl font-bold md:text-3xl ${PHRASE_WRAP}`}>
           <Phrased text={chapter.title} />
         </h1>
       </div>

@@ -6,6 +6,8 @@ import {
   isLabel,
   joinBrokenLines,
   tableCards,
+  tablePairs,
+  type Card,
   tableKind,
 } from "../layout";
 import { cleanText, phrases, softenLines, splitBold } from "../typeset";
@@ -128,8 +130,8 @@ function BlockView({
   switch (block.type) {
     case "heading": {
       const style = {
-        2: "text-brand01 border-brand03 border-l-4 pl-3 text-xl font-bold",
-        3: "text-brand01 text-lg font-bold",
+        2: "text-brand01 border-brand03 border-l-4 pl-3 text-xl font-bold md:text-2xl",
+        3: "text-brand01 text-lg font-bold md:text-xl",
         4: "text-brand01 font-bold",
       }[block.level];
       const Tag = (["h2", "h3", "h4"] as const)[block.level - 2];
@@ -153,7 +155,7 @@ function BlockView({
         indent === 0 ? "" : indent === 1 ? "pl-[1em]" : "pl-[2em] md:pl-[4em]";
       return (
         <p
-          className={`${PROSE} ${compact ? "text-sm leading-relaxed" : "leading-[1.9]"} ${pad}`}
+          className={`${PROSE} ${compact ? "text-sm leading-relaxed md:text-base" : "leading-[1.9]"} ${pad}`}
         >
           <InlineText inlines={inlines} />
         </p>
@@ -163,7 +165,7 @@ function BlockView({
       const Tag = block.ordered ? "ol" : "ul";
       return (
         <Tag
-          className={`${PROSE} flex flex-col gap-1.5 pl-6 ${block.ordered ? "list-decimal" : "list-disc"} ${compact ? "text-sm leading-relaxed" : "leading-[1.9]"}`}
+          className={`${PROSE} flex flex-col gap-1.5 pl-6 ${block.ordered ? "list-decimal" : "list-disc"} ${compact ? "text-sm leading-relaxed md:text-base" : "leading-[1.9]"}`}
         >
           {block.items.map((item, i) => (
             <li key={i}>
@@ -181,7 +183,8 @@ function BlockView({
           src={imageUrl(block.id)}
           alt={block.alt}
           loading="lazy"
-          className={`${FRAME} h-auto max-w-full ${compact ? "max-h-72" : "max-h-[32rem]"} w-auto self-start object-contain`}
+          // カードや表の中は幅いっぱいにそろえる。本文では、小さい写真も見やすい大きさ(最低 24rem 幅)まで広げる。
+          className={`${FRAME} h-auto object-contain ${compact ? "max-h-80 w-full" : "max-h-[36rem] w-auto max-w-full min-w-[min(100%,24rem)] self-start md:min-w-[min(100%,30rem)]"}`}
         />
       );
     case "table":
@@ -218,68 +221,90 @@ function TableView({ block, quizKey }: { block: TableBlock; quizKey: string }) {
       </div>
     );
   }
+  if (kind === "pairs") {
+    return <CardView card={tablePairs(block)} quizKey={`${quizKey}-p`} wide />;
+  }
   const table = <GridTable block={block} quizKey={quizKey} />;
   if (kind === "table") return table;
   return (
     <>
       <div className="flex flex-col gap-3 sm:hidden">
         {tableCards(block).map((card, i) => (
-          <section
-            key={i}
-            className="border-brand01/15 overflow-hidden rounded-md border bg-white"
-          >
-            <CardTitle blocks={card.title} quizKey={`${quizKey}-k${i}`} />
-            {card.fields.length ? (
-              <dl className="flex flex-col">
-                {card.fields.map((field, j) => {
-                  // 短い中身(役職・判定・空欄など)は項目名の右に、長い文や写真は項目名の下に置く。
-                  const side = isShort(field.value);
-                  return (
-                    <div
-                      key={j}
-                      className={`${side ? "grid grid-cols-[5.5em_1fr] items-baseline gap-x-3" : "flex flex-col gap-1"} px-4 py-2.5 ${j === 0 ? "" : field.divider ? "border-brand01/25 border-t-2" : "border-brand01/10 border-t"}`}
-                    >
-                      {field.label.length ? (
-                        <dt className="text-brand04/70 text-xs font-bold">
-                          <BlockList
-                            blocks={flowCell(field.label)}
-                            quizKey={`${quizKey}-k${i}-l${j}`}
-                            compact
-                            plain
-                          />
-                        </dt>
-                      ) : null}
-                      <dd
-                        className={
-                          field.label.length || !side
-                            ? "min-w-0"
-                            : "col-span-2 min-w-0"
-                        }
-                      >
-                        {field.value.length ? (
-                          <BlockList
-                            blocks={flowCell(field.value)}
-                            quizKey={`${quizKey}-k${i}-v${j}`}
-                            compact
-                          />
-                        ) : (
-                          // 元の表の空欄(氏名を書き込む欄など)。空いていることが分かるように残す。
-                          <span
-                            className="border-brand04/30 block h-6 border-b border-dashed"
-                            aria-label="空欄"
-                          />
-                        )}
-                      </dd>
-                    </div>
-                  );
-                })}
-              </dl>
-            ) : null}
-          </section>
+          <CardView key={i} card={card} quizKey={`${quizKey}-k${i}`} />
         ))}
       </div>
       <div className="hidden sm:block">{table}</div>
     </>
+  );
+}
+
+/** 表の 1 行(または「項目名 | 中身」の表全体)を 1 枚のカードにして見せる。 */
+function CardView({
+  card,
+  quizKey,
+  wide = false,
+}: {
+  card: Card;
+  quizKey: string;
+  wide?: boolean;
+}) {
+  return (
+    <section
+      className={`border-brand01/15 overflow-hidden rounded-md border bg-white ${wide ? "max-w-[44em]" : ""}`}
+    >
+      {card.title.length ? (
+        <CardTitle blocks={card.title} quizKey={quizKey} />
+      ) : null}
+      {card.fields.length ? (
+        <dl className="flex flex-col">
+          {card.fields.map((field, j) => {
+            // 短い中身(役職・判定・空欄など)は項目名の右に、長い文や写真は項目名の下に置く。
+            const side = isShort(field.value);
+            const label = wide
+              ? "grid-cols-[7em_1fr]"
+              : "grid-cols-[5.5em_1fr]";
+            return (
+              <div
+                key={j}
+                className={`${side ? `grid ${label} items-baseline gap-x-3` : "flex flex-col gap-1"} px-4 py-2.5 ${j === 0 ? "" : field.divider ? "border-brand01/25 border-t-2" : "border-brand01/10 border-t"}`}
+              >
+                {field.label.length ? (
+                  <dt className="text-brand04/70 text-xs font-bold md:text-sm">
+                    <BlockList
+                      blocks={flowCell(field.label)}
+                      quizKey={`${quizKey}-l${j}`}
+                      compact
+                      plain
+                    />
+                  </dt>
+                ) : null}
+                <dd
+                  className={
+                    field.label.length || !side
+                      ? "min-w-0"
+                      : "col-span-2 min-w-0"
+                  }
+                >
+                  {field.value.length ? (
+                    <BlockList
+                      blocks={flowCell(field.value)}
+                      quizKey={`${quizKey}-v${j}`}
+                      compact
+                    />
+                  ) : (
+                    // 元の表の空欄(氏名を書き込む欄など)。空いていることが分かるように残す。
+                    <span
+                      className="border-brand04/30 block h-6 border-b border-dashed"
+                      aria-label="空欄"
+                    />
+                  )}
+                </dd>
+              </div>
+            );
+          })}
+        </dl>
+      ) : null}
+    </section>
   );
 }
 
@@ -341,7 +366,7 @@ function CardTitle({ blocks, quizKey }: { blocks: Block[]; quizKey: string }) {
 function GridTable({ block, quizKey }: { block: TableBlock; quizKey: string }) {
   return (
     <div className="-mx-4 overflow-x-auto px-4 md:mx-0 md:px-0">
-      <table className="border-brand01/20 w-full min-w-[32rem] border-collapse border bg-white text-sm">
+      <table className="border-brand01/20 w-full min-w-[32rem] border-collapse border bg-white text-sm md:text-base">
         <tbody>
           {block.rows.map((row, r) => (
             <tr key={r} className={r === 0 ? "bg-bg01" : ""}>
@@ -493,5 +518,10 @@ export function Blocks({
   blocks: Block[];
   quizKey: string;
 }) {
-  return <BlockList blocks={blocks} quizKey={quizKey} compact={false} />;
+  // PC では文字を一回り大きくする(画面が広いのに 16px のままだと、小さく窮屈に見えるため)。
+  return (
+    <div className="md:text-[17px] lg:text-lg">
+      <BlockList blocks={blocks} quizKey={quizKey} compact={false} />
+    </div>
+  );
 }
