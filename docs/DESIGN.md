@@ -626,7 +626,7 @@ MVP 後: notifications、副所属の UI、将来日付での Audience プレビ
 
 - **`core.app_registry`** … `app_key`(PK・永続。半角小文字・数字・`_` `-`)、`kind`(`internal` = ポータルの中のアプリ / `external` = 別プロジェクトのアプリ)、`display_name`、`description`、`icon`、`url`(external だけ。`https://` / `http://`)、`route`(internal だけ。manifest から)、`target`(`company` / `audience`)、`audience_id`、`sort_order`、`is_enabled`、`in_manifest`(internal で、manifest にまだあるか)、作成・更新日時。
 - **internal**: コード側の manifest(`modules/apps/○○/manifest.ts`。一覧は `modules/apps/manifests.ts`)を `npm run sync:manifests` で登録する。初回は `is_enabled = false`(誰にも見えない)。2 回目以降は `route` と権限だけを更新し、管理画面で決めた表示名・Audience・表示順などは上書きしない。manifest から消えたアプリは `is_enabled = false`・`in_manifest = false` にして警告する(削除しない)。
-- **external**: 管理画面(`/admin/apps`)から登録する(sync の対象外)。サイドバーから別タブで開く。いまは URL を開くだけで、ログインは各アプリ側。
+- **external**: 管理画面(`/admin/apps`)から登録する(sync の対象外)。サイドバーから別タブで開く。開くときは入口 `/apps/launch/<app_key>` を通り、SSO の契約があるアプリにはログインを引き継ぐ(28 章)。
 - **見える条件**(deny by default): `is_enabled` かつ宛先に当てはまる(`company` = 全員、`audience` = 有効な Audience に一致)。サイドバー・ホームのアプリ一覧は、この判定を通ったものだけ。
 - **入場の制限**: internal のアプリのページは、最初に `requireAppAccess(app_key)` を呼ぶ。見えない人は 404(存在も知らせない)。判定は `canAccessApp`。
 - **管理**: `/admin/apps`(権限 `core.apps.manage`)。表示名・説明・アイコン・表示順・有効/無効・宛先を変更、external の追加・削除。変更は監査ログに記録。Audience の利用先に、アプリを加える。
@@ -664,3 +664,16 @@ TODOSample の TODO を、ポータルの中のアプリ(`modules/apps/todo`、`
 - 一覧の表示では、退職などでいまアクセスできない社員・存在しない社員を参照していると、「無効なマスタを参照」の警告を出す。
 - 編集画面では、社員番号・氏名・フリガナ・主所属で絞り込める一覧から選ぶ(いまアクセスできる社員のみ。選択済みの対象外の社員は印を付けて残す)。
 - DB: `audience_conditions_attribute_check` に `employee` を加える(migration 0013)。`audience_members`(個人の追加・除外)は引き続き使わない。
+
+## 28. 実装メモ(別プロジェクトのアプリへのログインの受け渡し: SSO)
+
+2026-10-17 にユーザーと決めたこと: AI教室は**別のアプリ**(リポジトリ `ai-kyoshitsu`・別の Vercel プロジェクト)として作り、LONG PORTAL にログインした人が、サイドバーから開けるようにする。ログインは**ポータルが発行する短時間の通行証**で引き継ぐ。DB は同じ Neon に専用のスキーマ `aikyoshitsu`、資料は専用の R2 バケット。`docs/plans/step6-plan-draft.md` の手順 4 の最初の実装。
+
+- **入口** `/apps/launch/<app_key>`(`src/app/(portal)/apps/launch/[appKey]/route.ts`、本体は `core/sso` の `resolveLaunchUrl`): ログインを確かめ(初回のパスワード変更が済んでいなければ変更画面へ)、`listAppsForActor` で使えるアプリかを確かめる(使えなければ 404)。サイドバー・ホームの external のアプリは、すべてこの入口を通す。internal のアプリはそのページへ移すだけ。そのため `launch` は app_key に使わない。
+- **SSO の契約**(コード側。`modules/apps/external-apps.ts` の `EXTERNAL_APP_CONTRACTS`): `app_key`・署名の鍵を入れる環境変数の名前・そのアプリの権限。契約のない external のアプリは、登録された URL をそのまま開く(いままでどおり)。
+- **通行証**: 本文の JSON `{ v: 1, typ: "pass", app, sub(core.users の ID), name(社員の氏名), perms, iat, exp, jti }` を base64url にし、HMAC-SHA256 で署名した `<本文>.<署名>`。有効期間は 60 秒。`perms` は、契約にある権限のうち、本人がどこかのスコープで持っているもの(`canInAnyScope`)。`<アプリの URL>/sso?token=<通行証>` へ 303 で移す(`Cache-Control: no-store`・`Referrer-Policy: no-referrer`)。
+- **アプリ側の責任**: 署名・宛先(`app`)・期限を確かめ、`jti` を記録して 2 回目を拒否し、自分のログイン状態(AI教室は 8 時間の cookie)を作る。切れたら、ポータルの入口から開き直す。
+- **鍵**: アプリごとに別の鍵(AI教室は `SSO_SECRET_AIKYOSHITSU`)。ポータルの Vercel とアプリの Vercel に同じ値を置く(Sensitive)。
+- **権限**: 契約の権限は `npm run sync:manifests` で `core.permissions` に登録され(`app_key` 付き)、ほかの権限と同じくロールで渡す。AI教室の `aikyoshitsu.materials.manage` = 回と資料の登録・変更・削除(講師に渡す)。
+- 退職などでポータルにログインできなくなった人は、新しい通行証を受け取れない。発行済みのアプリのログイン状態は、その期限(AI教室は 8 時間)まで残る。
+
