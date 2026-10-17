@@ -345,14 +345,60 @@ function spaceBefore(prev: Block | undefined, block: Block, compact: boolean): s
   return "mt-5";
 }
 
+type ImageBlock = Extract<Block, { type: "image" }>;
+
+/** 続けて並んだ写真は、縦に小さく積まずに、並べて見せる(スマホは 2 列、PC は 3 列)。 */
+function Gallery({ images }: { images: ImageBlock[] }) {
+  return (
+    <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
+      {images.map((image) => (
+        <a
+          key={image.id}
+          href={imageUrl(image.id)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="border-brand01/10 flex items-center justify-center border bg-white p-1"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={imageUrl(image.id)} alt={image.alt} loading="lazy" className="h-auto max-h-60 w-full object-contain" />
+        </a>
+      ))}
+    </div>
+  );
+}
+
+/** 続けて並んだ写真(2 枚以上)を 1 つにまとめる。 */
+// index は元の並びでの位置(テストの結果を端末に保存するときの名前に使うので、まとめても変えない)。
+function groupImages(blocks: Block[]): { index: number; item: Block | ImageBlock[] }[] {
+  const out: { index: number; item: Block | ImageBlock[] }[] = [];
+  blocks.forEach((block, index) => {
+    const last = out[out.length - 1]?.item;
+    if (block.type === "image" && Array.isArray(last)) last.push(block);
+    else if (block.type === "image" && last && !Array.isArray(last) && last.type === "image") {
+      out[out.length - 1].item = [last, block];
+    } else out.push({ index, item: block });
+  });
+  return out;
+}
+
 function BlockList({ blocks, quizKey, compact }: { blocks: Block[]; quizKey: string; compact: boolean }) {
+  const items = groupImages(blocks);
   return (
     <div className="flex flex-col">
-      {blocks.map((block, i) => (
-        <div key={i} className={`flex flex-col ${spaceBefore(blocks[i - 1], block, compact)}`}>
-          <BlockView block={block} quizKey={`${quizKey}-${i}`} compact={compact} />
-        </div>
-      ))}
+      {items.map(({ index, item }, i) => {
+        const prev = items[i - 1]?.item;
+        const prevBlock = Array.isArray(prev) ? prev[prev.length - 1] : prev;
+        const block = Array.isArray(item) ? item[0] : item;
+        return (
+          <div key={index} className={`flex flex-col ${spaceBefore(prevBlock, block, compact)}`}>
+            {Array.isArray(item) ? (
+              <Gallery images={item} />
+            ) : (
+              <BlockView block={item} quizKey={`${quizKey}-${index}`} compact={compact} />
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
