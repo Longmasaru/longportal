@@ -7,7 +7,15 @@ import { chapterOutline, countQuizQuestions } from "../content";
 import { groupBooks } from "../logic";
 import { manifest } from "../manifest";
 import { canManageBooks, listBooksForActor, requireBookForActor } from "../queries";
+import {
+  canHandleComments,
+  countCommentsByChapter,
+  listChapterComments,
+  loadTsukkomiOverview,
+} from "../tsukkomi-queries";
 import { Blocks, PHRASE_WRAP, Phrased } from "./blocks";
+import { ChapterTsukkomi, TsukkomiOverview } from "./tsukkomi";
+import { BODY_ID } from "./tsukkomi-client";
 
 // ロングの教科書の画面(一覧 → 目次 → 章)。入口は requireAppAccess("kyokasho")、教科書ごとに見られる人を判定する。
 
@@ -65,6 +73,7 @@ export async function BooksPage() {
   const books = await listBooksForActor(actor);
   const manage = canManageBooks(actor);
   const groups = groupBooks(books);
+  const tsukkomi = await loadTsukkomiOverview(actor);
 
   return (
     <Shell>
@@ -76,12 +85,29 @@ export async function BooksPage() {
             誰が見てもわかる「ロング流」のやり方をまとめた教科書です。章の終わりのテストで、理解できたかを確かめられます。
           </p>
         </div>
-        {manage ? (
-          <Link href={`${BASE}/manage`} className={LINK_CLASS}>
-            教科書の管理 ›
-          </Link>
+        {manage || tsukkomi.openCount !== null ? (
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+            {tsukkomi.openCount !== null ? (
+              <Link href={`${BASE}/manage/tsukkomi`} className={`${LINK_CLASS} inline-flex items-center gap-1.5`}>
+                届いたツッコミ
+                {tsukkomi.openCount > 0 ? (
+                  <span className="bg-brand03 min-w-5 px-1 text-center text-xs leading-5 text-white tabular-nums">
+                    {tsukkomi.openCount}
+                  </span>
+                ) : null}
+                ›
+              </Link>
+            ) : null}
+            {manage ? (
+              <Link href={`${BASE}/manage`} className={LINK_CLASS}>
+                教科書の管理 ›
+              </Link>
+            ) : null}
+          </div>
         ) : null}
       </div>
+
+      <TsukkomiOverview mine={tsukkomi.mine} contributors={tsukkomi.contributors} />
 
       {groups.length === 0 ? (
         <p className="text-brand04 bg-white p-6 text-sm">まだ教科書がありません。</p>
@@ -118,6 +144,7 @@ export async function BookPage({ slug }: { slug: string }) {
   const actor = await requireAppAccess(manifest.appKey);
   const book = await requireBookForActor(actor, slug);
   const chapters = book.content.chapters;
+  const commentCounts = await countCommentsByChapter(book.id);
 
   return (
     <Shell>
@@ -152,7 +179,12 @@ export async function BookPage({ slug }: { slug: string }) {
                   <span className={PHRASE_WRAP}>
                     <Phrased text={chapter.title} />
                   </span>
-                  {quiz > 0 ? <span className="text-brand04 text-xs font-normal">テスト {quiz} 問</span> : null}
+                  {quiz > 0 || commentCounts.get(i + 1) ? (
+                    <span className="text-brand04 flex gap-3 text-xs font-normal">
+                      {commentCounts.get(i + 1) ? <span>ツッコミ {commentCounts.get(i + 1)} 件</span> : null}
+                      {quiz > 0 ? <span>テスト {quiz} 問</span> : null}
+                    </span>
+                  ) : null}
                 </Link>
                 {outline.length > 0 ? (
                   <ul className="text-brand04 flex flex-wrap gap-x-4 gap-y-1 px-4 pb-4 text-sm">
@@ -184,6 +216,9 @@ export async function ChapterPage({ slug, chapter: chapterParam }: { slug: strin
   const chapter = chapters[index];
   if (!chapter) notFound();
   const outline = chapterOutline(chapter).filter((h) => h.level <= 3);
+  const comments = await listChapterComments(book.id, index + 1);
+  const marks: Record<string, number> = Object.fromEntries(outline.map((h) => [h.id, 0]));
+  for (const c of comments) if (c.sectionId && c.sectionId in marks) marks[c.sectionId] += 1;
   const prev = index > 0 ? index : null;
   const next = index + 1 < chapters.length ? index + 2 : null;
 
@@ -220,9 +255,22 @@ export async function ChapterPage({ slug, chapter: chapterParam }: { slug: strin
         </nav>
       ) : null}
 
-      <article className="flex flex-col gap-4">
-        <Blocks blocks={chapter.blocks} quizKey={`kyokasho:${actor.userId}:${book.id}:${index + 1}`} />
+      <article id={BODY_ID} className="flex flex-col gap-4">
+        <Blocks
+          blocks={chapter.blocks}
+          quizKey={`kyokasho:${actor.userId}:${book.id}:${index + 1}`}
+          marks={marks}
+        />
       </article>
+
+      <ChapterTsukkomi
+        bookId={book.id}
+        chapterNo={index + 1}
+        sections={outline.map((h) => ({ id: h.id, level: h.level, text: h.text.replace(/\*\*/g, "") }))}
+        comments={comments}
+        userId={actor.userId}
+        canHandle={canHandleComments(actor)}
+      />
 
       <nav aria-label="章の移動" className="border-brand01/15 flex flex-wrap justify-between gap-3 border-t pt-6 text-sm">
         {prev ? (

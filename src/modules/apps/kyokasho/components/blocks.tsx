@@ -12,6 +12,7 @@ import {
 } from "../layout";
 import { cleanText, phrases, softenLines, splitBold } from "../typeset";
 import { Quiz } from "./quiz";
+import { SectionTsukkomiButton } from "./tsukkomi-client";
 
 // 教科書の中身(content.ts の部品)を描く。画像は /apps/kyokasho/images/<id>(見られる人だけに、R2 の署名付き URL へ転送)。
 
@@ -122,10 +123,13 @@ function BlockView({
   block,
   quizKey,
   compact,
+  marks,
 }: {
   block: Block;
   quizKey: string;
   compact: boolean;
+  /** 見出しの横に「ツッコむ」を出す(節の id → ツッコミの数)。章の本文の一番外側だけ。 */
+  marks?: Record<string, number>;
 }) {
   switch (block.type) {
     case "heading": {
@@ -135,10 +139,17 @@ function BlockView({
         4: "text-brand01 font-bold",
       }[block.level];
       const Tag = (["h2", "h3", "h4"] as const)[block.level - 2];
-      return (
+      const title = (
         <Tag id={block.id} className={`${style} scroll-mt-20 ${PHRASE_WRAP}`}>
           <Phrased text={cleanText(block.text).replace(/\*\*/g, "")} />
         </Tag>
+      );
+      if (!marks || block.level === 4) return title;
+      return (
+        <div className="flex items-start justify-between gap-3">
+          {title}
+          <SectionTsukkomiButton sectionId={block.id} count={marks[block.id] ?? 0} />
+        </div>
       );
     }
     case "paragraph": {
@@ -478,10 +489,12 @@ function BlockList({
   quizKey,
   compact,
   plain = false,
+  marks,
 }: {
   blocks: Block[];
   quizKey: string;
   compact: boolean;
+  marks?: Record<string, number>;
   /** 項目名など、本文の書体・色を当てない小さな見出し。 */
   plain?: boolean;
 }) {
@@ -522,6 +535,7 @@ function BlockList({
               block={item.block}
               quizKey={`${quizKey}-${blocks.indexOf(item.block)}`}
               compact={compact}
+              marks={marks}
             />
           </div>
         );
@@ -534,14 +548,17 @@ function BlockList({
 export function Blocks({
   blocks,
   quizKey,
+  marks,
 }: {
   blocks: Block[];
   quizKey: string;
+  /** 見出しの横に「ツッコむ」を出すとき、節の id → ツッコミの数。 */
+  marks?: Record<string, number>;
 }) {
   // PC では文字を一回り大きくする(画面が広いのに 16px のままだと、小さく窮屈に見えるため)。
   return (
     <div className="md:text-[17px] lg:text-lg">
-      <BlockList blocks={blocks} quizKey={quizKey} compact={false} />
+      <BlockList blocks={blocks} quizKey={quizKey} compact={false} marks={marks} />
     </div>
   );
 }

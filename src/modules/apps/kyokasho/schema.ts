@@ -3,6 +3,7 @@ import {
   check,
   index,
   integer,
+  primaryKey,
   jsonb,
   pgSchema,
   text,
@@ -72,6 +73,65 @@ export const kyokashoImages = kyokasho.table(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("images_book_id_idx").on(t.bookId)],
+);
+
+/**
+ * ツッコミ(読んだ人の疑問・付け足し・まちがいの指摘・ひとこと)。docs/DESIGN.md 32 章。
+ * 章は番号で指すので、取り込み直しで章がずれても読めるよう、章と節の題名を書いた時点の写しで持つ。
+ * 教科書チームが受け止め方(status)と返事(reply)を書く。正本は Google ドキュメントのままで、採用したら元の文書を直して取り込み直し、「反映済み」にする。
+ */
+export const kyokashoComments = kyokasho.table(
+  "comments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    bookId: uuid("book_id")
+      .notNull()
+      .references(() => kyokashoBooks.id, { onDelete: "cascade" }),
+    chapterNo: integer("chapter_no").notNull(),
+    chapterTitle: varchar("chapter_title", { length: 200 }).notNull(),
+    /** 節の見出しの id(章全体へのツッコミは null)。 */
+    sectionId: varchar("section_id", { length: 80 }),
+    sectionTitle: varchar("section_title", { length: 200 }).notNull().default(""),
+    /** 本文から選んで引用した文(なければ空)。 */
+    quote: varchar("quote", { length: 300 }).notNull().default(""),
+    kind: varchar("kind", { length: 20 }).notNull(),
+    body: text("body").notNull(),
+    authorUserId: uuid("author_user_id").references(() => users.id, { onDelete: "set null" }),
+    status: varchar("status", { length: 20 }).notNull().default("open"),
+    /** 教科書チームからの返事(お礼・答え・直し方)。 */
+    reply: text("reply").notNull().default(""),
+    repliedBy: uuid("replied_by").references(() => users.id, { onDelete: "set null" }),
+    repliedAt: timestamp("replied_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow()
+      .$onUpdate(() => new Date()),
+  },
+  (t) => [
+    index("comments_book_chapter_idx").on(t.bookId, t.chapterNo),
+    index("comments_status_idx").on(t.status),
+    index("comments_author_idx").on(t.authorUserId),
+    check("comments_kind_check", sql`${t.kind} IN ('question', 'addition', 'mistake', 'comment')`),
+    check("comments_status_check", sql`${t.status} IN ('open', 'adopted', 'reflected', 'kept')`),
+    check("comments_body_check", sql`char_length(${t.body}) BETWEEN 1 AND 1000`),
+    check("comments_chapter_check", sql`${t.chapterNo} >= 1`),
+  ],
+);
+
+/** ツッコミへの「ありがとう」(読んだ人が、ほかの人のツッコミに送る。1 人 1 回)。 */
+export const kyokashoCommentThanks = kyokasho.table(
+  "comment_thanks",
+  {
+    commentId: uuid("comment_id")
+      .notNull()
+      .references(() => kyokashoComments.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.commentId, t.userId] })],
 );
 
 export type KyokashoBookRow = typeof kyokashoBooks.$inferSelect;

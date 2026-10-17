@@ -127,6 +127,13 @@
       "when": 1792242229397,
       "tag": "0017_hr_abilities",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1792260701525,
+      "tag": "0018_kyokasho_comments",
+      "breakpoints": true
     }
   ]
 }
