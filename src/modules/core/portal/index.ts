@@ -9,6 +9,7 @@ export type {
   Notice,
   NoticePriority,
   NoticeTarget,
+  PendingItem,
   PortalApp,
   PortalLink,
   PortalUser,

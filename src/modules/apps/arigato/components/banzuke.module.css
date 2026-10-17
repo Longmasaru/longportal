@@ -1,0 +1,165 @@
+/* ありがとう番付(docs/DESIGN.md 34 章)。番付表の和紙・墨・朱に寄せた、この画面だけの見た目。
+   筆文字(Yuji Boku)は漢字だけのところ、かなが入る文は Zen Antique。どちらも太らせて相撲字に寄せる。 */
+.root, .summary {
+  --paper: #f2e8d2;
+  --paper-edge: #ddcfae;
+  --ink: #1b1611;
+  --ink-soft: #5b5045;
+  --shu: #c23a22;
+  --night: #15120f;
+  --card: #fbfaf4;
+  --print: #1f4f96;
+  --sumo: "Yuji Boku", "Hiragino Mincho ProN", "Yu Mincho", serif;
+  --sumo-kana: "Zen Antique", "Hiragino Mincho ProN", "Yu Mincho", serif;
+  --mincho: "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", serif;
+}
+.root {
+  background: var(--paper-edge);
+  color: var(--ink);
+  font-family: var(--mincho);
+  line-height: 1.75;
+  min-height: 100%;
+  padding: 24px 16px 56px;
+}
+.wrap { max-width: 780px; margin: 0 auto; display: flex; flex-direction: column; gap: 24px; }
+.wrap p { margin: 0; }
+.v { writing-mode: vertical-rl; text-orientation: upright; white-space: nowrap; }
+.brush { font-family: var(--sumo); -webkit-text-stroke: .045em currentColor; letter-spacing: -.01em; font-weight: 400; }
+.solid { font-family: var(--sumo-kana); -webkit-text-stroke: .03em currentColor; font-weight: 400; }
+.eyebrow { font-size: 12px; font-weight: 700; letter-spacing: .14em; color: var(--shu); }
+.muted { color: var(--ink-soft); font-size: 14px; }
+.back { font-size: 14px; font-weight: 700; color: var(--ink); text-decoration: underline; text-underline-offset: 4px; }
+.back:hover { color: var(--shu); }
+
+
+/* パネル */
+.grid2 { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+.panel { background: var(--paper); border: 1px solid rgba(27, 22, 17, .35); padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.panelTitle { font-size: 22px; line-height: 1.35; }
+.shikona { font-size: 34px; line-height: 1.15; }
+.shikona small { font-family: var(--mincho); font-size: 13px; -webkit-text-stroke: 0; color: var(--ink-soft); margin-left: 8px; letter-spacing: 0; }
+.plain { font-weight: 700; font-size: 15px; }
+.plain em { font-style: normal; color: var(--shu); font-size: 20px; }
+.choices { display: flex; flex-wrap: wrap; gap: 6px; }
+.choices button { font-size: 17px; background: transparent; border: 1px solid rgba(27, 22, 17, .45); color: var(--ink); padding: 4px 10px; cursor: pointer; }
+.choices button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+.choices button:disabled { opacity: .35; cursor: not-allowed; }
+.error { color: var(--shu); font-size: 13px; font-weight: 700; }
+
+/* ピラミッド */
+.pyramid { display: flex; flex-direction: column; align-items: center; gap: 3px; padding-right: 56px; }
+.pyramid div { display: flex; justify-content: space-between; align-items: center; gap: 6px; padding: 3px 10px; border: 1px solid rgba(27, 22, 17, .3); max-width: 100%; position: relative; }
+.pyramid b { font-size: 18px; line-height: 1.2; white-space: nowrap; }
+.pyramid span { font-size: 11px; color: var(--ink-soft); white-space: nowrap; }
+.pyramid .here { border: 2px solid var(--shu); }
+.pyramid .here b { color: var(--shu); }
+.pyramid .here::after { content: "あなた"; position: absolute; right: -6px; top: 50%; transform: translate(100%, -50%); font-size: 11px; font-weight: 700; color: #fff; background: var(--shu); padding: 0 6px; white-space: nowrap; }
+
+/* 白星 */
+.bigCount { font-size: 26px; line-height: 1.3; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+.bigCount em { font-style: normal; font-size: 44px; color: var(--shu); }
+.bigCount small { font-family: var(--mincho); -webkit-text-stroke: 0; font-size: 14px; color: var(--ink-soft); }
+.dots { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 6px; max-width: 420px; }
+.dots span { aspect-ratio: 1; border-radius: 50%; border: 2px solid var(--ink); display: grid; place-items: center; font-size: 11px; font-weight: 700; color: var(--ink-soft); }
+.dots .on { background: #fff; border-width: 4px; }
+.dots .goal { border-style: dashed; border-color: var(--shu); color: var(--shu); }
+.kachi { font-weight: 800; font-size: 17px; color: var(--shu); }
+
+/* 懸賞旗 */
+.kensho { display: flex; gap: 6px; overflow-x: auto; padding: 6px 0 4px; }
+.flag { flex: none; width: 34px; height: 132px; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px 0; color: #fff; font-size: 13px; line-height: 1.05; position: relative; }
+.flag::before { content: ""; position: absolute; top: -6px; left: -3px; right: -3px; height: 6px; background: #6b4a2a; }
+.flag .k { font-size: 10px; font-weight: 800; opacity: .9; }
+
+/* 番付表 */
+.sectionTitle { font-size: 24px; }
+.banzuke {
+  background: var(--paper);
+  background-image: radial-gradient(rgba(120, 90, 40, .07) 1px, transparent 1px);
+  background-size: 5px 5px;
+  border: 3px solid var(--ink); outline: 1px solid var(--ink); outline-offset: -7px;
+  padding: 12px 8px 10px;
+  display: grid; grid-template-columns: minmax(0, 1fr) 44px minmax(0, 1fr);
+  box-shadow: 0 10px 30px rgba(60, 40, 10, .2);
+}
+.half { display: flex; flex-direction: column; min-width: 0; }
+.sideHead { font-size: 30px; line-height: 1; text-align: center; padding-bottom: 6px; border-bottom: 3px double var(--ink); }
+.tier { display: flex; border-bottom: 3px double var(--ink); }
+.east .tier { flex-direction: row-reverse; }
+.tier:last-child { flex: 1; }
+.cell { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 4px 0 6px; }
+.west .cell + .cell { border-left: 1px solid rgba(27, 22, 17, .35); }
+.east .cell + .cell { border-right: 1px solid rgba(27, 22, 17, .35); }
+.rank { font-size: 10px; min-height: 3.2em; }
+.from { font-size: 8.5px; color: var(--ink-soft); min-height: 4.4em; }
+.name { line-height: .98; -webkit-text-stroke-width: .06em; letter-spacing: -.02em; }
+.me .name { color: var(--shu); }
+.t1 .name { font-size: 18px; }
+.t1 .cell { min-height: 236px; }
+.t2 .name { font-size: 12.5px; -webkit-text-stroke-width: .05em; }
+.t2 .rank { font-size: 9px; min-height: 2.4em; }
+.t2 .from { font-size: 7.5px; min-height: 3.2em; }
+.t2 .cell { min-height: 140px; }
+.t3 .name { font-size: 8.5px; -webkit-text-stroke-width: .03em; }
+.t3 .rank { font-size: 7px; min-height: 2.4em; }
+.t3 .from { display: none; }
+.t3 .cell { min-height: 86px; }
+.center { border-left: 1px solid var(--ink); border-right: 1px solid var(--ink); display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 0 2px; gap: 10px; }
+.gomen { font-size: 30px; line-height: 1.02; }
+.basho { font-size: 12px; }
+.cSmall { font-size: 9.5px; color: var(--ink-soft); }
+.banzai { font-size: 14px; }
+.empty { padding: 16px 0; font-size: 13px; color: var(--ink-soft); text-align: center; }
+
+/* 表彰状・三賞 */
+.hyosho { background: #fffdf7; border: 6px double #b08a2e; padding: 16px 10px; display: flex; justify-content: center; }
+.hyoshoText { font-weight: 700; font-size: 15px; line-height: 2.1; height: 330px; letter-spacing: .08em; }
+.hyoshoText > span { display: block; }
+.hyoshoText .ttl { font-size: 28px; margin-left: 14px; }
+.hyoshoText .big { font-size: 22px; }
+.sansho { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.sansho li { display: grid; grid-template-columns: 4em minmax(0, 1fr); gap: 10px; font-size: 14px; align-items: baseline; }
+.sansho b { font-size: 18px; }
+
+/* 伝達式 */
+.dentatsu { background: var(--night); color: var(--paper); padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+.dentatsu .eyebrow { color: #f0a088; }
+.shisha { font-size: 15px; border-left: 3px solid var(--shu); padding-left: 12px; }
+.yoji { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; }
+.yoji button { font-size: 22px; background: transparent; color: var(--paper); border: 1px solid rgba(242, 232, 210, .4); padding: 8px 6px 6px; cursor: pointer; line-height: 1.2; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.yoji button small { font-family: var(--mincho); -webkit-text-stroke: 0; font-size: 11px; opacity: .8; }
+.yoji button:hover { border-color: var(--shu); background: rgba(194, 58, 34, .25); }
+.kojo { font-weight: 700; font-size: 16px; line-height: 1.9; }
+.kojo b { font-size: 20px; color: var(--shu); }
+
+/* スタンプカード */
+.karte { background: var(--card); color: var(--print); border: 2px solid var(--print); padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.karteHead { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 12px; border-bottom: 2px solid var(--print); padding-bottom: 8px; }
+.karteHead h2 { font-weight: 700; font-size: 20px; letter-spacing: .1em; margin: 0; }
+.weeks { display: grid; grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); border-top: 1px solid var(--print); border-left: 1px solid var(--print); }
+.week { border-right: 1px solid var(--print); border-bottom: 1px solid var(--print); aspect-ratio: 1 / 1.1; max-width: 100%; display: flex; flex-direction: column; align-items: center; padding: 4px; gap: 2px; font-size: 11px; }
+.week .d { font-weight: 700; font-variant-numeric: tabular-nums; }
+.week .slot { flex: 1; display: grid; place-items: center; width: 100%; text-align: center; color: var(--shu); font-weight: 700; }
+.week.future { color: rgba(31, 79, 150, .45); }
+.week.current { background: rgba(194, 58, 34, .06); }
+.hanko { width: 46px; height: 46px; border: 2.5px solid var(--shu); border-radius: 50%; color: var(--shu); display: grid; place-items: center; font-size: 15px; line-height: 1.05; text-align: center; opacity: .88; }
+.award { border: 1px solid var(--print); padding: 2px 8px; font-weight: 700; }
+.award.on { background: var(--print); color: var(--card); }
+
+/* 決まり */
+.rules ol { margin: 0; padding-left: 1.4em; display: flex; flex-direction: column; gap: 8px; font-size: 15px; }
+
+/* アプリの画面の上に出す小さな番付 */
+.summary { background: var(--paper); color: var(--ink); border: 2px solid var(--ink); padding: 12px 14px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; text-decoration: none; }
+.summary:hover { border-color: var(--shu); }
+.summary .rankBig { font-size: 30px; line-height: 1.1; }
+.summary .meta { display: flex; flex-direction: column; gap: 2px; font-size: 14px; flex: 1; min-width: 180px; }
+.summary .meta b { color: var(--shu); }
+.summary .go { font-weight: 700; font-size: 14px; color: var(--shu); }
+
+@media (max-width: 440px) {
+  .t1 .name { font-size: 14.5px; } .t1 .cell { min-height: 200px; }
+  .t1 .rank { font-size: 8.5px; } .t1 .from { font-size: 7.5px; }
+  .gomen { font-size: 24px; } .sideHead { font-size: 24px; }
+  .banzuke { grid-template-columns: minmax(0, 1fr) 34px minmax(0, 1fr); padding-inline: 5px; }
+}

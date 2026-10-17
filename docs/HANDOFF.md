@@ -88,7 +88,8 @@
 1. ~~**手順 6**~~(2026-10-15 完了。DESIGN.md 24 章。登録簿 `/admin/apps`、ポータルの中のアプリは `requireAppAccess` で入場を制限、別プロジェクトのアプリは URL で登録。自動ログイン(SSO)と、アプリごとの開発者・管理者の指定は、あとの段階):  app registry(コード側の manifest + DB の運用設定)、manifest の同期(`npm run sync:manifests` に、アプリの権限と `app_registry` を追加)、`canAccessApp` / `requireAppAccess`。サイドバーとホームのアプリ表示を、Audience の判定につなぐ。Audience の「利用先」の表示と「利用中は削除不可」(`listAudienceUsages`)もここで有効にする。
 2. ~~**手順 7**~~(2026-10-15 完了・本番反映済み): お知らせ(全社・Audience・個人指定、通常・重要・緊急、ホームのバナー、既読、確認ボタン)と社内リンク。管理画面 `/admin/notices`・`/admin/links`、権限 `core.notices.manage`・`core.links.manage`。DESIGN.md 23 章。
 3. ~~**手順 8**~~(2026-10-16 完了・本番反映済み。DESIGN.md 25 章。`/apps/todo`。カテゴリは仕事向け 9 種、Claude Haiku 5.5 で自動分類、添付は 25MB まで。本番のアプリ管理ではまだ「無効」。Vercel Production に `ANTHROPIC_API_KEY`(Sensitive)、手元の `.env.local` にも同名のキーを登録済み): TODO アプリの移植(TODOSample から。TODO は `user_id` に紐づく個人データ。Claude による自動分類、R2 添付ファイルも含む)。添付のメタ情報テーブル(ファイル名・サイズ・所有者)は、このときに migration で追加する。
-4. 以後: 教育・スキル、改善提案、出し直し管理、マニュアル、設備管理など。
+4. **ありがとうカード**(2026-10-15 実装。DESIGN.md 34 章。`/apps/arigato`、集計は `/apps/arigato/stats`。「育てて、育つ。」を風土として根づかせる最初の参加型アプリ): 2026-10-17 に「ありがとう番付」(`/apps/arigato/banzuke`。四股名・年六場所・白星・昇進・伝達式・今週の一枚スタンプカード)を追加し、テーブル `arigato.shikona`・`arigato.banzuke` も同じ migration に含めた。2026-10-17 に main(0018 まで)へそろえ、migration は `0019_arigato_cards` に作り直した。本番に出すときは、コードを `main` に送る前に migration `0019_arigato_cards` を本番 DB に適用し、`npm run sync:manifests`(権限 `arigato.stats.view`・`arigato.cards.manage` とアプリの登録)を実行してから、`/admin/apps` で有効にする。集計・削除の権限は、管理画面でロールに付ける(system_admin には sync で自動付与)。
+5. 以後: 教育・スキル、改善提案、出し直し管理、マニュアル、設備管理など。
 
 ### 社員にアカウントを配る前のチェック(未了)
 - ~~見本データの除去~~(2026-10-14 に完了)。お知らせ・アプリ・社内リンクの実装(手順 6・7)。

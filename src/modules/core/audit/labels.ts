@@ -30,6 +30,7 @@ export const AUDIT_ACTION_LABEL: Record<string, string> = {
   "app.create": "アプリの登録(別プロジェクト)",
   "app.update": "アプリの設定の変更",
   "app.delete": "アプリの登録の削除",
+  "arigato.card.delete": "ありがとうカードの削除(管理)",
   "hr.record.create": "人事管理: 記録の追加",
   "hr.record.update": "人事管理: 記録の更新",
   "hr.record.delete": "人事管理: 記録の削除",
