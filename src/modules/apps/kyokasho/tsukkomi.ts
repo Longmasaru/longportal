@@ -70,3 +70,24 @@ export function canDeleteOwnComment(
 ): boolean {
   return comment.authorUserId === userId && comment.status === "open" && comment.reply === "";
 }
+
+/**
+ * 新しいツッコミを知らせる LINE WORKS のトークルーム(docs/DESIGN.md 33 章)。
+ * 教科書の部署ごとのトークルームは KYOKASHO_LINEWORKS_CHANNELS(JSON。{"部署名": "channelId"})に置く。
+ * そこにない部署(全部署共通など)は、全体用の KYOKASHO_LINEWORKS_CHANNEL_ID へ送る(届け漏れを防ぐため)。
+ */
+export function notifyChannelFor(department: string, env: Record<string, string | undefined>): string | undefined {
+  const raw = env.KYOKASHO_LINEWORKS_CHANNELS?.trim();
+  if (raw) {
+    try {
+      const map: unknown = JSON.parse(raw);
+      if (map && typeof map === "object" && !Array.isArray(map)) {
+        const id = (map as Record<string, unknown>)[department.trim()];
+        if (typeof id === "string" && id.trim()) return id.trim();
+      }
+    } catch {
+      console.error("[kyokasho] KYOKASHO_LINEWORKS_CHANNELS が JSON として読めません。");
+    }
+  }
+  return env.KYOKASHO_LINEWORKS_CHANNEL_ID?.trim() || undefined;
+}

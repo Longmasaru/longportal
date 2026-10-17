@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { canDeleteOwnComment, isAdopted, isCommentKind, isCommentStatus, rankContributors } from "./tsukkomi";
+import { canDeleteOwnComment, isAdopted, isCommentKind, isCommentStatus, notifyChannelFor, rankContributors } from "./tsukkomi";
 
 test("ツッコミの種類・受け止め方の判定", () => {
   assert.equal(isCommentKind("question"), true);
@@ -39,4 +39,16 @@ test("本人が消せるのは、返事のついていない、まだ見てい�
   assert.equal(canDeleteOwnComment({ authorUserId: "u1", status: "adopted", reply: "" }, "u1"), false);
   assert.equal(canDeleteOwnComment({ authorUserId: "u1", status: "open", reply: "ありがとう" }, "u1"), false);
   assert.equal(canDeleteOwnComment({ authorUserId: null, status: "open", reply: "" }, "u1"), false);
+});
+
+test("知らせの送り先: 部署のトークルーム → なければ全体用", () => {
+  const env = {
+    KYOKASHO_LINEWORKS_CHANNELS: JSON.stringify({ スタッド: "ch-stud", メタルエステ: " ch-metal " }),
+    KYOKASHO_LINEWORKS_CHANNEL_ID: "ch-all",
+  };
+  assert.equal(notifyChannelFor("スタッド", env), "ch-stud");
+  assert.equal(notifyChannelFor("メタルエステ", env), "ch-metal");
+  assert.equal(notifyChannelFor("全部署共通", env), "ch-all");
+  assert.equal(notifyChannelFor("スタッド", { KYOKASHO_LINEWORKS_CHANNELS: "壊れた値", KYOKASHO_LINEWORKS_CHANNEL_ID: "ch-all" }), "ch-all");
+  assert.equal(notifyChannelFor("スタッド", {}), undefined);
 });

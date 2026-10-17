@@ -791,8 +791,9 @@ TODOSample の TODO を、ポータルの中のアプリ(`modules/apps/todo`、`
 2026-10-17 のユーザーの判断: 新しいツッコミの知らせは、メールではなく LINE WORKS で教科書チームに送る(メールより早く気づけるため)。
 
 - **`core/lineworks`**(サーバー側専用): LINE WORKS API 2.0 の Bot。サービスアカウントの JWT(RS256。iss = クライアント ID、sub = サービスアカウント)で `https://auth.worksmobile.com/oauth2/v2.0/token` からアクセストークンを取り(scope `bot`。期限まで使い回す)、`https://www.worksapis.com/v1.0/bots/{botId}/channels/{channelId}/messages` に文字を送る。外部のライブラリは使わない。
-- **鍵**: 環境変数 `LINEWORKS_CLIENT_ID`・`LINEWORKS_CLIENT_SECRET`・`LINEWORKS_SERVICE_ACCOUNT`・`LINEWORKS_PRIVATE_KEY`・`LINEWORKS_BOT_ID`(Vercel では Sensitive)。送り先のトークルームはアプリごとの環境変数(教科書は `KYOKASHO_LINEWORKS_CHANNEL_ID`)。
+- **鍵**: 環境変数 `LINEWORKS_CLIENT_ID`・`LINEWORKS_CLIENT_SECRET`・`LINEWORKS_SERVICE_ACCOUNT`・`LINEWORKS_PRIVATE_KEY`・`LINEWORKS_BOT_ID`(Vercel では Sensitive)。送り先のトークルームはアプリごとの環境変数。
 - **失敗しても本来の操作は止めない**: 設定がなければ送らない。送れなければログに残すだけ(ツッコミは保存されたまま)。送るのは `after()` で、画面を返したあと。
 - **準備**: Bot が入ったトークルームは `npm run lineworks:setup -- --members <LINE WORKS の ID をカンマ区切り> --title <名前>` で作り、試しに 1 通送って channelId を表示する。
+- **教科書のツッコミの送り先**(2026-10-17 のユーザーの判断「部署による」): 教科書の部署ごとにトークルームを分け、その部署の教科書チームにだけ知らせる。部署ごとの channelId は `KYOKASHO_LINEWORKS_CHANNELS`(JSON。`{"部署名": "channelId"}`)、そこにない部署(全部署共通など)は全体用の `KYOKASHO_LINEWORKS_CHANNEL_ID` へ送る(届け漏れを防ぐ)。判定は `notifyChannelFor`(`apps/kyokasho/tsukkomi.ts`)。
 - **教科書のツッコミ**: 新しいツッコミが届くと「📝 教科書に新しいツッコミ【種類】/ 教科書 › 章 › 節 / 名前 さん: 本文(120 字まで)/ 届いたツッコミの画面の URL」を送る。
 

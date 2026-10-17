@@ -27,6 +27,7 @@ import {
   QUOTE_MAX,
   REPLY_MAX,
   canDeleteOwnComment,
+  notifyChannelFor,
 } from "./tsukkomi";
 import { canHandleComments } from "./tsukkomi-queries";
 
@@ -103,7 +104,7 @@ export async function postCommentAction(_prev: TsukkomiFormState, formData: Form
   });
   revalidatePath(BASE, "layout");
 
-  // 教科書チームの LINE WORKS のトークルームへ知らせる(設定があるときだけ。返事を待たずに画面を返す)。
+  // その部署の教科書チームの LINE WORKS のトークルームへ知らせる(設定があるときだけ。返事を待たずに画面を返す)。
   const host = (await headers()).get("host");
   const where = [`${book.department} ${book.title}`, chapter.title, sectionTitle].filter(Boolean).join(" › ");
   const message = [
@@ -114,7 +115,7 @@ export async function postCommentAction(_prev: TsukkomiFormState, formData: Form
   ]
     .filter(Boolean)
     .join("\n");
-  after(() => sendLineWorksChannelText(process.env.KYOKASHO_LINEWORKS_CHANNEL_ID, message).then(() => undefined));
+  after(() => sendLineWorksChannelText(notifyChannelFor(book.department, process.env), message).then(() => undefined));
 
   return { success: "ツッコミを送りました。ありがとうございます!", at: Date.now() };
 }
