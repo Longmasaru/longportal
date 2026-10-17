@@ -36,3 +36,11 @@ test("softenLines: セルの中で手で入れた改行はつなぎ、文の終�
   assert.equal(softenLines("M6 x\n12 の\nネジ"), "M6 x\n12 のネジ");
   assert.ok(!isSoftBreak("手順1)", ""));
 });
+
+test("絵文字の組み合わせを壊さない", () => {
+  const text = "複数機💆‍♀️をまとめて紹介";
+  assert.equal(cleanText(text), text);
+  const parts = phrases(text);
+  assert.equal(parts.join(""), text);
+  assert.ok(parts.some((p) => p.includes("💆‍♀️")));
+});
