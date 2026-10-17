@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { formatDateDot } from "@/modules/core/shared/format";
 import {
+  ABILITY_AXES,
   CONDITION_STATES,
   CONDITION_STATE_LABEL,
   GENDERS,
@@ -17,31 +18,44 @@ import {
   type Section,
 } from "../labels";
 import { ageOn, leaveSummary, tenureOn, trend } from "../logic";
+import { AbilityRadar } from "./ability-radar";
 import type { EmployeeProfile, HrSheet } from "../types";
 import { AddItemForm, DeleteItemButton, SectionCard, type FieldSpec } from "./sheet-forms";
 
-// 人事管理シートの 1〜5 章(docs/DESIGN.md 31.1)。本人の見え方では SECTION_VISIBLE_TO_SELF の章だけを出し、編集はさせない。
+// 人事管理シートの 1〜5 章(docs/DESIGN.md 31.1・31.2)。タブごとに 1 章を出す。本人の見え方では SECTION_VISIBLE_TO_SELF の章だけを出し、編集はさせない。
 
 function Item({ label, children, wide }: { label: string; children: ReactNode; wide?: boolean }) {
   return (
     <div className={wide ? "sm:col-span-2" : undefined}>
       <dt className="text-brand04 text-xs font-bold tracking-widest">{label}</dt>
-      <dd className="text-brand01 mt-0.5 text-sm font-bold">{children}</dd>
+      <dd className="text-brand01 mt-0.5 text-sm">{children}</dd>
     </div>
   );
 }
 
 const EMPTY = <span className="text-brand04 font-normal">—</span>;
 
-function TextBlock({ label, value }: { label: string; value: string }) {
+/** 文章の項目。書かれた項目だけを並べ、未記入の項目は 1 行にまとめる(31.2)。 */
+function TextGroup({ fields, values, editable }: { fields: readonly { key: string; label: string }[]; values: Record<string, string>; editable: boolean }) {
+  const filled = fields.filter((f) => values[f.key]);
+  const empty = fields.filter((f) => !values[f.key]);
   return (
-    <div>
-      <p className="text-brand04 text-xs font-bold tracking-widest">{label}</p>
-      {value ? (
-        <p className="text-brand01 mt-1 text-sm leading-relaxed whitespace-pre-wrap">{value}</p>
+    <div className="flex flex-col gap-4">
+      {filled.length > 0 ? (
+        <div className="grid gap-4 sm:grid-cols-2">
+          {filled.map((f) => (
+            <div key={f.key}>
+              <p className="text-brand04 text-xs font-bold tracking-widest">{f.label}</p>
+              <p className="text-brand01 mt-1 text-sm leading-relaxed whitespace-pre-wrap">{values[f.key]}</p>
+            </div>
+          ))}
+        </div>
       ) : (
-        <p className="text-brand04 mt-1 text-sm">未記入</p>
+        <p className="text-brand04 text-sm">まだ書かれていません。{editable ? "「編集」から書き込めます。" : ""}</p>
       )}
+      {filled.length > 0 && empty.length > 0 ? (
+        <p className="text-brand04 text-xs">未記入: {empty.map((f) => f.label).join("、")}</p>
+      ) : null}
     </div>
   );
 }
@@ -72,21 +86,31 @@ function SubHeading({ children }: { children: ReactNode }) {
   return <h3 className="text-brand01 border-brand01/15 border-t pt-3 text-sm font-bold">{children}</h3>;
 }
 
-export function SheetSections({
+/** 1 つの章(タブ)の中身。本人の見え方で出さない章は null。 */
+export function SheetSection({
+  section,
   profile,
   sheet,
   editable,
   isSelf,
   today,
 }: {
+  section: Section;
   profile: EmployeeProfile;
   sheet: HrSheet;
   editable: boolean;
   isSelf: boolean;
   today: string;
 }) {
+  if (isSelf && !SECTION_VISIBLE_TO_SELF[section]) return null;
   const p = sheet.profile;
-  const show = (s: Section) => !isSelf || SECTION_VISIBLE_TO_SELF[s];
+  const show = (s: Section) => s === section;
+  const textValues: Record<string, string> = Object.fromEntries(
+    [...PROFILE_TEXT_FIELDS.goals, ...PROFILE_TEXT_FIELDS.skills, ...PROFILE_TEXT_FIELDS.character].map((f) => [
+      f.key,
+      p ? String(p[f.key as keyof typeof p] ?? "") : "",
+    ]),
+  );
   const primary = profile.assignments[0];
   const tenure = tenureOn(profile.hiredOn, today);
   const leave = leaveSummary(p?.leaveGranted ?? null, p?.leaveTaken ?? null);
@@ -106,17 +130,7 @@ export function SheetSections({
 
   return (
     <>
-      <nav aria-label="章" className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
-        {(["basic", "goals", "skills", "character", "condition"] as const).filter(show).map((s) => (
-          <a key={s} href={`#hr-${s}`} className="text-brand01 hover:text-brand03 font-bold transition-colors">
-            {SECTION_LABEL[s]}
-          </a>
-        ))}
-        <a href="#hr-records" className="text-brand01 hover:text-brand03 font-bold transition-colors">
-          記録
-        </a>
-      </nav>
-
+      {show("basic") ? (
       <SectionCard
         {...common}
         id="hr-basic"
@@ -159,6 +173,7 @@ export function SheetSections({
           </dl>
         }
       />
+      ) : null}
 
       {show("goals") ? (
         <SectionCard
@@ -168,12 +183,30 @@ export function SheetSections({
           title={SECTION_LABEL.goals}
           fields={editable ? textFields(PROFILE_TEXT_FIELDS.goals) : undefined}
           view={
-            <div className="grid gap-4 sm:grid-cols-2">
-              {PROFILE_TEXT_FIELDS.goals.map((f) => (
-                <TextBlock key={f.key} label={f.label} value={p?.[f.key] ?? ""} />
-              ))}
-            </div>
+            <TextGroup fields={PROFILE_TEXT_FIELDS.goals} values={textValues} editable={editable} />
           }
+        />
+      ) : null}
+
+      {show("skills") ? (
+        <SectionCard
+          {...common}
+          id="hr-abilities"
+          section="abilities"
+          title="能力の評価(5 項目)"
+          note="全社共通の項目。1〜5 で付けます"
+          fields={
+            editable
+              ? ABILITY_AXES.map((a) => ({
+                  name: a.key,
+                  label: a.label,
+                  type: "select" as const,
+                  value: sheet.abilities[a.key]?.toString() ?? "",
+                  options: [5, 4, 3, 2, 1].map((n) => ({ value: String(n), label: `${n}` })),
+                }))
+              : undefined
+          }
+          view={<AbilityRadar abilities={sheet.abilities} list />}
         />
       ) : null}
 
@@ -185,11 +218,7 @@ export function SheetSections({
           title={SECTION_LABEL.skills}
           fields={editable ? textFields(PROFILE_TEXT_FIELDS.skills) : undefined}
           view={
-            <div className="grid gap-4 sm:grid-cols-2">
-              {PROFILE_TEXT_FIELDS.skills.map((f) => (
-                <TextBlock key={f.key} label={f.label} value={p?.[f.key] ?? ""} />
-              ))}
-            </div>
+            <TextGroup fields={PROFILE_TEXT_FIELDS.skills} values={textValues} editable={editable} />
           }
         >
           <SubHeading>保有資格・免許</SubHeading>
@@ -322,11 +351,7 @@ export function SheetSections({
           note="本人には見えません"
           fields={editable ? textFields(PROFILE_TEXT_FIELDS.character) : undefined}
           view={
-            <div className="grid gap-4 sm:grid-cols-2">
-              {PROFILE_TEXT_FIELDS.character.map((f) => (
-                <TextBlock key={f.key} label={f.label} value={p?.[f.key] ?? ""} />
-              ))}
-            </div>
+            <TextGroup fields={PROFILE_TEXT_FIELDS.character} values={textValues} editable={editable} />
           }
         />
       ) : null}

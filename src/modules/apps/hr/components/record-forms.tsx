@@ -53,8 +53,8 @@ export function RecordForm({
   const [state, action, pending] = useActionState<RecordFormState, FormData>(async (prev, formData) => {
     const result = await (record ? updateRecordAction : createRecordAction)(prev, formData);
     if (result?.ok) {
-      if (record) onDone?.();
-      else setValues(empty);
+      if (!record) setValues(empty);
+      onDone?.();
     }
     return result;
   }, undefined);
@@ -157,6 +157,31 @@ export function RecordForm({
         ) : null}
       </div>
     </form>
+  );
+}
+
+/** 「＋ 記録を追加」を押したときだけ、追加のフォームを開く(31.2)。 */
+export function NewRecordPanel({ employeeId, today }: { employeeId: string; today: string }) {
+  const [open, setOpen] = useState(false);
+  if (!open) {
+    return (
+      <button type="button" onClick={() => setOpen(true)} className={`${BUTTON_PRIMARY} self-start`}>
+        ＋ 記録を追加
+      </button>
+    );
+  }
+  return (
+    <section aria-labelledby="hr-new" className="border-brand01/15 flex flex-col gap-3 border bg-white p-4">
+      <div className="flex items-center justify-between gap-2">
+        <h2 id="hr-new" className="text-brand01 text-lg font-bold">
+          記録を追加
+        </h2>
+        <button type="button" onClick={() => setOpen(false)} className={BUTTON_SECONDARY}>
+          閉じる
+        </button>
+      </div>
+      <RecordForm employeeId={employeeId} today={today} onDone={() => setOpen(false)} />
+    </section>
   );
 }
 

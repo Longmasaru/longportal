@@ -2,7 +2,7 @@
 
 import { useActionState, useState, type ReactNode } from "react";
 import { BUTTON_PRIMARY, BUTTON_SECONDARY, FIELD_CLASS, LABEL_CLASS } from "@/modules/core/shared/ui/form";
-import { addItemAction, deleteItemAction, saveSectionAction } from "../sheet-actions";
+import { addItemAction, deleteItemAction, saveAbilitiesAction, saveSectionAction } from "../sheet-actions";
 import type { RecordFormState } from "../types";
 
 /** フォームの項目(サーバーから渡せる形)。 */
@@ -72,7 +72,7 @@ function ErrorText({ state }: { state: RecordFormState }) {
 
 /**
  * 章のカード。見る表示(view)と、管理する人だけの「編集」(章の項目をまとめて保存)を切り替える。
- * fields を渡さなければ編集ボタンを出さない。
+ * fields を渡さなければ編集ボタンを出さない。section が "abilities" のときは能力の 5 項目を保存する。
  */
 export function SectionCard({
   id,
@@ -95,7 +95,7 @@ export function SectionCard({
 }) {
   const [editing, setEditing] = useState(false);
   const [state, action, pending] = useActionState<RecordFormState, FormData>(async (prev, formData) => {
-    const result = await saveSectionAction(prev, formData);
+    const result = await (section === "abilities" ? saveAbilitiesAction : saveSectionAction)(prev, formData);
     if (result?.ok) setEditing(false);
     return result;
   }, undefined);

@@ -1,8 +1,8 @@
 import { sql } from "drizzle-orm";
-import { check, date, index, integer, numeric, pgSchema, smallint, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { check, date, index, integer, numeric, pgSchema, smallint, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { users } from "@/modules/core/auth/schema";
 import { employees } from "@/modules/core/employees/schema";
-import type { ConditionState, Gender, RecordKind, RecordVisibility, TrainingKind } from "./labels";
+import type { AbilityAxis, ConditionState, Gender, RecordKind, RecordVisibility, TrainingKind } from "./labels";
 
 /** 人事管理アプリの Postgres スキーマ(docs/DESIGN.md 4.1・31 章)。 */
 export const hr = pgSchema("hr");
@@ -163,6 +163,26 @@ export const hrConditionChecks = hr.table(
     check("condition_checks_mental_check", sql`${t.mental} is null or ${t.mental} in ('good', 'same', 'poor')`),
     check("condition_checks_satisfaction_check", sql`${t.satisfaction} is null or ${t.satisfaction} between 1 and 5`),
     index("condition_checks_employee_id_checked_on_idx").on(t.employeeId, t.checkedOn),
+  ],
+);
+
+/**
+ * 能力の 5 項目の評価(全社共通の軸 ABILITY_AXES。1 人 1 軸 1 行。31.2)。
+ * 軸を足せるよう axis に CHECK 制約は付けない(Server Action で検証する)。
+ */
+export const hrAbilities = hr.table(
+  "abilities",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    employeeId: employeeIdColumn(),
+    axis: text("axis").$type<AbilityAxis>().notNull(),
+    level: smallint("level").notNull(),
+    updatedBy: uuid("updated_by").references(() => users.id, { onDelete: "set null" }),
+    ...timestamps(),
+  },
+  (t) => [
+    check("abilities_level_check", sql`${t.level} between 1 and 5`),
+    uniqueIndex("abilities_employee_id_axis_idx").on(t.employeeId, t.axis),
   ],
 );
 

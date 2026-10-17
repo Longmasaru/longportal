@@ -36,6 +36,7 @@ export const AUDIT_ACTION_LABEL: Record<string, string> = {
   "hr.profile.update": "人事管理: シートの更新",
   "hr.item.create": "人事管理: 一覧の行の追加",
   "hr.item.delete": "人事管理: 一覧の行の削除",
+  "hr.ability.update": "人事管理: 能力の評価の更新",
 };
 
 export function auditActionLabel(action: string): string {

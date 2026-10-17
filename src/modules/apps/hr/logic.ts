@@ -69,3 +69,22 @@ export function trend(prev: number | null | undefined, now: number | null | unde
   if (prev === null || prev === undefined || now === null || now === undefined) return null;
   return now > prev ? "up" : now < prev ? "down" : "flat";
 }
+
+/**
+ * レーダーチャートの i 番目の軸(全 count 本、真上から時計回り)で、値 value(0〜max)が描かれる点。
+ * 中心 (cx, cy)、外周の半径 radius。小数第 1 位で丸める。
+ */
+export function radarPoint(
+  i: number,
+  count: number,
+  value: number,
+  max: number,
+  radius: number,
+  cx: number,
+  cy: number,
+): { x: number; y: number } {
+  const angle = -Math.PI / 2 + (2 * Math.PI * i) / count;
+  const r = (Math.min(Math.max(value, 0), max) / max) * radius;
+  const round = (n: number) => Math.round(n * 10) / 10 + 0;
+  return { x: round(cx + r * Math.cos(angle)), y: round(cy + r * Math.sin(angle)) };
+}

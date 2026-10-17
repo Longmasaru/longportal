@@ -11,6 +11,7 @@ import { positions } from "@/modules/core/positions/schema";
 import { canManageEmployee, pageMode, type PageMode } from "./logic";
 import { HR_RECORDS_MANAGE } from "./manifest";
 import {
+  hrAbilities,
   hrConditionChecks,
   hrProfiles,
   hrQualifications,
@@ -158,7 +159,7 @@ export async function getRecord(id: string) {
 
 /** 人事管理シートの 1〜5 章(31.1)。章の出し分けは画面側(SECTION_VISIBLE_TO_SELF)で行う。 */
 export async function getSheet(employeeId: string): Promise<HrSheet> {
-  const [[profile], qualifications, skills, trainings, conditions] = await Promise.all([
+  const [[profile], qualifications, skills, trainings, conditions, abilityRows] = await Promise.all([
     db.select().from(hrProfiles).where(eq(hrProfiles.employeeId, employeeId)).limit(1),
     db
       .select({ id: hrQualifications.id, name: hrQualifications.name, acquiredOn: hrQualifications.acquiredOn, expiresOn: hrQualifications.expiresOn })
@@ -187,6 +188,9 @@ export async function getSheet(employeeId: string): Promise<HrSheet> {
       .from(hrConditionChecks)
       .where(eq(hrConditionChecks.employeeId, employeeId))
       .orderBy(desc(hrConditionChecks.checkedOn), desc(hrConditionChecks.createdAt)),
+    db.select({ axis: hrAbilities.axis, level: hrAbilities.level }).from(hrAbilities).where(eq(hrAbilities.employeeId, employeeId)),
   ]);
-  return { profile: profile ?? null, qualifications, skills, trainings, conditions };
+  const abilities: HrSheet["abilities"] = {};
+  for (const a of abilityRows) abilities[a.axis] = a.level;
+  return { profile: profile ?? null, qualifications, skills, trainings, conditions, abilities };
 }

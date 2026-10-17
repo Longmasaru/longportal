@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { Grant } from "@/modules/core/access/grants";
-import { ageOn, canManageEmployee, leaveSummary, pageMode, recordVisibleTo, tenureOn, trend } from "./logic";
+import { ageOn, canManageEmployee, leaveSummary, pageMode, radarPoint, recordVisibleTo, tenureOn, trend } from "./logic";
 
 const CODE = "hr.records.manage";
 const LOC_A = "loc-a";
@@ -94,5 +94,18 @@ describe("leaveSummary / trend", () => {
     assert.equal(trend(4, 4), "flat");
     assert.equal(trend(4, 2), "down");
     assert.equal(trend(null, 2), null);
+  });
+});
+
+describe("radarPoint", () => {
+  it("1 本目は真上、時計回りに並ぶ", () => {
+    assert.deepEqual(radarPoint(0, 4, 5, 5, 100, 0, 0), { x: 0, y: -100 });
+    assert.deepEqual(radarPoint(1, 4, 5, 5, 100, 0, 0), { x: 100, y: 0 });
+    assert.deepEqual(radarPoint(2, 4, 5, 5, 100, 0, 0), { x: 0, y: 100 });
+  });
+  it("値に比例し、範囲外は丸める", () => {
+    assert.deepEqual(radarPoint(0, 5, 3, 5, 100, 50, 50), { x: 50, y: -10 });
+    assert.deepEqual(radarPoint(0, 5, 0, 5, 100, 50, 50), { x: 50, y: 50 });
+    assert.deepEqual(radarPoint(0, 5, 9, 5, 100, 50, 50), { x: 50, y: -50 });
   });
 });

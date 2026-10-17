@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/db/client";
@@ -8,6 +8,7 @@ import { writeAuditLog } from "@/modules/core/audit";
 import { isIsoDate } from "@/modules/core/shared/date";
 import { DENIED, managerFor } from "./guard";
 import {
+  ABILITY_AXES,
   CONDITION_STATES,
   GENDERS,
   NAME_MAX,
@@ -16,7 +17,7 @@ import {
   TRAINING_KINDS,
 } from "./labels";
 import { manifest } from "./manifest";
-import { hrConditionChecks, hrProfiles, hrQualifications, hrSkills, hrTrainings } from "./schema";
+import { hrAbilities, hrConditionChecks, hrProfiles, hrQualifications, hrSkills, hrTrainings } from "./schema";
 import type { RecordFormState } from "./types";
 
 // 人事管理シート(1〜5 章)の Server Action。docs/DESIGN.md 31.1。
@@ -207,6 +208,51 @@ export async function deleteItemAction(_prev: RecordFormState, formData: FormDat
       targetType: `hr_${type}`,
       targetId: id.data,
       before: { employeeId: current.employeeId, type },
+    });
+  });
+  revalidatePath(manifest.route, "layout");
+  return { ok: Date.now() };
+}
+
+const levelOrEmpty = z
+  .string()
+  .refine((v) => v === "" || /^[1-5]$/.test(v), "評価は 1〜5 で選んでください。")
+  .transform((v) => (v === "" ? null : Number(v)));
+
+/** 能力の 5 項目をまとめて保存する(空欄の項目は行を消す)。31.2。 */
+export async function saveAbilitiesAction(_prev: RecordFormState, formData: FormData): Promise<RecordFormState> {
+  const employeeId = idSchema.safeParse(formData.get("employeeId"));
+  if (!employeeId.success) return { error: "不正なリクエストです。" };
+  const actor = await managerFor(employeeId.data);
+  if (!actor) return { error: DENIED };
+  const levels: { axis: (typeof ABILITY_AXES)[number]["key"]; level: number | null }[] = [];
+  for (const a of ABILITY_AXES) {
+    const parsed = levelOrEmpty.safeParse(String(formData.get(a.key) ?? ""));
+    if (!parsed.success) return { error: firstIssue(parsed.error) };
+    levels.push({ axis: a.key, level: parsed.data });
+  }
+  const set = levels.filter((l): l is { axis: (typeof l)["axis"]; level: number } => l.level !== null);
+  const cleared = levels.filter((l) => l.level === null).map((l) => l.axis);
+
+  await db.transaction(async (tx) => {
+    if (cleared.length > 0) {
+      await tx.delete(hrAbilities).where(and(eq(hrAbilities.employeeId, employeeId.data), inArray(hrAbilities.axis, cleared)));
+    }
+    for (const l of set) {
+      await tx
+        .insert(hrAbilities)
+        .values({ employeeId: employeeId.data, axis: l.axis, level: l.level, updatedBy: actor.userId })
+        .onConflictDoUpdate({
+          target: [hrAbilities.employeeId, hrAbilities.axis],
+          set: { level: l.level, updatedBy: actor.userId, updatedAt: new Date() },
+        });
+    }
+    await writeAuditLog(tx, {
+      actorUserId: actor.userId,
+      action: "hr.ability.update",
+      targetType: "hr_abilities",
+      targetId: employeeId.data,
+      after: { set: set.map((l) => l.axis), cleared },
     });
   });
   revalidatePath(manifest.route, "layout");

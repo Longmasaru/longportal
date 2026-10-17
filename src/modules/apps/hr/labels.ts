@@ -58,6 +58,36 @@ export const SECTION_VISIBLE_TO_SELF: Record<Section, boolean> = {
   condition: false,
 };
 
+/** 社員のページのタブ(31.2)。既定は記録。 */
+export const TABS = ["records", ...SECTIONS] as const;
+export type Tab = (typeof TABS)[number];
+
+export const TAB_LABEL: Record<Tab, string> = {
+  records: "記録",
+  basic: "基本情報",
+  goals: "目標と評価",
+  skills: "スキルと資格",
+  character: "人柄と適性",
+  condition: "コンディション",
+};
+
+export function isTab(value: unknown): value is Tab {
+  return typeof value === "string" && (TABS as readonly string[]).includes(value);
+}
+
+/**
+ * 能力の 5 項目(全社共通の軸。レーダーチャートに描く。31.2)。
+ * key は DB に保存するので変えない。表示名は変えてよい。
+ */
+export const ABILITY_AXES = [
+  { key: "technique", label: "技術力" },
+  { key: "quality", label: "品質" },
+  { key: "safety", label: "安全" },
+  { key: "setup", label: "段取り" },
+  { key: "teamwork", label: "協調性" },
+] as const;
+export type AbilityAxis = (typeof ABILITY_AXES)[number]["key"];
+
 export const GENDERS = ["male", "female", "other"] as const;
 export type Gender = (typeof GENDERS)[number];
 export const GENDER_LABEL: Record<Gender, string> = { male: "男", female: "女", other: "その他" };

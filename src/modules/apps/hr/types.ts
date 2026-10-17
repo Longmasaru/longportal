@@ -1,4 +1,4 @@
-import type { ConditionState, RecordKind, RecordVisibility, TrainingKind } from "./labels";
+import type { AbilityAxis, ConditionState, RecordKind, RecordVisibility, TrainingKind } from "./labels";
 import type { HrProfileRow } from "./schema";
 
 /** 今日有効な所属(主所属が先頭)。 */
@@ -44,6 +44,8 @@ export type HrSheet = {
   profile: HrProfileRow | null;
   qualifications: { id: string; name: string; acquiredOn: string | null; expiresOn: string | null }[];
   skills: { id: string; name: string; level: number }[];
+  /** 能力の 5 項目(付いていない軸はない) */
+  abilities: Partial<Record<AbilityAxis, number>>;
   trainings: { id: string; kind: TrainingKind; title: string; takenOn: string | null }[];
   /** 新しい順 */
   conditions: {

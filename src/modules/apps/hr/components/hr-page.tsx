@@ -3,7 +3,7 @@ import { canInAnyScope } from "@/modules/core/access";
 import { requireAppAccess } from "@/modules/core/apps";
 import { formatDateDot } from "@/modules/core/shared/format";
 import { BUTTON_PRIMARY, BUTTON_SECONDARY, FIELD_CLASS, StatusTag } from "@/modules/core/shared/ui/form";
-import type { RecordKind } from "../labels";
+import type { RecordKind, Tab } from "../labels";
 import { HR_RECORDS_MANAGE, manifest } from "../manifest";
 import { listManagedEmployees } from "../queries";
 import { EmployeeRecordsView } from "./employee-page";
@@ -12,11 +12,11 @@ import { EmployeeRecordsView } from "./employee-page";
  * /apps/hr。権限(hr.records.manage)を持つ人には、スコープ内の社員の一覧を出す。
  * 持たない人には、自分のページ(本人に公開の記録だけ)を出す。docs/DESIGN.md 31 章。
  */
-export async function HrPage({ q, all, kind }: { q?: string; all?: boolean; kind: RecordKind | null }) {
+export async function HrPage({ q, all, kind, tab }: { q?: string; all?: boolean; kind: RecordKind | null; tab: Tab }) {
   const actor = await requireAppAccess(manifest.appKey);
 
   if (!canInAnyScope(actor, HR_RECORDS_MANAGE)) {
-    if (actor.employee) return <EmployeeRecordsView actor={actor} employeeId={actor.employee.id} kind={kind} />;
+    if (actor.employee) return <EmployeeRecordsView actor={actor} employeeId={actor.employee.id} kind={kind} tab={tab} />;
     return (
       <div className="mx-auto w-full max-w-4xl px-4 py-8 md:px-8 md:py-10">
         <p className="bg-bg01 text-brand01 p-4 text-sm">このアカウントには社員の情報が紐づいていないため、表示できる記録がありません。</p>
