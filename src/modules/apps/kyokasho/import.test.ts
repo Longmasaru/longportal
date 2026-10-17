@@ -49,6 +49,20 @@ test("目次がなければ最初の見出し 1 から読む。表のセルの�
   assert.deepEqual(r.imageIds, ["x"]);
 });
 
+test("表のセルの結合を残し、行頭の全角スペース(字下げ)を残す", () => {
+  const html =
+    "<h1>❶線種</h1><p>手順2)　描き込みます。</p><p>　　　　すなわち三面です。</p>" +
+    '<table><tr><th rowspan="2"><p>太い実線</p></th><th><p>役割</p></th></tr>' +
+    "<tr><th><p>ポイント</p></th></tr><tr><td></td><td></td></tr></table>";
+  const [ch] = parseBookHtml(html, resolve).content.chapters;
+  assert.deepEqual(ch.blocks[1], { type: "paragraph", inlines: [{ text: "　　　　すなわち三面です。" }] });
+  const table = ch.blocks[2];
+  assert.equal(table.type, "table");
+  if (table.type !== "table") return;
+  assert.equal(table.rows.length, 2);
+  assert.deepEqual(table.spans, [{ row: 0, cell: 0, rowSpan: 2, colSpan: 1 }]);
+});
+
 test("理解度チェックテストの表をテストにする", () => {
   const html =
     "<h1>3️⃣安全教育</h1><h2>ð理解度チェックテスト</h2>" +
