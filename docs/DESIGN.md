@@ -705,7 +705,7 @@ TODOSample の TODO を、ポータルの中のアプリ(`modules/apps/todo`、`
 - **中身はリポジトリに入れない**: リポジトリは公開されており、教科書には社内のやり方・担当者名・写真が入るため。中身は DB(`kyokasho.books.content`、JSON)、画像は R2(非公開)に置く。
 - **取り込み**(`scripts/import-kyokasho.ts`、本体は `import.ts`・`quiz.ts`): Google ドキュメントを「ファイル → ダウンロード → Microsoft Word(.docx)」で保存したファイルを読む(Drive の書き出しは 10MB を超えると使えず、文字だけの書き出しでは画像が抜けるため)。mammoth で HTML にし、見出し 1 = 章、見出し 2・3 = 節、段落・箇条書き・表(セルの中の画像も)・画像の部品にする。目次(文書の中へのリンクの段落)と、それより前の表紙は捨てる。中身のない章は載せない。
   - 「理解度チェックテスト」の見出しの下の、問題の表(①〜 と、問題文 + A. B. C. の選択肢)と解答の表(①〜 と、正解の記号 + 解説)を、テストの部品にする。読み取れないときは表のまま載せ、注意を出す。
-  - 画像は png / jpeg / gif / webp / svg だけ(図形描画など、ほかの形式は飛ばして注意を出す)。同じ画像は 1 つだけ保存する。キーは `<環境>/kyokasho/<book_id>/<UUID>.<拡張子>`(`core/storage` の `putObject`)。
+  - 画像は png / jpeg / gif / webp / svg だけ(図形描画など、ほかの形式は飛ばして注意を出す)。同じ画像は 1 つだけ保存する。写真は sharp で長い辺 1600px までに縮めて WebP にする(元より小さくなるときだけ。【スタッド】は 34MB → 1.5MB)。1px 四方などの飾りの画像は載せない。キーは `<環境>/kyokasho/<book_id>/<UUID>.<拡張子>`(`core/storage` の `putObject`)。
   - 実行: `npm run db:import-kyokasho -- <ファイル.docx> --slug <URL の名前> --actor <ログインID> [--department <まとまり>] [--title <題名>] [--source-url <URL>] [--sort <並び順>] [--preview <JSON>] [--apply]`。既定は確認だけ(章ごとの節・画像・テストの数を表示)。新しい教科書は非公開・見られる人「全員」で作る。同じ slug があれば、中身と画像だけを入れ替え(公開・見られる人などの設定は残す)、古い画像は R2 から消す。
 - **DB**(スキーマ `kyokasho`、migration `0015_kyokasho_app`): `books`(slug(一意。`images`・`manage`・`new` は使えない)・まとまり(部署名)・題名・説明・並び順・`target`(`company` / `audience`)・`audience_id`(`core.audiences` への外部キー、削除は restrict)・公開・元のドキュメントの URL・中身・取り込みの日時と実行者)、`images`(id・book_id(CASCADE)・R2 のキー・種類・大きさ)。
 - **見られる人**(`logic.ts` の `canViewBook`、deny by default): アプリに入れる人(`requireAppAccess("kyokasho")`)のうち、公開済みで、`company` か、当てはまる Audience の教科書。権限 `kyokasho.books.manage`(全社)を持つ人は、非公開・対象外も確認のために見られる。

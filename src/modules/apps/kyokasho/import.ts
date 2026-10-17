@@ -2,9 +2,11 @@
 // 1. mammoth で .docx を HTML にする(画像は取り出して、仮の名前を付ける)。
 // 2. HTML を章(見出し 1)ごとに分け、段落・箇条書き・表・画像の部品にする。表紙と目次は捨てる。
 // 3. 「理解度チェックテスト」の問題の表と解答の表を、テスト(quiz)の部品にする(読み取れなければ表のまま残す)。
+// 4. 大きな写真は、スマホでも軽く見られるよう、長い辺 1600px までに縮めて WebP にする(元より小さくなるときだけ)。
 // 元のドキュメントは読むだけで、変えない。
 import { createHash, randomUUID } from "node:crypto";
 import mammoth from "mammoth";
+import sharp from "sharp";
 import { parse, NodeType, type HTMLElement, type Node } from "node-html-parser";
 import type { Block, BookContent, Chapter, Inline } from "./content";
 import { extractQuizzes } from "./quiz";
@@ -34,6 +36,33 @@ export const IMAGE_TYPES: Record<string, string> = {
 
 const IMAGE_SRC_PREFIX = "kyokasho-image:";
 
+/** 表示用に縮める大きさ(長い辺)。 */
+const MAX_IMAGE_EDGE = 1600;
+
+/**
+ * 写真を表示用に縮める。動く GIF・SVG はそのまま。読めない・縮めても小さくならないときも元のまま。
+ * 1px 四方などの飾りの画像は null(載せない)。
+ */
+export async function optimizeImage(
+  data: Buffer,
+  contentType: string,
+): Promise<{ data: Buffer; contentType: string } | null> {
+  if (contentType === "image/svg+xml") return { data, contentType };
+  try {
+    const meta = await sharp(data).metadata();
+    if ((meta.width ?? 0) <= 2 && (meta.height ?? 0) <= 2) return null;
+    if (contentType === "image/gif") return { data, contentType };
+    const out = await sharp(data)
+      .rotate()
+      .resize({ width: MAX_IMAGE_EDGE, height: MAX_IMAGE_EDGE, fit: "inside", withoutEnlargement: true })
+      .webp({ quality: 82 })
+      .toBuffer();
+    return out.byteLength < data.byteLength ? { data: out, contentType: "image/webp" } : { data, contentType };
+  } catch {
+    return { data, contentType };
+  }
+}
+
 // Google ドキュメントの書き出しでは、見出しの書式名が小文字(heading 1)になる。
 const STYLE_MAP = [
   "p[style-name='heading 1'] => h1:fresh",
@@ -61,16 +90,17 @@ export async function importDocx(buffer: Buffer): Promise<ImportResult> {
           skippedImages++;
           return { src: "" };
         }
-        const data = await image.readAsBuffer();
-        const sha256 = createHash("sha256").update(data).digest("hex");
+        const original = await image.readAsBuffer();
+        const sha256 = createHash("sha256").update(original).digest("hex");
         // 同じ画像が何度も出てくるときは、1 つだけ保存する。
         let id = bySha.get(sha256);
-        if (!id) {
-          id = randomUUID();
+        if (id === undefined) {
+          const optimized = await optimizeImage(original, contentType);
+          id = optimized ? randomUUID() : "";
           bySha.set(sha256, id);
-          images.push({ id, contentType, data, sha256 });
+          if (optimized) images.push({ id, contentType: optimized.contentType, data: optimized.data, sha256 });
         }
-        return { src: IMAGE_SRC_PREFIX + id };
+        return { src: id ? IMAGE_SRC_PREFIX + id : "" };
       }),
     },
   );
