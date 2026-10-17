@@ -1,5 +1,6 @@
 // ロングの教科書の取り込み(docs/DESIGN.md 30 章)。
 // Google ドキュメントを「ファイル → ダウンロード → Microsoft Word(.docx)」で保存したファイルを渡す。
+// 図形描画で描いた図がある教科書は「ウェブページ(.html、zip 圧縮)」で保存した .zip を渡す(Word では図が空になる。写真は表示の大きさに縮まる)。
 // 元の Google ドキュメントは読むだけで、変えない。教科書の中身はリポジトリに入れない(社内の情報のため)。
 //
 // 実行(既定は確認だけで、DB にも R2 にも書き込まない):
@@ -13,7 +14,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { eq } from "drizzle-orm";
 import { db, pool } from "../src/db/client";
 import { collectImageIds, countQuizQuestions, type BookContent } from "../src/modules/apps/kyokasho/content";
-import { IMAGE_TYPES, importDocx } from "../src/modules/apps/kyokasho/import";
+import { IMAGE_TYPES, importDocx, importGoogleZip } from "../src/modules/apps/kyokasho/import";
 import { isValidSlug } from "../src/modules/apps/kyokasho/logic";
 import { manifest } from "../src/modules/apps/kyokasho/manifest";
 import { kyokashoBooks, kyokashoImages } from "../src/modules/apps/kyokasho/schema";
@@ -90,7 +91,9 @@ function summarize(content: BookContent): void {
 
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
-  const result = await importDocx(readFileSync(args.file));
+  // Word(.docx)か、Google ドキュメントの「ウェブページ」書き出し(.zip。図形描画の図も入る)。
+  const file = readFileSync(args.file);
+  const result = args.file.toLowerCase().endsWith(".zip") ? await importGoogleZip(file) : await importDocx(file);
   const { content, images, warnings } = result;
   const totalBytes = images.reduce((n, i) => n + i.data.byteLength, 0);
   console.log(`[import-kyokasho] ${args.file}`);
