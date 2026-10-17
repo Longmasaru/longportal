@@ -1,10 +1,11 @@
 // コード側の定義(権限・アプリの登録簿)を DB に反映する。migration のあとに明示的に実行する(起動時の自動実行はしない)。
-// - 権限: core の権限 + 各アプリの manifest の権限(docs/DESIGN.md 6 章)
+// - 権限: core の権限 + 各アプリの manifest の権限 + SSO でつなぐ別プロジェクトのアプリの権限(docs/DESIGN.md 6 章・28 章)
 // - アプリの登録簿: 各アプリの manifest → core.app_registry(docs/DESIGN.md 8 章・24 章)
 //
 // 実行: npm run sync:manifests [-- --prune]
 //   --prune: コードに定義のない権限を DB から削除する(既定は残して警告する)
 import { db, pool } from "../src/db/client";
+import { EXTERNAL_APP_CONTRACTS } from "../src/modules/apps/external-apps";
 import { APP_MANIFESTS } from "../src/modules/apps/manifests";
 import { syncAppRegistry } from "../src/modules/core/apps/sync";
 import { allPermissionDefinitions, type PermissionDefinition } from "../src/modules/core/roles/catalog";
@@ -14,7 +15,7 @@ import { assertTarget } from "./guard";
 async function main(): Promise<void> {
   assertTarget("sync");
   const prune = process.argv.includes("--prune");
-  const appPermissions: PermissionDefinition[] = APP_MANIFESTS.flatMap((m) =>
+  const appPermissions: PermissionDefinition[] = [...APP_MANIFESTS, ...EXTERNAL_APP_CONTRACTS].flatMap((m) =>
     m.permissions.map((p) => ({ code: p.code, description: p.description, appKey: m.appKey })),
   );
 
