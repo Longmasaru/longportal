@@ -6,10 +6,12 @@ import { z } from "zod";
 import { db } from "@/db/client";
 import { writeAuditLog } from "@/modules/core/audit";
 import { isIsoDate } from "@/modules/core/shared/date";
-import { BODY_MAX, RECORD_KINDS, RECORD_VISIBILITIES, TITLE_MAX } from "./labels";
+import { BODY_MAX, POLISH_MIN, RECORD_KINDS, RECORD_VISIBILITIES, TITLE_MAX } from "./labels";
 import { manifest } from "./manifest";
 import { DENIED, managerFor } from "./guard";
-import { getRecord } from "./queries";
+import { maskName } from "./logic";
+import { polishRecordBody, type PolishResult } from "./polish";
+import { getNameParts, getRecord } from "./queries";
 import { hrRecords } from "./schema";
 import type { RecordFormState } from "./types";
 
@@ -120,4 +122,28 @@ export async function deleteRecordAction(_prev: RecordFormState, formData: FormD
   });
   revalidatePath(manifest.route, "layout");
   return { ok: Date.now() };
+}
+
+const polishSchema = z.object({
+  employeeId: z.uuid(),
+  kind: z.enum(RECORD_KINDS),
+  body: z
+    .string()
+    .trim()
+    .min(POLISH_MIN, `${POLISH_MIN}文字以上書いてから押してください。`)
+    .max(BODY_MAX, `内容は${BODY_MAX}文字以内にしてください。`),
+});
+
+/**
+ * 記録の内容を AI で整えた案を返す(31.3)。DB は変えない。
+ * 対象の社員を管理できる人だけ。送る前に、対象の社員の氏名を「本人」に置き換える。
+ */
+export async function polishRecordBodyAction(input: { employeeId: string; kind: string; body: string }): Promise<PolishResult> {
+  const parsed = polishSchema.safeParse(input);
+  if (!parsed.success) return { error: firstIssue(parsed.error) };
+  const actor = await managerFor(parsed.data.employeeId);
+  if (!actor) return { error: DENIED };
+  const name = await getNameParts(parsed.data.employeeId);
+  if (!name) return { error: "不正なリクエストです。" };
+  return polishRecordBody(parsed.data.kind, maskName(parsed.data.body, name));
 }

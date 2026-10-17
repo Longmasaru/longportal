@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { Grant } from "@/modules/core/access/grants";
-import { ageOn, canManageEmployee, leaveSummary, pageMode, radarPoint, recordVisibleTo, tenureOn, trend } from "./logic";
+import { ageOn, canManageEmployee, leaveSummary, maskName, pageMode, radarPoint, recordVisibleTo, tenureOn, trend } from "./logic";
 
 const CODE = "hr.records.manage";
 const LOC_A = "loc-a";
@@ -107,5 +107,22 @@ describe("radarPoint", () => {
     assert.deepEqual(radarPoint(0, 5, 3, 5, 100, 50, 50), { x: 50, y: -10 });
     assert.deepEqual(radarPoint(0, 5, 0, 5, 100, 50, 50), { x: 50, y: 50 });
     assert.deepEqual(radarPoint(0, 5, 9, 5, 100, 50, 50), { x: 50, y: -50 });
+  });
+});
+
+describe("maskName", () => {
+  const name = { familyName: "米澤", givenName: "太郎", familyNameKana: "よねざわ", givenNameKana: "たろう" };
+  it("姓名・姓だけ・名だけ・かなを、敬称ごと「本人」にする", () => {
+    assert.equal(
+      maskName("米澤太郎と面談。米澤さんは、太郎くんと呼ばれている。よねざわ たろう。米澤　太郎", name),
+      "本人と面談。本人は、本人と呼ばれている。本人。本人",
+    );
+  });
+  it("1 文字の姓・名は単独では置き換えない(ほかの言葉を壊さないため)", () => {
+    const short = { familyName: "林", givenName: "誠", familyNameKana: null, givenNameKana: null };
+    assert.equal(maskName("林誠さんと、林道の誠実さ", short), "本人と、林道の誠実さ");
+  });
+  it("ほかの人の名前はそのまま", () => {
+    assert.equal(maskName("田中さんと米澤さん", name), "田中さんと本人");
   });
 });

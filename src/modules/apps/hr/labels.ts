@@ -33,6 +33,8 @@ export function isRecordKind(value: unknown): value is RecordKind {
 
 export const TITLE_MAX = 100;
 export const BODY_MAX = 5000;
+/** 「AIで整える」に必要な最低の文字数(31.3) */
+export const POLISH_MIN = 10;
 export const TEXT_MAX = 2000;
 export const NAME_MAX = 100;
 

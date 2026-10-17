@@ -88,3 +88,40 @@ export function radarPoint(
   const round = (n: number) => Math.round(n * 10) / 10 + 0;
   return { x: round(cx + r * Math.cos(angle)), y: round(cy + r * Math.sin(angle)) };
 }
+
+/** 氏名の部品(漢字・かな)。null や空は無視する。 */
+export type NameParts = {
+  familyName: string;
+  givenName: string | null;
+  familyNameKana: string | null;
+  givenNameKana: string | null;
+};
+
+const HONORIFIC = "(?:さん|くん|君|ちゃん|様|氏)?";
+
+/**
+ * AI に送る前に、対象の社員の氏名を「本人」に置き換える(31.3)。
+ * 姓名続き(空白あり・なし)、姓だけ、名だけ(どれも 2 文字以上)を、敬称ごと置き換える。長いものから順に当てる。
+ */
+export function maskName(text: string, name: NameParts, replacement = "本人"): string {
+  const pairs: [string, string | null][] = [
+    [name.familyName, name.givenName],
+    [name.familyNameKana ?? "", name.givenNameKana],
+  ];
+  const words = new Set<string>();
+  for (const [family, given] of pairs) {
+    const f = family.trim();
+    const g = (given ?? "").trim();
+    if (f && g) {
+      words.add(`${f}${g}`);
+      words.add(`${f} ${g}`);
+      words.add(`${f}　${g}`);
+    }
+    if (f.length >= 2) words.add(f);
+    if (g.length >= 2) words.add(g);
+  }
+  const sorted = [...words].sort((a, b) => b.length - a.length);
+  if (sorted.length === 0) return text;
+  const escaped = sorted.map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  return text.replace(new RegExp(`(?:${escaped.join("|")})${HONORIFIC}`, "g"), replacement);
+}

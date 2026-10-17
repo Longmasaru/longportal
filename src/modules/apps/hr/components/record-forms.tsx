@@ -20,6 +20,7 @@ import {
   type RecordKind,
 } from "../labels";
 import type { HrRecord, RecordFormState } from "../types";
+import { BodyAssist } from "./body-assist";
 
 const KIND_TONE: Record<RecordKind, "neutral" | "info" | "attention" | "muted"> = {
   talk: "neutral",
@@ -114,12 +115,18 @@ export function RecordForm({
         <textarea
           id={`${idPrefix}-body`}
           name="body"
-          rows={4}
+          rows={6}
           maxLength={BODY_MAX}
           value={values.body}
           onChange={set("body")}
           placeholder="話したこと、注意した内容、ほめた点など"
           className={`${FIELD_CLASS} resize-y`}
+        />
+        <BodyAssist
+          employeeId={employeeId}
+          kind={values.kind}
+          body={values.body}
+          onChange={(body) => setValues((v) => ({ ...v, body }))}
         />
       </div>
       <fieldset>
