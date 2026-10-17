@@ -75,6 +75,8 @@
 
 - **作業中(2026-10-17)**: 配達ルート(本番 DB は準備済み: migration 0014・sync:manifests・元データ取り込み(取引先 78・配達者 4・履歴 247・保存ルート 50)。Vercel Production に GOOGLE_MAPS_API_KEY 登録済み)(`apps/haisou`、`/apps/haisou`、DESIGN.md 29 章)。Google スプレッドシート「取引先一覧表」の Apps Script「配達ルート作成ツール v5」の移植で、**元のシートとスクリプトは消さない・書き換えない**。ブランチ `feature/haisou-route`(PR で確認中)。本番に出すには: migration `0014_haisou_app` を本番に適用 → `sync:manifests` → Google Maps Platform の鍵(Geocoding API・Routes API)を Vercel に `GOOGLE_MAPS_API_KEY`(Sensitive)で登録 → 切り替えの直前に `npm run db:import-haisou` で元データを取り込む → `/admin/apps` で有効化。配達者へのメールは当面メールソフトを開く形(`core/mail` ができたら戻す)。
 
+- **作業中(2026-10-17)**: ロングの教科書(`apps/kyokasho`、`/apps/kyokasho`、DESIGN.md 30 章)。部署ごとの教科書を 1 つのアプリに並べる。正本は Google ドキュメント(持ち主は外部支援のアカウント)で、Word(.docx)で保存したものを `npm run db:import-kyokasho` で取り込む。中身と画像はリポジトリに入れない(DB と R2)。本番に出すには: migration `0015_kyokasho_app` を本番に適用 → `sync:manifests` → 教科書を取り込む → `/admin/apps` で有効化 → `/apps/kyokasho/manage` で公開。
+
 ### まだ「枠だけ」の部分
 - 見本(架空)のデータは 2026-10-14 に削除した(`mock-data.ts`)。ホームとサイドバーの**お知らせ・アプリ・社内リンク・要対応**は、`queries.ts` の `listVisible*` が空を返す(アプリは apps/sodatsu だけを固定で返す)ので、枠と「まだありません」の表示だけが出る。実装時は、この関数の中身を差し替える。
 - `/notices/*`、`/admin/apps` は「準備中」ページ(`[...slug]` のキャッチオール)。

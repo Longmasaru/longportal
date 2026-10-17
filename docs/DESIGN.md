@@ -697,3 +697,19 @@ TODOSample の TODO を、ポータルの中のアプリ(`modules/apps/todo`、`
 - **配達者へのメール**: ポータルにはまだメール送信の仕組みがない(26 章)ので、当面は利用者のメールソフトを開き(`mailto:`)、ルート表とマップのリンクを本文に入れる。AM・PM は 1 通にまとめる。`core/mail` ができたら、元と同じくサーバーから送る形に戻す。
 - **DB**(スキーマ `haisou`、migration `0014_haisou_app`): `clients`(取引先。`row_no` は元のシートの行番号を引き継ぐ画面の「No.」で、保存ルートの照合にも使う。新規は最大値 + 1。削除は `deleted_at` を入れるだけ)、`drivers`、`history`(1 訪問 1 行。`batch_id` が 1 回の保存。日付の文字列 `date_label` と、絞り込み用の `delivery_date`)、`saved_routes`(名前つきの保存。同名は上書き。元の 50 件の上限はなくした)、`company_defaults`(会社ごとの前回の入力。**本人ごと**、`user_id`)、`geocode_cache`。前回の入力以外は会社で共有するデータで、アプリを使える人は全員が見て編集できる(元のスプレッドシートと同じ)。専用の権限はない。
 - **元データの取り込み**: `npm run db:import-haisou -- <フォルダ> --actor <ログインID> [--replace] [--apply]`(`scripts/import-haisou.ts`、読み取りは `import.ts`)。各シートを CSV に書き出したもの(`clients.csv`・`drivers.csv`・`history.csv`・`saved-routes.csv`)を読む。既定は確認だけ。取り込み先にデータがあれば止まり、`--replace` で入れ直す。CSV は取引先の情報なので、リポジトリの中に置かない。**元のツールは今も毎日使われているため、本番への取り込みは、ポータルへ切り替える直前に行う**(それまでの分は、取り込み直せば反映される)。
+
+## 30. 実装メモ(ロングの教科書)
+
+2026-10-17 にユーザーと決めたこと: 部署ごとの「ロングの教科書」を、**1 つのポータルの中のアプリ** `apps/kyokasho`(`/apps/kyokasho`)に並べる。**正本は Google ドキュメント**のまま(教科書作成チームが共同編集し、週 1 回の定例で直す)で、ポータルには取り込んで載せる。見られる人は、教科書ごとに後から変えられるようにする。最初に載せるのは、ブレーキ部(初級編・スタッド・メタルエステ)と全部署共通。
+
+- **中身はリポジトリに入れない**: リポジトリは公開されており、教科書には社内のやり方・担当者名・写真が入るため。中身は DB(`kyokasho.books.content`、JSON)、画像は R2(非公開)に置く。
+- **取り込み**(`scripts/import-kyokasho.ts`、本体は `import.ts`・`quiz.ts`): Google ドキュメントを「ファイル → ダウンロード → Microsoft Word(.docx)」で保存したファイルを読む(Drive の書き出しは 10MB を超えると使えず、文字だけの書き出しでは画像が抜けるため)。mammoth で HTML にし、見出し 1 = 章、見出し 2・3 = 節、段落・箇条書き・表(セルの中の画像も)・画像の部品にする。目次(文書の中へのリンクの段落)と、それより前の表紙は捨てる。中身のない章は載せない。
+  - 「理解度チェックテスト」の見出しの下の、問題の表(①〜 と、問題文 + A. B. C. の選択肢)と解答の表(①〜 と、正解の記号 + 解説)を、テストの部品にする。読み取れないときは表のまま載せ、注意を出す。
+  - 画像は png / jpeg / gif / webp / svg だけ(図形描画など、ほかの形式は飛ばして注意を出す)。同じ画像は 1 つだけ保存する。キーは `<環境>/kyokasho/<book_id>/<UUID>.<拡張子>`(`core/storage` の `putObject`)。
+  - 実行: `npm run db:import-kyokasho -- <ファイル.docx> --slug <URL の名前> --actor <ログインID> [--department <まとまり>] [--title <題名>] [--source-url <URL>] [--sort <並び順>] [--preview <JSON>] [--apply]`。既定は確認だけ(章ごとの節・画像・テストの数を表示)。新しい教科書は非公開・見られる人「全員」で作る。同じ slug があれば、中身と画像だけを入れ替え(公開・見られる人などの設定は残す)、古い画像は R2 から消す。
+- **DB**(スキーマ `kyokasho`、migration `0015_kyokasho_app`): `books`(slug(一意。`images`・`manage`・`new` は使えない)・まとまり(部署名)・題名・説明・並び順・`target`(`company` / `audience`)・`audience_id`(`core.audiences` への外部キー、削除は restrict)・公開・元のドキュメントの URL・中身・取り込みの日時と実行者)、`images`(id・book_id(CASCADE)・R2 のキー・種類・大きさ)。
+- **見られる人**(`logic.ts` の `canViewBook`、deny by default): アプリに入れる人(`requireAppAccess("kyokasho")`)のうち、公開済みで、`company` か、当てはまる Audience の教科書。権限 `kyokasho.books.manage`(全社)を持つ人は、非公開・対象外も確認のために見られる。
+- **画面**: 一覧(まとまりごと)→ 目次(章と節、テストの問題数)→ 章(この章の内容・本文・前後の章)。テストはその場で答え合わせし、解説を出す。**前回の点数は端末のブラウザにだけ保存**(キーにユーザー ID を含める。サーバーに結果を保存して進み具合を見るのは、次の段階)。
+- **画像の表示**: ページには固定の住所 `/apps/kyokasho/images/<id>` を書き、表示のたびに、その教科書を見られる人だけを R2 の署名付き URL(`createViewUrl`、5 分)へ転送する。
+- **管理**(`/apps/kyokasho/manage`、`kyokasho.books.manage`): 教科書ごとに、まとまり・題名・説明・並び順・元の URL・見られる人(全員 / Audience)・公開を変える。監査ログ `kyokasho.book.update`(取り込みは `kyokasho.book.import` / `kyokasho.book.reimport`)。
+- **Audience の削除**: core はアプリの中を知らないので、教科書が使っている Audience は、外部キーで削除が止まる。`deleteAudienceAction` はこれを「業務アプリで利用中」と表示する。

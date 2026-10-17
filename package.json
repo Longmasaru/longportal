@@ -26,6 +26,7 @@
     "db:reset-password": "tsx --env-file=.env.local scripts/reset-password.ts",
     "db:update-name-kana": "tsx --env-file=.env.local scripts/update-name-kana.ts",
     "db:import-haisou": "tsx --env-file=.env.local scripts/import-haisou.ts",
+    "db:import-kyokasho": "tsx --env-file=.env.local scripts/import-kyokasho.ts",
     "r2:check": "tsx --env-file=.env.local scripts/r2-check.ts"
   },
   "dependencies": {
@@ -34,8 +35,10 @@
     "@aws-sdk/s3-request-presigner": "3.1147.0",
     "bcryptjs": "3.0.3",
     "drizzle-orm": "0.45.3",
+    "mammoth": "1.13.0",
     "next": "16.3.8",
     "next-auth": "5.0.0-beta.32",
+    "node-html-parser": "9.0.4",
     "pg": "8.23.1",
     "react": "19.2.8",
     "react-dom": "19.2.8",

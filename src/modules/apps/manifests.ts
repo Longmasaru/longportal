@@ -3,7 +3,8 @@
 import type { AppManifest } from "@/modules/core/apps";
 import { manifest as calendar } from "./calendar/manifest";
 import { manifest as haisou } from "./haisou/manifest";
+import { manifest as kyokasho } from "./kyokasho/manifest";
 import { manifest as sodatsu } from "./sodatsu/manifest";
 import { manifest as todo } from "./todo/manifest";
 
-export const APP_MANIFESTS: readonly AppManifest[] = [sodatsu, todo, calendar, haisou];
+export const APP_MANIFESTS: readonly AppManifest[] = [sodatsu, todo, calendar, haisou, kyokasho];
