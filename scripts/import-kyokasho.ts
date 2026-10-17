@@ -108,6 +108,11 @@ async function main(): Promise<void> {
   }
 
   assertTarget("import-kyokasho");
+  // 写真の置き場所(R2 のキーの頭)も、DB と同じ側にそろえる(本番の DB に dev/ の写真を載せない)。
+  const expectedPrefix = process.env.DB_TARGET === "production" ? "prod/" : "dev/";
+  if ((process.env.R2_KEY_PREFIX ?? "") !== expectedPrefix) {
+    throw new Error(`DB_TARGET=${process.env.DB_TARGET} のときは R2_KEY_PREFIX=${expectedPrefix} にしてください。`);
+  }
   const [actor] = await db
     .select({ id: users.id, status: users.status })
     .from(users)
