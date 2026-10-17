@@ -270,7 +270,8 @@ function CardView({
       ) : null}
       {card.fields.length ? (
         <dl className="flex flex-col">
-          {card.fields.map((field, j) => {
+          {/* 取り込めなかった写真の欄(元の文書の図形描画など)は、空の書き込み欄にせず出さない */}
+          {card.fields.filter((f) => f.value.length > 0 || !isPictureLabel(f.label)).map((field, j) => {
             // 短い中身(役職・判定・空欄など)は項目名の右に、長い文や写真は項目名の下に置く。
             const side = isShort(field.value);
             const label = wide
@@ -319,6 +320,11 @@ function CardView({
       ) : null}
     </section>
   );
+}
+
+/** 写真・画像の欄か。 */
+function isPictureLabel(label: Block[]): boolean {
+  return label.some((b) => b.type === "paragraph" && b.inlines.some((i) => /画像|写真|図/.test(i.text)));
 }
 
 /** 項目名の右に並べられるほど短い中身か(文字だけで 16 字まで)。 */
