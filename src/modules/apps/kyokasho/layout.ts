@@ -4,6 +4,7 @@
 // - 続いて並ぶ画像は、縦に 1 枚ずつではなく、まとめて並べる。
 // - 1 つのセルだけの表は「囲み」、見出しの行がある表は、スマホでは 1 行ずつのカードにする。
 import type { Block, CellSpan, Inline } from "./content";
+import { isSoftBreak, softenLines } from "./typeset";
 
 const ASCII_END = /[A-Za-z0-9.,)]$/;
 const ASCII_START = /^[A-Za-z0-9(]/;
@@ -21,7 +22,7 @@ export function isLabel(block: Block): boolean {
 }
 
 function trimInlines(inlines: Inline[]): Inline[] {
-  const out = inlines.map((i) => ({ ...i, text: i.text.replace(/[\s　]*\n[\s　]*/g, "") })).filter((i) => i.text !== "");
+  const out = inlines.map((i) => ({ ...i, text: softenLines(i.text) })).filter((i) => i.text !== "");
   while (out.length && /^[\s　]/.test(out[0].text)) {
     out[0] = { ...out[0], text: out[0].text.replace(/^[\s　]+/, "") };
     if (out[0].text === "") out.shift();
@@ -32,8 +33,9 @@ function trimInlines(inlines: Inline[]): Inline[] {
 const allBold = (b: Extract<Block, { type: "paragraph" }>) => b.inlines.every((i) => i.bold);
 
 /**
- * 表のセルの中身を、続けて読める形にする。段落の頭の字下げと段落の中の改行を除き、
- * 区切りの行(≪業務内容≫ など)でないかぎり、続く段落を 1 つの段落につなぐ。
+ * 表のセルの中身を、続けて読める形にする。段落の頭の字下げを除き、狭いセルに収めるために手で入れた改行
+ * (「火花が/散って/引火する」。判定は typeset.ts の isSoftBreak)だけをつなぐ。文の終わり・項目の始まり・
+ * 「寸法線/引出線」のような語の並びは分けたまま。
  */
 export function flowCell(blocks: Block[]): Block[] {
   const out: Block[] = [];
@@ -45,13 +47,12 @@ export function flowCell(blocks: Block[]): Block[] {
     const inlines = trimInlines(block.inlines);
     if (inlines.length === 0) continue;
     const prev = out[out.length - 1];
-    // 太字どうし・太字でないものどうしは、▼・≪ などの区切りでないかぎりつなぐ(セルの中の太字の題も 1 行にする)。
     const next = { type: "paragraph" as const, inlines };
     if (
       prev?.type === "paragraph" &&
       allBold(prev) === allBold(next) &&
       !HEAD_START.test(prev.inlines[0].text) &&
-      !NOTE_START.test(inlines[0].text)
+      isSoftBreak(prev.inlines[prev.inlines.length - 1].text.split("\n").pop() ?? "", inlines[0].text.split("\n")[0])
     ) {
       const last = prev.inlines[prev.inlines.length - 1];
       const gap = ASCII_END.test(last.text) && ASCII_START.test(inlines[0].text) ? " " : "";

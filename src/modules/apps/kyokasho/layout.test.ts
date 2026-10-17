@@ -10,15 +10,13 @@ test("flowCell: セルの中の手で入れた改行と字下げを除き、続�
   assert.deepEqual(flowCell([p("　　火花が"), p("　　散って"), p("　　引火する"), p("（火傷）")]), [
     { type: "paragraph", inlines: [{ text: "火花が" }, { text: "散って" }, { text: "引火する" }, { text: "（火傷）" }] },
   ]);
-  // 区切りの行はつながない。英数字どうしの間には空白を入れる。
+  // 区切りの行と、語の並び(寸法線/引出線)はつながない。
   assert.deepEqual(flowCell([p("≪業務内容≫"), p("工作機械の"), p("カバー")]), [
     p("≪業務内容≫"),
     { type: "paragraph", inlines: [{ text: "工作機械の" }, { text: "カバー" }] },
   ]);
-  assert.deepEqual(flowCell([p("Type"), p("A")]), [
-    { type: "paragraph", inlines: [{ text: "Type" }, { text: " " }, { text: "A" }] },
-  ]);
-  assert.deepEqual(flowCell([p("です。\n ネジ")]), [p("です。ネジ")]);
+  assert.deepEqual(flowCell([p("寸法線"), p("引出線")]), [p("寸法線"), p("引出線")]);
+  assert.deepEqual(flowCell([p("ボルトの\n ネジ")]), [p("ボルトのネジ")]);
   assert.deepEqual(flowCell([p("火花が散る", true), p("　（火傷）", true)]), [
     {
       type: "paragraph",
