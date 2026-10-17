@@ -1,22 +1,50 @@
 import { Fragment, type ReactNode } from "react";
 import type { Block, Inline } from "../content";
+import { cleanText, phrases, splitBold } from "../typeset";
 import { Quiz } from "./quiz";
 
 // 教科書の中身(content.ts の部品)を描く。画像は /apps/kyokasho/images/<id>(見られる人だけに、R2 の署名付き URL へ転送)。
 
+// 文節の区切り(<wbr>)でだけ折り返す。長い英数字だけは、はみ出さないよう途中でも折る。
+export const PHRASE_WRAP = "[word-break:keep-all] [overflow-wrap:anywhere]";
+// 本文は 1 行が長すぎないように(和文で 1 行おおむね 40 字)。
+const PROSE = `text-ink max-w-[40em] ${PHRASE_WRAP}`;
+
 export function imageUrl(id: string): string {
   return `/apps/kyokasho/images/${id}`;
+}
+
+/** 文節の区切りに <wbr> を入れる(PHRASE_WRAP と組み合わせて、語の途中で改行させない)。 */
+export function Phrased({ text }: { text: string }) {
+  return (
+    <>
+      {phrases(text).map((p, i) => (
+        <Fragment key={i}>
+          {i > 0 ? <wbr /> : null}
+          {p}
+        </Fragment>
+      ))}
+    </>
+  );
 }
 
 function InlineText({ inlines }: { inlines: Inline[] }) {
   return (
     <>
       {inlines.map((part, i) => {
-        const lines = part.text.split("\n");
+        const lines = cleanText(part.text).split("\n");
         const text: ReactNode = lines.map((line, j) => (
           <Fragment key={j}>
             {j > 0 ? <br /> : null}
-            {line}
+            {splitBold(line).map((seg, k) =>
+              seg.bold && !part.bold ? (
+                <strong key={k} className="font-bold">
+                  <Phrased text={seg.text} />
+                </strong>
+              ) : (
+                <Phrased key={k} text={seg.text} />
+              ),
+            )}
           </Fragment>
         ));
         const body = part.bold ? <strong className="font-bold">{text}</strong> : text;
@@ -48,14 +76,14 @@ function BlockView({ block, quizKey, compact }: { block: Block; quizKey: string;
       }[block.level];
       const Tag = (["h2", "h3", "h4"] as const)[block.level - 2];
       return (
-        <Tag id={block.id} className={`${style} scroll-mt-20 [word-break:auto-phrase]`}>
-          {block.text}
+        <Tag id={block.id} className={`${style} scroll-mt-20 ${PHRASE_WRAP}`}>
+          <Phrased text={cleanText(block.text).replace(/\*\*/g, "")} />
         </Tag>
       );
     }
     case "paragraph":
       return (
-        <p className={`text-brand01 leading-relaxed ${compact ? "text-sm" : ""}`}>
+        <p className={`${PROSE} ${compact ? "text-sm leading-relaxed" : "leading-[1.9]"}`}>
           <InlineText inlines={block.inlines} />
         </p>
       );
@@ -63,7 +91,7 @@ function BlockView({ block, quizKey, compact }: { block: Block; quizKey: string;
       const Tag = block.ordered ? "ol" : "ul";
       return (
         <Tag
-          className={`text-brand01 flex flex-col gap-1 pl-6 leading-relaxed ${block.ordered ? "list-decimal" : "list-disc"} ${compact ? "text-sm" : ""}`}
+          className={`${PROSE} flex flex-col gap-1.5 pl-6 ${block.ordered ? "list-decimal" : "list-disc"} ${compact ? "text-sm leading-relaxed" : "leading-[1.9]"}`}
         >
           {block.items.map((item, i) => (
             <li key={i}>

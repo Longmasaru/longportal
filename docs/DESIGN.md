@@ -710,6 +710,7 @@ TODOSample の TODO を、ポータルの中のアプリ(`modules/apps/todo`、`
 - **DB**(スキーマ `kyokasho`、migration `0015_kyokasho_app`): `books`(slug(一意。`images`・`manage`・`new` は使えない)・まとまり(部署名)・題名・説明・並び順・`target`(`company` / `audience`)・`audience_id`(`core.audiences` への外部キー、削除は restrict)・公開・元のドキュメントの URL・中身・取り込みの日時と実行者)、`images`(id・book_id(CASCADE)・R2 のキー・種類・大きさ)。
 - **見られる人**(`logic.ts` の `canViewBook`、deny by default): アプリに入れる人(`requireAppAccess("kyokasho")`)のうち、公開済みで、`company` か、当てはまる Audience の教科書。権限 `kyokasho.books.manage`(全社)を持つ人は、非公開・対象外も確認のために見られる。
 - **画面**: 一覧(まとまりごと)→ 目次(章と節、テストの問題数)→ 章(この章の内容・本文・前後の章)。テストはその場で答え合わせし、解説を出す。**前回の点数は端末のブラウザにだけ保存**(キーにユーザー ID を含める。サーバーに結果を保存して進み具合を見るのは、次の段階)。
+- **本文の読みやすさ**(2026-10-17): 本文は濃紺ではなく `--ink`(#222)、1 行は 40 字ほどまで、行間 1.9。日本語は BudouX(`budoux`)で文節に区切って `<wbr>` を入れ、`word-break: keep-all` で語の途中では折り返さない(iPhone の Safari が `word-break: auto-phrase` に対応していないため)。Google ドキュメント由来の崩れ(見えない文字、`**` の囲み、位置合わせの全角スペース)は、取り込み直さなくて済むよう表示のときに整える(`typeset.ts`)。
 - **画像の表示**: ページには固定の住所 `/apps/kyokasho/images/<id>` を書き、表示のたびに、その教科書を見られる人だけを R2 の署名付き URL(`createViewUrl`、5 分)へ転送する。
 - **管理**(`/apps/kyokasho/manage`、`kyokasho.books.manage`): 教科書ごとに、まとまり・題名・説明・並び順・元の URL・見られる人(全員 / Audience)・公開を変える。監査ログ `kyokasho.book.update`(取り込みは `kyokasho.book.import` / `kyokasho.book.reimport`)。
 - **Audience の削除**: core はアプリの中を知らないので、教科書が使っている Audience は、外部キーで削除が止まる。`deleteAudienceAction` はこれを「業務アプリで利用中」と表示する。
