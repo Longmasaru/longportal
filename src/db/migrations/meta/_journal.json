@@ -99,6 +99,13 @@
       "when": 1792112860456,
       "tag": "0013_core_audience_employee_condition",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1792198718150,
+      "tag": "0014_aikyoshitsu_app",
+      "breakpoints": true
     }
   ]
 }
