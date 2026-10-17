@@ -1,6 +1,6 @@
 "use client";
 
-import { startTransition, useActionState, useEffect, useRef, useState, type FormEvent } from "react";
+import { startTransition, useActionState, useEffect, useRef, useState, useTransition, type FormEvent } from "react";
 import { DictationButton } from "@/modules/core/shared/ui/dictation";
 import { BUTTON_PRIMARY, BUTTON_SECONDARY, FIELD_CLASS, FormNotice } from "@/modules/core/shared/ui/form";
 import {
@@ -8,6 +8,7 @@ import {
   COMMENT_KINDS,
   COMMENT_STATUSES,
   KIND_LABELS,
+  POLISH_MIN,
   QUOTE_MAX,
   REPLY_MAX,
   STATUS_LABELS,
@@ -16,6 +17,7 @@ import {
 import {
   deleteCommentAction,
   handleCommentAction,
+  polishTsukkomiAction,
   postCommentAction,
   type TsukkomiFormState,
 } from "../tsukkomi-actions";
@@ -159,6 +161,10 @@ export function TsukkomiForm({
   const [sectionId, setSectionId] = useState("");
   const [body, setBody] = useState("");
   const [quote, setQuote] = useState("");
+  const [suggestion, setSuggestion] = useState<string | null>(null);
+  const [previous, setPrevious] = useState<string | null>(null);
+  const [polishError, setPolishError] = useState<string | null>(null);
+  const [polishing, startPolish] = useTransition();
   const wrap = useRef<HTMLDivElement>(null);
   const area = useRef<HTMLTextAreaElement>(null);
 
@@ -181,6 +187,18 @@ export function TsukkomiForm({
     setSeenAt(state.at);
     setBody("");
     setQuote("");
+    setPrevious(null);
+    setSuggestion(null);
+  }
+
+  function polish() {
+    setPolishError(null);
+    setSuggestion(null);
+    startPolish(async () => {
+      const result = await polishTsukkomiAction({ bookId, chapterNo, sectionId, quote, kind, body });
+      if ("error" in result) setPolishError(result.error);
+      else setSuggestion(result.text);
+    });
   }
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
@@ -289,6 +307,61 @@ export function TsukkomiForm({
               {body.length} / {BODY_MAX}
             </span>
           </p>
+        </div>
+
+        <div className="-mt-1 flex flex-col gap-2">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <button
+              type="button"
+              onClick={polish}
+              disabled={polishing || body.trim().length < POLISH_MIN}
+              className="border-brand01/30 text-brand01 hover:border-brand03 hover:text-brand03 inline-flex items-center gap-1.5 border bg-white px-3 py-1.5 text-sm font-bold transition-colors disabled:opacity-50"
+            >
+              <span aria-hidden>✨</span>
+              {polishing ? "整えています…" : "AIで整える"}
+            </button>
+            {previous !== null && suggestion === null ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setBody(previous);
+                  setPrevious(null);
+                }}
+                className="text-brand04 hover:text-brand03 text-sm font-bold transition-colors"
+              >
+                元に戻す
+              </button>
+            ) : (
+              <span className="text-brand04 text-xs">話した言葉や走り書きを、伝わる文にします(保存はされません)。</span>
+            )}
+          </div>
+          {polishError ? (
+            <p role="alert" className="text-brand03 text-sm font-bold">
+              {polishError}
+            </p>
+          ) : null}
+          {suggestion !== null ? (
+            <div className="border-brand01/20 bg-bg01 flex flex-col gap-3 border p-3" aria-live="polite">
+              <p className="text-brand01 text-xs font-bold tracking-widest">AI の案(まだ入っていません)</p>
+              <p className="font-prose text-ink text-sm leading-relaxed whitespace-pre-wrap">{suggestion}</p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPrevious(body);
+                    setBody(suggestion.slice(0, BODY_MAX));
+                    setSuggestion(null);
+                  }}
+                  className={BUTTON_PRIMARY}
+                >
+                  この案を使う
+                </button>
+                <button type="button" onClick={() => setSuggestion(null)} className={BUTTON_SECONDARY}>
+                  使わない
+                </button>
+              </div>
+            </div>
+          ) : null}
         </div>
 
         {state?.error ? <FormNotice tone="error">{state.error}</FormNotice> : null}

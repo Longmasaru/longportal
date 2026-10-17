@@ -12,9 +12,18 @@ import { writeAuditLog } from "@/modules/core/audit";
 import { chapterOutline } from "./content";
 import { canViewBook } from "./logic";
 import { manifest } from "./manifest";
+import { polishTsukkomi, type PolishResult } from "./polish";
 import { canManageBooks } from "./queries";
 import { kyokashoBooks, kyokashoCommentThanks, kyokashoComments } from "./schema";
-import { BODY_MAX, COMMENT_KINDS, COMMENT_STATUSES, QUOTE_MAX, REPLY_MAX, canDeleteOwnComment } from "./tsukkomi";
+import {
+  BODY_MAX,
+  COMMENT_KINDS,
+  COMMENT_STATUSES,
+  POLISH_MIN,
+  QUOTE_MAX,
+  REPLY_MAX,
+  canDeleteOwnComment,
+} from "./tsukkomi";
 import { canHandleComments } from "./tsukkomi-queries";
 
 // ツッコミの書き込み(docs/DESIGN.md 32 章)。書く・消す・ありがとうは、その教科書を見られる人だけ。
@@ -192,4 +201,42 @@ export async function handleCommentAction(_prev: TsukkomiFormState, formData: Fo
   if (error) return { error };
   revalidatePath(BASE, "layout");
   return { success: "保存しました。", at: Date.now() };
+}
+
+const polishSchema = z.object({
+  bookId: z.uuid("不正なリクエストです。"),
+  chapterNo: z.number().int().min(1).max(999),
+  sectionId: z.string().max(80),
+  quote: z.string().max(QUOTE_MAX),
+  kind: z.enum(COMMENT_KINDS, "ツッコミの種類を選んでください。"),
+  body: z
+    .string()
+    .trim()
+    .min(POLISH_MIN, `${POLISH_MIN}文字以上書いてから整えてください。`)
+    .max(BODY_MAX, `ツッコミは${BODY_MAX}文字以内にしてください。`),
+});
+
+/** 書きかけのツッコミを AI で読みやすく整えた案を返す(保存はしない)。その教科書を見られる人だけ。 */
+export async function polishTsukkomiAction(input: {
+  bookId: string;
+  chapterNo: number;
+  sectionId: string;
+  quote: string;
+  kind: string;
+  body: string;
+}): Promise<PolishResult> {
+  const actor = await requireAppAccess(manifest.appKey);
+  const parsed = polishSchema.safeParse(input);
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "入力内容を確認してください。" };
+  const v = parsed.data;
+  const book = await loadViewableBook(actor, v.bookId);
+  const chapter = book.content.chapters[v.chapterNo - 1];
+  if (!chapter) return { error: "章が見つかりません。ページを開き直してください。" };
+  const section = v.sectionId ? chapterOutline(chapter).find((h) => h.id === v.sectionId) : undefined;
+  return polishTsukkomi({
+    kind: v.kind,
+    sectionTitle: section ? section.text.replace(/\*\*/g, "") : chapter.title,
+    quote: v.quote,
+    body: v.body,
+  });
 }

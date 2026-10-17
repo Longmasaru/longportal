@@ -38,6 +38,8 @@ export function isAdopted(status: string): boolean {
 export const BODY_MAX = 1000;
 export const REPLY_MAX = 1000;
 export const QUOTE_MAX = 300;
+/** 「AIで整える」に必要な、下書きの最低の字数。 */
+export const POLISH_MIN = 10;
 
 export type Contributor = { userId: string; name: string; count: number; adopted: number };
 
