@@ -15,3 +15,4 @@ export * from "@/modules/core/apps/schema";
 export * from "@/modules/apps/todo/schema";
 export * from "@/modules/apps/calendar/schema";
 export * from "@/modules/apps/haisou/schema";
+export * from "@/modules/apps/kyokasho/schema";

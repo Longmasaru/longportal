@@ -93,6 +93,56 @@ export async function createDownloadUrl(input: { key: string; fileName: string }
   );
 }
 
+/**
+ * 画面の中に表示するための署名付き URL(画像など。ダウンロードにせず、その場で表示する)。
+ * ファイルを見せてよいかの判定は、呼び出す側で済ませること。
+ */
+export async function createViewUrl(input: { key: string; contentType: string }): Promise<string> {
+  const { config, client } = r2();
+  if (!isKeyWithinPrefix(input.key, config.R2_KEY_PREFIX)) throw new Error("このキーは、この環境のものではありません。");
+  return getSignedUrl(
+    client,
+    new GetObjectCommand({
+      Bucket: config.R2_BUCKET,
+      Key: input.key,
+      ResponseContentType: input.contentType,
+      ResponseContentDisposition: "inline",
+    }),
+    { expiresIn: SIGNED_URL_TTL_SECONDS },
+  );
+}
+
+/**
+ * サーバー(取り込みのコマンドなど)から直接ファイルを保存する。キーは createUploadUrl と同じ形で、保存したキーを返す。
+ * 画面からのアップロードには使わない(ブラウザは createUploadUrl の署名付き URL へ送る)。
+ */
+export async function putObject(input: {
+  appKey: string;
+  ownerId: string;
+  fileName: string;
+  contentType: string;
+  body: Uint8Array;
+}): Promise<string> {
+  const { config, client } = r2();
+  const key = buildObjectKey({
+    prefix: config.R2_KEY_PREFIX,
+    appKey: input.appKey,
+    ownerId: input.ownerId,
+    fileName: input.fileName,
+    uuid: randomUUID(),
+  });
+  await client.send(
+    new PutObjectCommand({
+      Bucket: config.R2_BUCKET,
+      Key: key,
+      Body: input.body,
+      ContentType: input.contentType,
+      ContentLength: input.body.byteLength,
+    }),
+  );
+  return key;
+}
+
 /** ファイルを削除する。 */
 export async function deleteObject(key: string): Promise<void> {
   const { config, client } = r2();
