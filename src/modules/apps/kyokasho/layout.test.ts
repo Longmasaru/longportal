@@ -36,7 +36,7 @@ test("groupImages: 続く画像をまとめる", () => {
   );
 });
 
-test("tableKind: セル 1 つは囲み、見出しの行がある表はカード、縦の結合がある表は表のまま", () => {
+test("tableKind: セル 1 つは囲み、見出しの行がある表はカード(縦の結合があっても)、見出しの行が縦に結合した表は表のまま", () => {
   assert.equal(tableKind({ type: "table", rows: [[[p("業務内容")]]] }), "callout");
   assert.equal(
     tableKind({
@@ -54,8 +54,43 @@ test("tableKind: セル 1 つは囲み、見出しの行がある表はカード
       rows: [[[p("a")], [p("b")]], [[p("c")], [p("d")]], [[p("e")]]],
       spans: [{ row: 1, cell: 0, rowSpan: 2, colSpan: 1 }],
     }),
+    "cards",
+  );
+  assert.equal(
+    tableKind({
+      type: "table",
+      rows: [[[p("a")], [p("b")]], [[p("c")]], [[p("e")], [p("f")]]],
+      spans: [{ row: 0, cell: 0, rowSpan: 2, colSpan: 1 }],
+    }),
     "table",
   );
+});
+
+test("tableCards: 1 列目が縦につながった行は 1 枚にまとめ、空のセル(氏名の欄など)も項目として残す", () => {
+  const cards = tableCards({
+    type: "table",
+    rows: [
+      [[p("部署")], [p("役職")], [p("氏名")]],
+      [[p("倉庫")], [p("リーダー")], []],
+      [[p("サブリーダー")], [p("山田")]],
+      [[p("事務所")], [], []],
+    ],
+    spans: [{ row: 1, cell: 0, rowSpan: 2, colSpan: 1 }],
+  });
+  assert.equal(cards.length, 2);
+  assert.deepEqual(cards[0], {
+    title: [p("倉庫")],
+    fields: [
+      { label: [p("役職")], value: [p("リーダー")] },
+      { label: [p("氏名")], value: [] },
+      { label: [p("役職")], value: [p("サブリーダー")], divider: true },
+      { label: [p("氏名")], value: [p("山田")] },
+    ],
+  });
+  assert.deepEqual(cards[1].fields, [
+    { label: [p("役職")], value: [] },
+    { label: [p("氏名")], value: [] },
+  ]);
 });
 
 test("tableCards: 1 列目を題にし、横につながったセルは項目名をまとめる", () => {

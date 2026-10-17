@@ -1,7 +1,14 @@
 import { Fragment, type ReactNode } from "react";
 import type { Block, CellSpan, Inline } from "../content";
-import { flowCell, groupImages, isLabel, joinBrokenLines, tableCards, tableKind } from "../layout";
-import { cleanText, phrases, splitBold } from "../typeset";
+import {
+  flowCell,
+  groupImages,
+  isLabel,
+  joinBrokenLines,
+  tableCards,
+  tableKind,
+} from "../layout";
+import { cleanText, phrases, softenLines, splitBold } from "../typeset";
 import { Quiz } from "./quiz";
 
 // 教科書の中身(content.ts の部品)を描く。画像は /apps/kyokasho/images/<id>(見られる人だけに、R2 の署名付き URL へ転送)。
@@ -35,7 +42,8 @@ function InlineText({ inlines }: { inlines: Inline[] }) {
   return (
     <>
       {inlines.map((part, i) => {
-        const lines = cleanText(part.text).split("\n");
+        // 紙の幅に合わせて手で入れた改行(「安全装置が/ついていないため」)はつなぎ、画面の幅で折り返す。
+        const lines = softenLines(cleanText(part.text)).split("\n");
         const text: ReactNode = lines.map((line, j) => (
           <Fragment key={j}>
             {j > 0 ? <br /> : null}
@@ -50,7 +58,26 @@ function InlineText({ inlines }: { inlines: Inline[] }) {
             )}
           </Fragment>
         ));
-        const body = part.bold ? <strong className="font-bold">{text}</strong> : text;
+        const body = part.bold ? (
+          <strong className="font-bold">{text}</strong>
+        ) : (
+          text
+        );
+        const shown = part.href ? linkLabel(part.text, part.href) : null;
+        if (part.href && shown) {
+          return (
+            <a
+              key={i}
+              href={part.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-link border-link/40 mx-0.5 inline-flex items-center gap-1 rounded-sm border bg-white px-2 py-0.5 text-sm font-bold hover:opacity-80"
+            >
+              {shown}
+              <span aria-hidden>›</span>
+            </a>
+          );
+        }
         return part.href ? (
           <a
             key={i}
@@ -69,7 +96,35 @@ function InlineText({ inlines }: { inlines: Inline[] }) {
   );
 }
 
-function BlockView({ block, quizKey, compact }: { block: Block; quizKey: string; compact: boolean }) {
+/**
+ * リンクの見せ方。文字が URL そのもの・ファイル名だけのリンクは読みにくいので、短い名前のボタンにする
+ * (「https://www.youtube.com/watch?v=…」→「YouTube で見る」、「IMG_7472.HEIC」→「写真を開く」)。それ以外は null(文字のまま)。
+ */
+function linkLabel(text: string, href: string): string | null {
+  const t = text.trim();
+  let host = "";
+  try {
+    host = new URL(href).hostname.replace(/^www\./, "");
+  } catch {
+    return null;
+  }
+  if (/\.(heic|heif|jpe?g|png|gif|webp)$/i.test(t)) return "写真を開く";
+  if (/\.(mov|mp4|m4v)$/i.test(t)) return "動画を開く";
+  if (/\.(pdf|xlsx?|docx?|pptx?)$/i.test(t)) return "ファイルを開く";
+  if (!/^https?:\/\//i.test(t)) return null;
+  if (/(^|\.)youtube\.com$|^youtu\.be$/.test(host)) return "YouTube で見る";
+  return `${host} を開く`;
+}
+
+function BlockView({
+  block,
+  quizKey,
+  compact,
+}: {
+  block: Block;
+  quizKey: string;
+  compact: boolean;
+}) {
   switch (block.type) {
     case "heading": {
       const style = {
@@ -88,10 +143,18 @@ function BlockView({ block, quizKey, compact }: { block: Block; quizKey: string;
       // 行頭の全角スペース(続きの行をそろえる字下げ)は、余白にする(スマホで折り返しても、そろったままになる)。
       const first = block.inlines[0];
       const indent = first ? (first.text.match(/^　+/)?.[0].length ?? 0) : 0;
-      const inlines = indent ? [{ ...first, text: first.text.slice(indent) }, ...block.inlines.slice(1)] : block.inlines;
-      const pad = indent === 0 ? "" : indent === 1 ? "pl-[1em]" : "pl-[2em] md:pl-[4em]";
+      const inlines = indent
+        ? [
+            { ...first, text: first.text.slice(indent) },
+            ...block.inlines.slice(1),
+          ]
+        : block.inlines;
+      const pad =
+        indent === 0 ? "" : indent === 1 ? "pl-[1em]" : "pl-[2em] md:pl-[4em]";
       return (
-        <p className={`${PROSE} ${compact ? "text-sm leading-relaxed" : "leading-[1.9]"} ${pad}`}>
+        <p
+          className={`${PROSE} ${compact ? "text-sm leading-relaxed" : "leading-[1.9]"} ${pad}`}
+        >
           <InlineText inlines={inlines} />
         </p>
       );
@@ -118,7 +181,7 @@ function BlockView({ block, quizKey, compact }: { block: Block; quizKey: string;
           src={imageUrl(block.id)}
           alt={block.alt}
           loading="lazy"
-          className={`${FRAME} h-auto max-w-full ${compact ? "max-h-40" : "max-h-[32rem]"} w-auto self-start object-contain`}
+          className={`${FRAME} h-auto max-w-full ${compact ? "max-h-72" : "max-h-[32rem]"} w-auto self-start object-contain`}
         />
       );
     case "table":
@@ -128,7 +191,11 @@ function BlockView({ block, quizKey, compact }: { block: Block; quizKey: string;
   }
 }
 
-function findSpan(spans: CellSpan[] | undefined, row: number, cell: number): CellSpan | undefined {
+function findSpan(
+  spans: CellSpan[] | undefined,
+  row: number,
+  cell: number,
+): CellSpan | undefined {
   return spans?.find((s) => s.row === row && s.cell === cell);
 }
 
@@ -143,7 +210,11 @@ function TableView({ block, quizKey }: { block: TableBlock; quizKey: string }) {
   if (kind === "callout") {
     return (
       <div className="bg-bg01 border-brand01/40 max-w-[44em] rounded-sm border-l-4 px-4 py-3">
-        <BlockList blocks={flowCell(block.rows[0][0])} quizKey={`${quizKey}-c`} compact />
+        <BlockList
+          blocks={flowCell(block.rows[0][0])}
+          quizKey={`${quizKey}-c`}
+          compact
+        />
       </div>
     );
   }
@@ -153,20 +224,57 @@ function TableView({ block, quizKey }: { block: TableBlock; quizKey: string }) {
     <>
       <div className="flex flex-col gap-3 sm:hidden">
         {tableCards(block).map((card, i) => (
-          <section key={i} className="border-brand01/15 overflow-hidden rounded-md border bg-white">
+          <section
+            key={i}
+            className="border-brand01/15 overflow-hidden rounded-md border bg-white"
+          >
             <CardTitle blocks={card.title} quizKey={`${quizKey}-k${i}`} />
-            <dl className="divide-brand01/10 divide-y">
-              {card.fields.map((field, j) => (
-                <div key={j} className="px-4 py-2.5">
-                  <dt className="text-brand04/70 mb-1 text-xs font-bold">
-                    <BlockList blocks={flowCell(field.label)} quizKey={`${quizKey}-k${i}-l${j}`} compact plain />
-                  </dt>
-                  <dd>
-                    <BlockList blocks={flowCell(field.value)} quizKey={`${quizKey}-k${i}-v${j}`} compact />
-                  </dd>
-                </div>
-              ))}
-            </dl>
+            {card.fields.length ? (
+              <dl className="flex flex-col">
+                {card.fields.map((field, j) => {
+                  // 短い中身(役職・判定・空欄など)は項目名の右に、長い文や写真は項目名の下に置く。
+                  const side = isShort(field.value);
+                  return (
+                    <div
+                      key={j}
+                      className={`${side ? "grid grid-cols-[5.5em_1fr] items-baseline gap-x-3" : "flex flex-col gap-1"} px-4 py-2.5 ${j === 0 ? "" : field.divider ? "border-brand01/25 border-t-2" : "border-brand01/10 border-t"}`}
+                    >
+                      {field.label.length ? (
+                        <dt className="text-brand04/70 text-xs font-bold">
+                          <BlockList
+                            blocks={flowCell(field.label)}
+                            quizKey={`${quizKey}-k${i}-l${j}`}
+                            compact
+                            plain
+                          />
+                        </dt>
+                      ) : null}
+                      <dd
+                        className={
+                          field.label.length || !side
+                            ? "min-w-0"
+                            : "col-span-2 min-w-0"
+                        }
+                      >
+                        {field.value.length ? (
+                          <BlockList
+                            blocks={flowCell(field.value)}
+                            quizKey={`${quizKey}-k${i}-v${j}`}
+                            compact
+                          />
+                        ) : (
+                          // 元の表の空欄(氏名を書き込む欄など)。空いていることが分かるように残す。
+                          <span
+                            className="border-brand04/30 block h-6 border-b border-dashed"
+                            aria-label="空欄"
+                          />
+                        )}
+                      </dd>
+                    </div>
+                  );
+                })}
+              </dl>
+            ) : null}
           </section>
         ))}
       </div>
@@ -175,27 +283,57 @@ function TableView({ block, quizKey }: { block: TableBlock; quizKey: string }) {
   );
 }
 
-/** カードの題(表の 1 列目)。文の途中に挟まった絵は、題の右に小さく並べる。 */
+/** 項目名の右に並べられるほど短い中身か(文字だけで 16 字まで)。 */
+function isShort(blocks: Block[]): boolean {
+  if (blocks.some((b) => b.type !== "paragraph")) return false;
+  const length = blocks.reduce(
+    (n, b) =>
+      n +
+      (b.type === "paragraph"
+        ? b.inlines.reduce((m, i) => m + i.text.trim().length, 0)
+        : 0),
+    0,
+  );
+  return length <= 16;
+}
+
+/**
+ * カードの題(表の 1 列目)。写真は小さくせず、カードの幅いっぱいに見せる(押すと元の大きさで開く)。
+ * 文字があれば、写真の上に題として置く。
+ */
 function CardTitle({ blocks, quizKey }: { blocks: Block[]; quizKey: string }) {
   const images = blocks.flatMap((b) => (b.type === "image" ? [b.id] : []));
   const text = flowCell(blocks.filter((b) => b.type !== "image"));
   return (
-    <div className="bg-bg01 text-brand01 flex items-center gap-3 px-4 py-2.5 font-bold">
-      <div className="min-w-0 flex-1">
-        <BlockList blocks={text} quizKey={quizKey} compact />
-      </div>
-      {images.map((id) => (
-        <a
-          key={id}
-          href={imageUrl(id)}
-          target="_blank"
-          rel="noopener noreferrer"
-          className={`${FRAME} block w-20 shrink-0 p-0.5`}
+    <div className="bg-bg01 flex flex-col">
+      {text.length ? (
+        <div className="text-brand01 px-4 py-2.5 font-bold">
+          <BlockList blocks={text} quizKey={quizKey} compact />
+        </div>
+      ) : null}
+      {images.length ? (
+        <div
+          className={`grid gap-1 bg-white ${images.length > 1 ? "grid-cols-2" : ""}`}
         >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={imageUrl(id)} alt="" loading="lazy" className="aspect-square h-auto w-full object-contain" />
-        </a>
-      ))}
+          {images.map((id) => (
+            <a
+              key={id}
+              href={imageUrl(id)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={imageUrl(id)}
+                alt=""
+                loading="lazy"
+                className="mx-auto h-auto max-h-80 w-full object-contain"
+              />
+            </a>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -216,7 +354,11 @@ function GridTable({ block, quizKey }: { block: TableBlock; quizKey: string }) {
                     colSpan={span?.colSpan}
                     className={`border-brand01/20 min-w-[4.5rem] border px-3 py-2 align-top ${r === 0 ? "text-brand01 font-bold" : ""}`}
                   >
-                    <BlockList blocks={flowCell(cell)} quizKey={`${quizKey}-t${r}-${c}`} compact />
+                    <BlockList
+                      blocks={flowCell(cell)}
+                      quizKey={`${quizKey}-t${r}-${c}`}
+                      compact
+                    />
                   </td>
                 );
               })}
@@ -241,9 +383,20 @@ function ImageGrid({ ids, compact }: { ids: string[]; compact: boolean }) {
   return (
     <div className={`grid max-w-[44em] gap-2 ${gridCols(ids.length, compact)}`}>
       {ids.map((id) => (
-        <a key={id} href={imageUrl(id)} target="_blank" rel="noopener noreferrer" className={`${FRAME} block p-1`}>
+        <a
+          key={id}
+          href={imageUrl(id)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={`${FRAME} block p-1`}
+        >
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={imageUrl(id)} alt="" loading="lazy" className="aspect-[4/3] h-auto w-full object-contain" />
+          <img
+            src={imageUrl(id)}
+            alt=""
+            loading="lazy"
+            className="aspect-[4/3] h-auto w-full object-contain"
+          />
         </a>
       ))}
     </div>
@@ -254,12 +407,23 @@ function ImageGrid({ ids, compact }: { ids: string[]; compact: boolean }) {
  * 部品の前の空き。元の文書は 1 行ずつが別の段落なので、段落が続くところは詰めて、文として読めるようにする。
  * 見出し・表・画像・区切りの行の前は空ける。
  */
-function spaceBefore(prev: Block | undefined, block: Block, compact: boolean): string {
+function spaceBefore(
+  prev: Block | undefined,
+  block: Block,
+  compact: boolean,
+): string {
   if (!prev) return "";
-  if (compact) return block.type === "paragraph" && prev.type === "paragraph" && !isLabel(block) ? "mt-0.5" : "mt-2";
-  if (block.type === "heading") return { 2: "mt-10", 3: "mt-7", 4: "mt-5" }[block.level];
+  if (compact)
+    return block.type === "paragraph" &&
+      prev.type === "paragraph" &&
+      !isLabel(block)
+      ? "mt-0.5"
+      : "mt-2";
+  if (block.type === "heading")
+    return { 2: "mt-10", 3: "mt-7", 4: "mt-5" }[block.level];
   if (prev.type === "heading") return "mt-3";
-  if (block.type === "paragraph" && prev.type === "paragraph") return isLabel(block) ? "mt-6" : "mt-1.5";
+  if (block.type === "paragraph" && prev.type === "paragraph")
+    return isLabel(block) ? "mt-6" : "mt-1.5";
   if (block.type === "image" && prev.type === "paragraph") return "mt-2";
   return "mt-5";
 }
@@ -281,10 +445,17 @@ function BlockList({
     <div className="flex flex-col">
       {placed.map((item, i) => {
         const prev = placed[i - 1];
-        const prevBlock = prev ? (prev.kind === "block" ? prev.block : ({ type: "image", id: "", alt: "" } as Block)) : undefined;
+        const prevBlock = prev
+          ? prev.kind === "block"
+            ? prev.block
+            : ({ type: "image", id: "", alt: "" } as Block)
+          : undefined;
         if (item.kind === "images") {
           return (
-            <div key={i} className={prevBlock ? (compact ? "mt-2" : "mt-4") : ""}>
+            <div
+              key={i}
+              className={prevBlock ? (compact ? "mt-2" : "mt-4") : ""}
+            >
               <ImageGrid ids={item.ids} compact={compact} />
             </div>
           );
@@ -297,9 +468,16 @@ function BlockList({
           );
         }
         return (
-          <div key={i} className={`flex flex-col ${spaceBefore(prevBlock, item.block, compact)}`}>
+          <div
+            key={i}
+            className={`flex flex-col ${spaceBefore(prevBlock, item.block, compact)}`}
+          >
             {/* テストの結果を端末に保存する名前は、元の並びの番号で作る(つないだ行・まとめた写真で番号がずれないように) */}
-            <BlockView block={item.block} quizKey={`${quizKey}-${blocks.indexOf(item.block)}`} compact={compact} />
+            <BlockView
+              block={item.block}
+              quizKey={`${quizKey}-${blocks.indexOf(item.block)}`}
+              compact={compact}
+            />
           </div>
         );
       })}
@@ -308,6 +486,12 @@ function BlockList({
 }
 
 /** 章の本文。quizKey はテストの結果を端末に保存するときの名前の頭(教科書・章ごとに一意)。 */
-export function Blocks({ blocks, quizKey }: { blocks: Block[]; quizKey: string }) {
+export function Blocks({
+  blocks,
+  quizKey,
+}: {
+  blocks: Block[];
+  quizKey: string;
+}) {
   return <BlockList blocks={blocks} quizKey={quizKey} compact={false} />;
 }

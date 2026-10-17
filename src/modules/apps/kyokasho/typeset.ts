@@ -6,7 +6,8 @@ import { loadDefaultJapaneseParser } from "budoux";
 
 const parser = loadDefaultJapaneseParser();
 
-const INVISIBLE = /[\u200b-\u200d\u2060\ufeff]/g;
+// \u898b\u3048\u306a\u3044\u6587\u5b57\u3002\u30bc\u30ed\u5e45\u63a5\u5408\u5b50(U+200D)\u306f\u3001\u7d75\u6587\u5b57\u306e\u7d44\u307f\u5408\u308f\u305b(\ud83d\udc86\u200d\u2640\ufe0f \u306a\u3069)\u306b\u4f7f\u308f\u308c\u308b\u306e\u3067\u6b8b\u3059\u3002
+const INVISIBLE = /[\u200b\u200c\u2060\ufeff]/g;
 // 位置合わせのために続けた空白(全角を含む 2 つ以上)。前後が和文なら詰め、英数字どうしの間なら 1 つにする。
 const SPACE_RUN = /[ \u3000\t]{2,}/g;
 const ASCII_WORD = /[A-Za-z0-9]/;
@@ -39,7 +40,26 @@ export function splitBold(text: string): Segment[] {
 
 /** 文節に区切る(区切りのあいだでだけ改行させる)。 */
 export function phrases(text: string): string[] {
-  return text ? parser.parse(text) : [];
+  if (!text) return [];
+  // 絵文字の組み合わせなど、1 文字に見えるまとまりの途中では区切らない(区切ると 💆 と ♀ に分かれて表示される)。
+  const out: string[] = [];
+  for (const part of parser.parse(text)) {
+    const last = out[out.length - 1];
+    if (last !== undefined && splitsGrapheme(last, part)) out[out.length - 1] = last + part;
+    else out.push(part);
+  }
+  return out;
+}
+
+const graphemes = new Intl.Segmenter("ja", { granularity: "grapheme" });
+
+/** before と after の境目が、1 文字に見えるまとまりの途中にあるか。 */
+function splitsGrapheme(before: string, after: string): boolean {
+  for (const g of graphemes.segment(before.slice(-8) + after.slice(0, 8))) {
+    const cut = Math.min(before.length, 8);
+    if (g.index < cut && g.index + g.segment.length > cut) return true;
+  }
+  return false;
 }
 
 // 文の区切りで終わる行と、項目の始まりの行(・① ※ 1) など)。この前後の改行は、意味のある改行として残す。

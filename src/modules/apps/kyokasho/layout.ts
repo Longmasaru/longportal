@@ -3,7 +3,7 @@
 // - 表のセルの中の「手で入れた改行・字下げ」は、セルの幅が変わると崩れるので、続けて読める 1 つの文にする。
 // - 続いて並ぶ画像は、縦に 1 枚ずつではなく、まとめて並べる。
 // - 1 つのセルだけの表は「囲み」、見出しの行がある表は、スマホでは 1 行ずつのカードにする。
-import type { Block, CellSpan, Inline } from "./content";
+import type { Block, Inline } from "./content";
 import { isSoftBreak, softenLines } from "./typeset";
 
 const ASCII_END = /[A-Za-z0-9.,)]$/;
@@ -88,48 +88,84 @@ export function groupImages(blocks: Block[]): Placed[] {
 
 type TableBlock = Extract<Block, { type: "table" }>;
 
-/** 表の見せ方。callout = 囲み(セル 1 つ)、cards = スマホでは 1 行ずつのカード、table = 表のまま。 */
+/** 表の見せ方。callout = 囲み(セル 1 つ)、cards = スマホでは 1 件ずつのカード、table = 表のまま。 */
 export function tableKind(table: TableBlock): "callout" | "cards" | "table" {
   const cells = table.rows.reduce((n, r) => n + r.length, 0);
   if (cells === 1) return "callout";
   if (table.rows.length < 2) return "table";
   const width = Math.max(...table.rows.map((r) => r.length));
-  // 縦につながったセルがある表は、カードにすると同じ中身がくり返されるので、表のままにする。
-  if (width < 2 || (table.spans ?? []).some((s) => s.rowSpan > 1)) return "table";
+  // 見出しの行が縦につながっている表は、項目名が決まらないので表のまま。
+  if (width < 2 || (table.spans ?? []).some((s) => s.row === 0 && s.rowSpan > 1)) return "table";
   return "cards";
 }
 
-export type CardField = { label: Block[]; value: Block[] };
+/** divider: 1 列目が縦につながった表で、次の行の項目が始まるところ(線で区切る)。 */
+export type CardField = { label: Block[]; value: Block[]; divider?: boolean };
 export type Card = { title: Block[]; fields: CardField[] };
 
-function spanAt(spans: CellSpan[] | undefined, row: number, cell: number): number {
-  return spans?.find((s) => s.row === row && s.cell === cell)?.colSpan ?? 1;
+type Ref = { row: number; cell: number; col: number; colSpan: number };
+
+/** 結合したセルを、表の升目(行・列)に置く。 */
+function layoutGrid(table: TableBlock): Ref[][] {
+  const grid: Ref[][] = table.rows.map(() => []);
+  table.rows.forEach((row, r) => {
+    let col = 0;
+    row.forEach((_, c) => {
+      while (grid[r][col]) col++;
+      const span = table.spans?.find((s) => s.row === r && s.cell === c);
+      const ref = { row: r, cell: c, col, colSpan: span?.colSpan ?? 1 };
+      for (let rr = r; rr < Math.min(table.rows.length, r + (span?.rowSpan ?? 1)); rr++) {
+        for (let cc = col; cc < col + ref.colSpan; cc++) grid[rr][cc] = ref;
+      }
+      col += ref.colSpan;
+    });
+  });
+  return grid;
 }
 
-/** 見出しの行(1 行目)を項目名にして、2 行目からを 1 行ずつのカードにする(横につながったセルは、項目名をまとめる)。 */
+/**
+ * 見出しの行(1 行目)を項目名にして、2 行目からを 1 件ずつのカードにする。
+ * - 横につながったセルは、項目名をまとめる(「作業者・歩行者」)。
+ * - 1 列目が縦につながっているときは、その行をまとめて 1 枚にする(「倉庫」のリーダー・サブリーダー)。
+ * - 中身が空のセルも項目として残す(氏名を書き込む欄など。空欄だと分かるように表示する)。
+ */
 export function tableCards(table: TableBlock): Card[] {
-  const [head, ...body] = table.rows;
-  // 見出しの行のセルが、何列目から何列目にかかるか。
-  const headCols: { start: number; end: number; cell: Block[] }[] = [];
-  let col = 0;
-  head.forEach((cell, i) => {
-    const span = spanAt(table.spans, 0, i);
-    headCols.push({ start: col, end: col + span, cell });
-    col += span;
-  });
-  return body.map((row, r) => {
-    const fields: CardField[] = [];
-    let at = 0;
-    row.forEach((cell, i) => {
-      const span = spanAt(table.spans, r + 1, i);
-      const labels = headCols.filter((h) => h.start < at + span && h.end > at).map((h) => h.cell);
-      at += span;
-      const label: Block[] = labels.length === 1 ? labels[0] : joinLabels(labels);
-      fields.push({ label, value: cell });
-    });
-    const [first, ...rest] = fields;
-    return { title: first?.value ?? [], fields: rest.filter((f) => f.value.length > 0) };
-  });
+  const grid = layoutGrid(table);
+  const headCells = new Map<number, Block[]>();
+  for (const ref of grid[0]) if (ref) headCells.set(ref.col, table.rows[0][ref.cell]);
+  const labelOf = (ref: Ref) => {
+    const cells: Block[][] = [];
+    for (let c = ref.col; c < ref.col + ref.colSpan; c++) {
+      const cell = headCells.get(c);
+      if (cell && !cells.includes(cell)) cells.push(cell);
+    }
+    return cells.length === 1 ? cells[0] : joinLabels(cells);
+  };
+
+  const cards: Card[] = [];
+  for (let r = 1; r < table.rows.length; r++) {
+    const first = grid[r][0];
+    const continued = first !== undefined && first.row < r && cards.length > 0;
+    const card: Card = continued ? cards[cards.length - 1] : { title: [], fields: [] };
+    if (!continued) cards.push(card);
+    const seen = new Set<Ref>();
+    let firstOfRow = continued;
+    for (const ref of grid[r]) {
+      // 縦につながったセルは最初の行でだけ、横につながったセルは 1 回だけ出す。
+      if (!ref || ref.row < r || seen.has(ref)) continue;
+      seen.add(ref);
+      const value = table.rows[ref.row][ref.cell];
+      if (ref === first) {
+        card.title = value;
+        continue;
+      }
+      const label = labelOf(ref);
+      if (value.length === 0 && label.length === 0) continue;
+      card.fields.push(firstOfRow ? { label, value, divider: true } : { label, value });
+      firstOfRow = false;
+    }
+  }
+  return cards.filter((c) => c.title.length > 0 || c.fields.some((f) => f.value.length > 0));
 }
 
 function joinLabels(labels: Block[][]): Block[] {
