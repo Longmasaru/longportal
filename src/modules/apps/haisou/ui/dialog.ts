@@ -26,6 +26,8 @@ export const DIALOG_HTML = String.raw`<!DOCTYPE html>
   tr.sel { background:#fdf3e0; }
   .kind2 td { color:#555; }
   .stay-in { width:52px; text-align:right; padding:2px 4px; }
+  select.wait-sel { padding:2px 2px; font-size:13px; }
+  select.wait-sel.on { background:#fff1d6; border-color:var(--amber); color:#8a4b00; font-weight:bold; }
   .detail-in { width:100%; padding:2px 4px; }
   select.yoken { padding:2px 4px; }
   .btn { background:var(--teal); color:#fff; border:none; border-radius:6px;
@@ -686,7 +688,7 @@ function defaultSaveName() {
 /* 保存に含める配達先データ（uidなど画面固有の値は除く） */
 function stopForSave(s) {
   return { row: s.row, name: s.name, person: s.person, address: s.address, tel: s.tel,
-           kind: s.kind, latlng: s.latlng, yoken: s.yoken, detail: s.detail, stay: s.stay };
+           kind: s.kind, latlng: s.latlng, yoken: s.yoken, detail: s.detail, stay: s.stay, wait: s.wait || 0 };
 }
 
 /* 結果画面から呼ばれる：ルート表＋選択内容を丸ごと保存（上書き or 別名） */
@@ -1107,7 +1109,7 @@ function calLoad(name) {
 function buildStops(shift) {
   return selectedStops[shift].map(s => ({
     row: s.row, name: s.name, person: s.person, address: s.address, tel: s.tel,
-    kind: s.kind, latlng: s.latlng, yoken: s.yoken, detail: s.detail, stay: s.stay
+    kind: s.kind, latlng: s.latlng, yoken: s.yoken, detail: s.detail, stay: s.stay, wait: s.wait || 0
   }));
 }
 
@@ -1242,17 +1244,69 @@ function updateScheduleDetail(shift, idx, value) {
   markDirty();
 }
 
+/* ---------- 待ち時間（前のトラックがいて受け入れを待った、など） ---------- */
+const WAIT_OPTS = [5, 10, 15, 20, 30, 45, 60, 90, 120];
+
+function totalWait(r) {
+  return r.schedule.reduce((a, s) => a + (s.wait || 0), 0);
+}
+
+function waitSelect(shift, idx, wait) {
+  const opts = WAIT_OPTS.indexOf(wait) === -1 && wait > 0 ? WAIT_OPTS.concat([wait]).sort((a, b) => a - b) : WAIT_OPTS;
+  return '<select class="wait-sel' + (wait ? ' on' : '') + '" onchange="setWait(\'' + shift + '\',' + idx + ',this)"' +
+    (busy ? ' disabled' : '') + '>' +
+    '<option value="0"' + (wait ? '' : ' selected') + '>なし</option>' +
+    opts.map(m => '<option value="' + m + '"' + (m === wait ? ' selected' : '') + '>' + m + '分</option>').join('') +
+    '<option value="other">その他…</option></select>';
+}
+
+/* 待ち時間を入れたら、その先の到着・出発と帰着の時刻をずらす（順番と移動時間はそのまま） */
+function setWait(shift, idx, el) {
+  const r = RESULTS[shift];
+  if (!r || busy) { renderShiftBlock(shift); return; }
+  const before = r.schedule[idx].wait || 0;
+  let wait = Number(el.value);
+  if (el.value === 'other') {
+    const input = prompt('「' + r.schedule[idx].name + '」での待ち時間を、分で入れてください。（0 で取り消し）', before || '');
+    if (input === null) { renderShiftBlock(shift); return; }
+    wait = Number(String(input).trim());
+  }
+  if (!Number.isInteger(wait) || wait < 0 || wait > 600) {
+    alert('待ち時間は 0〜600 の分で入れてください。');
+    renderShiftBlock(shift);
+    return;
+  }
+  if (wait === before) { renderShiftBlock(shift); return; }
+  r.schedule[idx].wait = wait;
+  setBusy(true, shift + '便の時刻を付け直し中...');
+  google.script.run
+    .withSuccessHandler(nr => {
+      RESULTS[shift] = nr;
+      setBusy(false);
+      afterShiftChanged(shift);
+    })
+    .withFailureHandler(e => {
+      r.schedule[idx].wait = before;
+      setBusy(false);
+      renderShiftBlock(shift);
+      alert('時刻の付け直しエラー: ' + e.message);
+    })
+    .reschedule(r);
+}
+
 function renderShiftTable(shift, r) {
   const shiftLabel = shift === 'AM' ? 'AM便' : 'PM便';
   let html = '<div class="shift-result-title">' + shiftLabel +
     '　出発 ' + r.startTime + ' ／ 帰着予定 ' + r.backTime +
     '　｜　総距離 ' + (r.totalKm != null ? r.totalKm + 'km' : '概算') +
     ' ／ 総時間 ' + r.totalMin + '分' +
-    (r.avoidHighways ? '　｜　🛣️ 高速道路を使わないルート' : '') + '</div>';
+    (r.avoidHighways ? '　｜　🛣️ 高速道路を使わないルート' : '') +
+    (totalWait(r) ? '　｜　⏳ 待ち 計' + totalWait(r) + '分' : '') + '</div>';
   html += '<table><thead><tr><th class="col-jun">順</th><th class="col-co">会社名</th><th class="col-yoken">要件</th>' +
     '<th class="col-seki">積込</th><th class="col-detail">詳細</th>' +
     '<th class="print-hide">住所</th><th class="print-hide">電話番号</th><th class="print-hide">移動</th>' +
-    '<th class="print-hide">到着</th><th class="print-hide">出発</th>' +
+    '<th class="print-hide">到着</th><th class="print-hide" title="前のトラックがいるなどで待った時間。入れると、あとの時刻がずれます">待ち</th>' +
+    '<th class="print-hide">出発</th>' +
     '<th class="col-sumi">済</th>' +
     (reorderMode ? '<th class="noprint">編集</th>' : '') +
     '</tr></thead><tbody>';
@@ -1260,7 +1314,7 @@ function renderShiftTable(shift, r) {
   const last = r.schedule.length - 1;
   r.schedule.forEach((s, idx) => {
     (s.breaksCrossed || []).forEach(label => {
-      html += '<tr class="lunch-row"><td colspan="12">―― ' + esc(label) + ' ――</td></tr>';
+      html += '<tr class="lunch-row"><td colspan="13">―― ' + esc(label) + ' ――</td></tr>';
     });
     html += '<tr><td style="text-align:center">' + s.no + '</td>' +
       '<td><b>' + esc(s.name) + '</b><div style="font-size:11px;color:#888">' + esc(s.person) + '</div></td>' +
@@ -1274,6 +1328,7 @@ function renderShiftTable(shift, r) {
       '<td class="print-hide" style="text-align:right;white-space:nowrap">' +
         (s.travelKm != null ? s.travelKm + 'km / ' : '約') + s.travelMin + '分</td>' +
       '<td class="print-hide" style="text-align:center"><b>' + s.arrive + '</b></td>' +
+      '<td class="print-hide" style="text-align:center">' + waitSelect(shift, idx, s.wait || 0) + '</td>' +
       '<td class="print-hide" style="text-align:center">' + s.depart + '</td>' +
       '<td style="text-align:center"><span class="chk"></span></td>';
     if (reorderMode) {
@@ -1290,7 +1345,7 @@ function renderShiftTable(shift, r) {
   html += '<tr class="print-hide-row" style="background:#f4f6f9"><td colspan="7" style="text-align:right;color:#555">▶ 会社帰着</td>' +
     '<td style="text-align:right;white-space:nowrap;color:#555">' +
       (r.lastLegKm != null ? r.lastLegKm + 'km / ' : '約') + r.lastLegMin + '分</td>' +
-    '<td style="text-align:center;font-weight:bold" colspan="3">' + r.backTime + '</td>' +
+    '<td style="text-align:center;font-weight:bold" colspan="4">' + r.backTime + '</td>' +
     (reorderMode ? '<td class="noprint"></td>' : '') + '</tr>';
   html += '</tbody></table>';
   return html;
@@ -1361,7 +1416,7 @@ function currentStops(shift) {
     return {
       row: s.row, latlng: s.latlng, name: s.name, person: s.person,
       address: s.address, tel: s.tel, kind: s.kind || (c ? c.kind : '1'),
-      yoken: s.yoken, detail: s.detail, stay: s.stay
+      yoken: s.yoken, detail: s.detail, stay: s.stay, wait: s.wait || 0
     };
   });
 }
@@ -1471,7 +1526,7 @@ function syncStopsFromResults(shift) {
     return {
       uid: 'u' + (uidCounter++), i: idx, row: c ? c.row : s.row, name: s.name, person: s.person,
       address: s.address, tel: s.tel, kind: s.kind || (c ? c.kind : '1'),
-      latlng: s.latlng || '', yoken: s.yoken, detail: s.detail, stay: s.stay
+      latlng: s.latlng || '', yoken: s.yoken, detail: s.detail, stay: s.stay, wait: s.wait || 0
     };
   }) : [];
 
