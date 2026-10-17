@@ -31,13 +31,6 @@
 .back { font-size: 14px; font-weight: 700; color: var(--ink); text-decoration: underline; text-underline-offset: 4px; }
 .back:hover { color: var(--shu); }
 
-/* 呼出し */
-.yobidashi { background: var(--night); color: var(--paper); padding: 18px; display: flex; flex-direction: column; gap: 8px; }
-.yobidashi .eyebrow { color: #f0a088; }
-.call { font-size: 24px; line-height: 1.5; }
-.call span { display: block; animation: callout .9s ease-out both; }
-.call span + span { animation-delay: .9s; }
-@keyframes callout { from { letter-spacing: .4em; opacity: .2; } to { letter-spacing: 0; opacity: 1; } }
 
 /* パネル */
 .grid2 { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
@@ -164,11 +157,9 @@
 .summary .meta b { color: var(--shu); }
 .summary .go { font-weight: 700; font-size: 14px; color: var(--shu); }
 
-@media (prefers-reduced-motion: reduce) { .call span { animation: none; } }
 @media (max-width: 440px) {
   .t1 .name { font-size: 14.5px; } .t1 .cell { min-height: 200px; }
   .t1 .rank { font-size: 8.5px; } .t1 .from { font-size: 7.5px; }
   .gomen { font-size: 24px; } .sideHead { font-size: 24px; }
   .banzuke { grid-template-columns: minmax(0, 1fr) 34px minmax(0, 1fr); padding-inline: 5px; }
-  .call { font-size: 20px; }
 }

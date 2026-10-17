@@ -67,8 +67,6 @@ export async function ArigatoBanzukePage() {
   const counts = RANKS.map((rank) => ({ rank, n: rows.filter((r) => r.rank === rank).length })).filter(
     (c) => c.n > 0 || c.rank !== "maezumo",
   );
-  const firstEast = rows.find((r) => r.side === "east");
-  const firstWest = rows.find((r) => r.side === "west");
   const rest = Math.max(KACHIKOSHI - myWins, 0);
   const stamped = data.stamps.filter((s) => s.stamped).length;
   const allMaezumo = rows.length > 0 && rows.every((r) => r.rank === "maezumo");
@@ -82,16 +80,6 @@ export async function ArigatoBanzukePage() {
             ありがとうカードにもどる
           </Link>
         </p>
-
-        {firstEast ? (
-          <section className={styles.yobidashi} aria-label="呼出し">
-            <p className={styles.eyebrow}>{basho.fullName} 結びの一番</p>
-            <p className={cx(styles.call, styles.solid)}>
-              <span>ひがあぁしいぃー {firstEast.name}</span>
-              {firstWest ? <span>にいぃしいぃー {firstWest.name}</span> : null}
-            </p>
-          </section>
-        ) : null}
 
         <div className={styles.grid2}>
           <section className={styles.panel}>
