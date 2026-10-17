@@ -225,7 +225,20 @@ function TableView({ block, quizKey }: { block: TableBlock; quizKey: string }) {
     return <CardView card={tablePairs(block)} quizKey={`${quizKey}-p`} wide />;
   }
   const table = <GridTable block={block} quizKey={quizKey} />;
-  if (kind === "table") return table;
+  if (kind === "table") {
+    // 見出しの行として扱えない表(写真を横に並べた表、OK・NG の見本など)も、スマホでは横に動かす表にせず、
+    // 行ごとのカードにセルを縦に並べる。PC では表のまま。
+    return (
+      <>
+        <div className="flex flex-col gap-3 sm:hidden">
+          {tableCards(block, { header: false }).map((card, i) => (
+            <CardView key={i} card={card} quizKey={`${quizKey}-s${i}`} />
+          ))}
+        </div>
+        <div className="hidden sm:block">{table}</div>
+      </>
+    );
+  }
   return (
     <>
       <div className="flex flex-col gap-3 sm:hidden">
@@ -396,9 +409,10 @@ function GridTable({ block, quizKey }: { block: TableBlock; quizKey: string }) {
 }
 
 // 並べる数に合わせた列の数(3 枚なら 3 列にして、1 枚だけ下に残らないようにする)。
+// スマホでは 3 列にしない(1 枚が 100px ほどになり、写真が見えないため)。カードや表の中は、スマホでは 1 枚ずつ大きく。
 function gridCols(count: number, compact: boolean): string {
-  if (compact) return count === 3 ? "grid-cols-3" : "grid-cols-2";
-  if (count === 3) return "grid-cols-3";
+  if (compact) return "grid-cols-1 min-[480px]:grid-cols-2 lg:grid-cols-3";
+  if (count === 3) return "grid-cols-2 sm:grid-cols-3";
   if (count === 4) return "grid-cols-2 sm:grid-cols-4";
   return "grid-cols-2 sm:grid-cols-3";
 }

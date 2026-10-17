@@ -162,12 +162,14 @@ function layoutGrid(table: TableBlock): Ref[][] {
  * - 横につながったセルは、項目名をまとめる(「作業者・歩行者」)。
  * - 1 列目が縦につながっているときは、その行をまとめて 1 枚にする(「倉庫」のリーダー・サブリーダー)。
  * - 中身が空のセルも項目として残す(氏名を書き込む欄など。空欄だと分かるように表示する)。
+ * header: false のときは見出しの行がない表として、1 行目からカードにする(項目名なし。写真を並べた表など)。
  */
-export function tableCards(table: TableBlock): Card[] {
+export function tableCards(table: TableBlock, { header = true }: { header?: boolean } = {}): Card[] {
   const grid = layoutGrid(table);
   const headCells = new Map<number, Block[]>();
   for (const ref of grid[0]) if (ref) headCells.set(ref.col, table.rows[0][ref.cell]);
-  const labelOf = (ref: Ref) => {
+  const labelOf = (ref: Ref): Block[] => {
+    if (!header) return [];
     const cells: Block[][] = [];
     for (let c = ref.col; c < ref.col + ref.colSpan; c++) {
       const cell = headCells.get(c);
@@ -177,7 +179,7 @@ export function tableCards(table: TableBlock): Card[] {
   };
 
   const cards: Card[] = [];
-  for (let r = 1; r < table.rows.length; r++) {
+  for (let r = header ? 1 : 0; r < table.rows.length; r++) {
     const first = grid[r][0];
     const continued = first !== undefined && first.row < r && cards.length > 0;
     const card: Card = continued ? cards[cards.length - 1] : { title: [], fields: [] };
@@ -194,7 +196,7 @@ export function tableCards(table: TableBlock): Card[] {
         continue;
       }
       const label = labelOf(ref);
-      if (value.length === 0 && label.length === 0) continue;
+      if (value.length === 0 && (label.length === 0 || !header)) continue;
       card.fields.push(firstOfRow ? { label, value, divider: true } : { label, value });
       firstOfRow = false;
     }
