@@ -747,8 +747,11 @@ function saveRouteTable() {
 function loadSavedRoute() {
   const name = document.getElementById('savedSelect').value;
   if (!name) { alert('呼び出すルート表を選択してください。'); return; }
-  if (selectedStops.AM.length || selectedStops.PM.length) {
-    if (!confirm('現在入力中の内容は上書きされます。よろしいですか？')) return;
+  // 呼び出しは画面に表示するだけで、保存済みのルート表は変わらない。
+  // 確認するのは、画面にまだ保存していない内容があるとき（呼び出したルート表を変えた／新しく選んだまま）だけ
+  const hasInput = selectedStops.AM.length || selectedStops.PM.length;
+  if (dirty || (hasInput && !loadedName)) {
+    if (!confirm('いまの画面の、まだ保存していない内容は消えます。\n（保存済みのルート表は変わりません）\n「' + name + '」を開きますか？')) return;
   }
   document.getElementById('savedMsg').textContent = '呼び出し中...';
   google.script.run

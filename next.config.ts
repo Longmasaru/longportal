@@ -1,11 +1,12 @@
 import type { NextConfig } from "next";
 
 // 基本のセキュリティヘッダー。ログイン画面などを、他のサイトの中に埋め込まれる(クリックジャッキング)のを防ぐ。
+// マイクは、人事管理の記録の音声入力のため、自分のサイトにだけ許す(docs/DESIGN.md 31.3)。
 const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "X-Frame-Options", value: "DENY" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+  { key: "Permissions-Policy", value: "camera=(), microphone=(self), geolocation=()" },
 ];
 
 // ポータルの住所の中で表示する、別プロジェクトのアプリ(Next.js の multi-zones。docs/DESIGN.md 28 章)。

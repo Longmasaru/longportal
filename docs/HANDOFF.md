@@ -69,11 +69,14 @@
 - 本番の社内リンク(ユーザーが画面で登録): LINE WORKS・freee勤怠管理Plus・ユニネク(全社)。計測用の `_gl` などや、使い捨ての `state` は URL から除いた。
 
 - 2026-10-16: Audience の条件に「社員」(一覧から名指しで選ぶ)を追加(DESIGN.md 27 章、migration 0013。本番にも適用済み)。
+- **作業中(2026-10-16)**: 人事管理アプリ `apps/hr`(DESIGN.md 31 章。`/apps/hr`、権限 `hr.records.manage`、migration 0016 `hr_records`・0017 `hr_abilities`)。元の Google スプレッドシート「人事管理シート」(社員 1 人 1 シート。入っていたのは基本情報だけ)の 1〜5 章(基本情報・目標と評価・スキルと資格・人柄・コンディション)と、面談・指導・ほめ・異動の記録。本人は自分のページで 1〜3 章と「本人に公開」の記録だけを見る(ユーザーの判断)。2026-10-17: 画面を「まとめ(名札・能力 5 項目のレーダーチャート・直近の記録)+ タブ」に作り直した(DESIGN.md 31.2)。Neon の開発 DB に 0016 を適用済み・本番は未適用。PR #4(ブランチ `claude/hr-records`、下書き)。シートの「評価シート」(自己評価の様式)は未着手。
 - **作業中(2026-10-16)**: 本人によるパスワード再設定(DESIGN.md 26 章)。済み: 設計、`core.users.email` / `email_verified_at`、`core.auth_tokens` の schema と migration 0012(本番にも適用済み。まだ使うコードはない)。未着手: `core/mail`(送信。Resend を Vercel Marketplace で接続してから組み込む)、初回ログインでのメール登録、確認メール、`/forgot-password`・`/reset-password`・`/verify-email`(proxy の matcher から除外が必要)、未確認の案内、Cloudflare DNS への Resend の設定。
 
 - 2026-10-17: AI教室(別アプリ。リポジトリ `ai-kyoshitsu`、本番 `https://ai-kyoshitsu.vercel.app`、DESIGN.md 28 章)を本番公開。ログインはポータルの通行証(SSO。入口 `/apps/launch/<app_key>`、`core/sso`、契約 `modules/apps/external-apps.ts`、鍵 `SSO_SECRET_AIKYOSHITSU`)。講師の老川さん(0052)にロール「AI教室 講師」(`aikyoshitsu.materials.manage`)。第1回の資料 4 つを投入済み。同日、**見え方をポータルの中のアプリにした**: サイドバーから同じタブで `/apps/aikyoshitsu` を開き、ポータルの画面の中に埋め込む。`/aikyoshitsu/…` はポータルがアプリへ転送する(multi-zones。`next.config.ts` の `ZONES`、アプリは basePath `/aikyoshitsu`)。
 
 - **作業中(2026-10-17)**: 配達ルート(本番 DB は準備済み: migration 0014・sync:manifests・元データ取り込み(取引先 78・配達者 4・履歴 247・保存ルート 50)。Vercel Production に GOOGLE_MAPS_API_KEY 登録済み)(`apps/haisou`、`/apps/haisou`、DESIGN.md 29 章)。Google スプレッドシート「取引先一覧表」の Apps Script「配達ルート作成ツール v5」の移植で、**元のシートとスクリプトは消さない・書き換えない**。ブランチ `feature/haisou-route`(PR で確認中)。本番に出すには: migration `0014_haisou_app` を本番に適用 → `sync:manifests` → Google Maps Platform の鍵(Geocoding API・Routes API)を Vercel に `GOOGLE_MAPS_API_KEY`(Sensitive)で登録 → 切り替えの直前に `npm run db:import-haisou` で元データを取り込む → `/admin/apps` で有効化。配達者へのメールは当面メールソフトを開く形(`core/mail` ができたら戻す)。
+
+- **作業中(2026-10-17)**: ロングの教科書(`apps/kyokasho`、`/apps/kyokasho`、DESIGN.md 30 章)。部署ごとの教科書を 1 つのアプリに並べる。正本は Google ドキュメント(持ち主は外部支援のアカウント)で、Word(.docx)で保存したものを `npm run db:import-kyokasho` で取り込む。中身と画像はリポジトリに入れない(DB と R2)。本番に出すには: migration `0015_kyokasho_app` を本番に適用 → `sync:manifests` → 教科書を取り込む → `/admin/apps` で有効化 → `/apps/kyokasho/manage` で公開。
 
 ### まだ「枠だけ」の部分
 - 見本(架空)のデータは 2026-10-14 に削除した(`mock-data.ts`)。ホームとサイドバーの**お知らせ・アプリ・社内リンク・要対応**は、`queries.ts` の `listVisible*` が空を返す(アプリは apps/sodatsu だけを固定で返す)ので、枠と「まだありません」の表示だけが出る。実装時は、この関数の中身を差し替える。

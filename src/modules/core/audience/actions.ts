@@ -7,7 +7,7 @@ import { z } from "zod";
 import { db } from "@/db/client";
 import { requireGlobalPermission } from "../access";
 import { writeAuditLog } from "../audit";
-import { PG_UNIQUE_VIOLATION, pgErrorCode } from "../shared/db-errors";
+import { PG_FOREIGN_KEY_VIOLATION, PG_UNIQUE_VIOLATION, pgErrorCode } from "../shared/db-errors";
 import { todayJst } from "../shared/jst";
 import { definitionSchema, type AudienceDefinition } from "./definition";
 import { evaluateDefinition, getAudience, listAudienceUsages, loadPopulation } from "./queries";
@@ -153,21 +153,29 @@ export async function deleteAudienceAction(
     return { error: `利用中のため削除できません(${usages.map((u) => u.name).join("、")})。` };
   }
 
-  await db.transaction(async (tx) => {
-    await tx.delete(audiences).where(eq(audiences.id, id));
-    await writeAuditLog(tx, {
-      actorUserId: actor.userId,
-      action: "audience.delete",
-      targetType: "audience",
-      targetId: id,
-      before: {
-        name: current.name,
-        description: current.description,
-        isActive: current.isActive,
-        definition: current.definition,
-      },
+  try {
+    await db.transaction(async (tx) => {
+      await tx.delete(audiences).where(eq(audiences.id, id));
+      await writeAuditLog(tx, {
+        actorUserId: actor.userId,
+        action: "audience.delete",
+        targetType: "audience",
+        targetId: id,
+        before: {
+          name: current.name,
+          description: current.description,
+          isActive: current.isActive,
+          definition: current.definition,
+        },
+      });
     });
-  });
+  } catch (err) {
+    // 業務アプリ(教科書など)が使っている Audience は、DB の外部キーで削除が止まる(core はアプリの中を知らないため)。
+    if (pgErrorCode(err) === PG_FOREIGN_KEY_VIOLATION) {
+      return { error: "業務アプリ(教科書など)で利用中のため削除できません。先にアプリ側の設定を変えてください。" };
+    }
+    throw err;
+  }
 
   revalidatePath("/admin/audiences");
   redirect("/admin/audiences");

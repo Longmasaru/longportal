@@ -129,6 +129,48 @@ const eslintConfig = defineConfig([
       ],
     },
   },
+  {
+    // 業務アプリ同士は直接依存しない(apps/kyokasho から他のアプリを参照しない)
+    files: ["src/modules/apps/kyokasho/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["@/app", "@/app/*"],
+              message: "modules から src/app(ルーティング層)を参照しないでください。",
+            },
+            {
+              group: ["@/modules/apps/*", "!@/modules/apps/kyokasho", "!@/modules/apps/kyokasho/*"],
+              message: "業務アプリ同士は直接参照しないでください(core を経由する)。",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    // 業務アプリ同士は直接依存しない(apps/hr から他のアプリを参照しない)
+    files: ["src/modules/apps/hr/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["@/app", "@/app/*"],
+              message: "modules から src/app(ルーティング層)を参照しないでください。",
+            },
+            {
+              group: ["@/modules/apps/*", "!@/modules/apps/hr", "!@/modules/apps/hr/*"],
+              message: "業務アプリ同士は直接参照しないでください(core を経由する)。",
+            },
+          ],
+        },
+      ],
+    },
+  },
   // 業務アプリ同士の直接依存の禁止は、各アプリ(modules/apps/○○)を追加する際に
   // そのアプリ用のブロックをここへ追加する(他アプリの @/modules/apps/* を禁止)。
   globalIgnores([
