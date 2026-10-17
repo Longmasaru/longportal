@@ -1,5 +1,6 @@
 import { Fragment, type ReactNode } from "react";
 import type { Block, CellSpan, Inline } from "../content";
+import { flowCell, groupImages, isLabel, joinBrokenLines, tableCards, tableKind } from "../layout";
 import { cleanText, phrases, splitBold } from "../typeset";
 import { Quiz } from "./quiz";
 
@@ -8,7 +9,9 @@ import { Quiz } from "./quiz";
 // 文節の区切り(<wbr>)でだけ折り返す。長い英数字だけは、はみ出さないよう途中でも折る。
 export const PHRASE_WRAP = "[word-break:keep-all] [overflow-wrap:anywhere]";
 // 本文は 1 行が長すぎないように(和文で 1 行おおむね 40 字)。
-const PROSE = `text-ink max-w-[40em] ${PHRASE_WRAP}`;
+const PROSE = `font-prose text-ink max-w-[40em] ${PHRASE_WRAP}`;
+// 写真・図の枠(続く写真は、この枠をそろえて並べる)。
+const FRAME = "border-brand01/10 rounded-sm border bg-white";
 
 export function imageUrl(id: string): string {
   return `/apps/kyokasho/images/${id}`;
@@ -115,35 +118,11 @@ function BlockView({ block, quizKey, compact }: { block: Block; quizKey: string;
           src={imageUrl(block.id)}
           alt={block.alt}
           loading="lazy"
-          className={`border-brand01/10 h-auto max-w-full border bg-white ${compact ? "max-h-64" : "max-h-[32rem]"} w-auto self-start object-contain`}
+          className={`${FRAME} h-auto max-w-full ${compact ? "max-h-40" : "max-h-[32rem]"} w-auto self-start object-contain`}
         />
       );
     case "table":
-      return (
-        <div className="-mx-4 overflow-x-auto px-4 md:mx-0 md:px-0">
-          <table className="border-brand01/20 w-full min-w-[32rem] border-collapse border bg-white text-sm">
-            <tbody>
-              {block.rows.map((row, r) => (
-                <tr key={r} className={r === 0 ? "bg-bg01" : ""}>
-                  {row.map((cell, c) => {
-                    const span = findSpan(block.spans, r, c);
-                    return (
-                      <td
-                        key={c}
-                        rowSpan={span?.rowSpan}
-                        colSpan={span?.colSpan}
-                        className="border-brand01/20 min-w-[4.5rem] border px-3 py-2 align-top"
-                      >
-                        <BlockList blocks={cell} quizKey={`${quizKey}-t${r}-${c}`} compact />
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      );
+      return <TableView block={block} quizKey={quizKey} />;
     case "quiz":
       return <Quiz questions={block.questions} storageKey={quizKey} />;
   }
@@ -153,11 +132,122 @@ function findSpan(spans: CellSpan[] | undefined, row: number, cell: number): Cel
   return spans?.find((s) => s.row === row && s.cell === cell);
 }
 
-/** 区切りの 1 行(全体が太字、または ▼・■・【 などで始まる)。前を空けて、まとまりの境目にする。 */
-function isLabel(block: Block): boolean {
-  if (block.type !== "paragraph" || block.inlines.length === 0) return false;
-  if (block.inlines.every((i) => i.bold)) return true;
-  return /^[▼■◆●【≪《]/.test(block.inlines[0].text);
+type TableBlock = Extract<Block, { type: "table" }>;
+
+/**
+ * 表。元の文書は紙の幅に合わせた表なので、スマホでは見せ方を変える(docs/DESIGN.md 30 章)。
+ * セル 1 つの表は囲み、見出しの行がある表はスマホでは 1 行ずつのカード、縦につながったセルがある表は横に動かせる表。
+ */
+function TableView({ block, quizKey }: { block: TableBlock; quizKey: string }) {
+  const kind = tableKind(block);
+  if (kind === "callout") {
+    return (
+      <div className="bg-bg01 border-brand01/40 max-w-[44em] rounded-sm border-l-4 px-4 py-3">
+        <BlockList blocks={flowCell(block.rows[0][0])} quizKey={`${quizKey}-c`} compact />
+      </div>
+    );
+  }
+  const table = <GridTable block={block} quizKey={quizKey} />;
+  if (kind === "table") return table;
+  return (
+    <>
+      <div className="flex flex-col gap-3 sm:hidden">
+        {tableCards(block).map((card, i) => (
+          <section key={i} className="border-brand01/15 overflow-hidden rounded-md border bg-white">
+            <CardTitle blocks={card.title} quizKey={`${quizKey}-k${i}`} />
+            <dl className="divide-brand01/10 divide-y">
+              {card.fields.map((field, j) => (
+                <div key={j} className="px-4 py-2.5">
+                  <dt className="text-brand04/70 mb-1 text-xs font-bold">
+                    <BlockList blocks={flowCell(field.label)} quizKey={`${quizKey}-k${i}-l${j}`} compact plain />
+                  </dt>
+                  <dd>
+                    <BlockList blocks={flowCell(field.value)} quizKey={`${quizKey}-k${i}-v${j}`} compact />
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </section>
+        ))}
+      </div>
+      <div className="hidden sm:block">{table}</div>
+    </>
+  );
+}
+
+/** カードの題(表の 1 列目)。文の途中に挟まった絵は、題の右に小さく並べる。 */
+function CardTitle({ blocks, quizKey }: { blocks: Block[]; quizKey: string }) {
+  const images = blocks.flatMap((b) => (b.type === "image" ? [b.id] : []));
+  const text = flowCell(blocks.filter((b) => b.type !== "image"));
+  return (
+    <div className="bg-bg01 text-brand01 flex items-center gap-3 px-4 py-2.5 font-bold">
+      <div className="min-w-0 flex-1">
+        <BlockList blocks={text} quizKey={quizKey} compact />
+      </div>
+      {images.map((id) => (
+        <a
+          key={id}
+          href={imageUrl(id)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={`${FRAME} block w-20 shrink-0 p-0.5`}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={imageUrl(id)} alt="" loading="lazy" className="aspect-square h-auto w-full object-contain" />
+        </a>
+      ))}
+    </div>
+  );
+}
+
+function GridTable({ block, quizKey }: { block: TableBlock; quizKey: string }) {
+  return (
+    <div className="-mx-4 overflow-x-auto px-4 md:mx-0 md:px-0">
+      <table className="border-brand01/20 w-full min-w-[32rem] border-collapse border bg-white text-sm">
+        <tbody>
+          {block.rows.map((row, r) => (
+            <tr key={r} className={r === 0 ? "bg-bg01" : ""}>
+              {row.map((cell, c) => {
+                const span = findSpan(block.spans, r, c);
+                return (
+                  <td
+                    key={c}
+                    rowSpan={span?.rowSpan}
+                    colSpan={span?.colSpan}
+                    className={`border-brand01/20 min-w-[4.5rem] border px-3 py-2 align-top ${r === 0 ? "text-brand01 font-bold" : ""}`}
+                  >
+                    <BlockList blocks={flowCell(cell)} quizKey={`${quizKey}-t${r}-${c}`} compact />
+                  </td>
+                );
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// 並べる数に合わせた列の数(3 枚なら 3 列にして、1 枚だけ下に残らないようにする)。
+function gridCols(count: number, compact: boolean): string {
+  if (compact) return count === 3 ? "grid-cols-3" : "grid-cols-2";
+  if (count === 3) return "grid-cols-3";
+  if (count === 4) return "grid-cols-2 sm:grid-cols-4";
+  return "grid-cols-2 sm:grid-cols-3";
+}
+
+/** 続く写真・図。同じ大きさの枠にそろえて並べる(押すと元の大きさで開く)。 */
+function ImageGrid({ ids, compact }: { ids: string[]; compact: boolean }) {
+  return (
+    <div className={`grid max-w-[44em] gap-2 ${gridCols(ids.length, compact)}`}>
+      {ids.map((id) => (
+        <a key={id} href={imageUrl(id)} target="_blank" rel="noopener noreferrer" className={`${FRAME} block p-1`}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={imageUrl(id)} alt="" loading="lazy" className="aspect-[4/3] h-auto w-full object-contain" />
+        </a>
+      ))}
+    </div>
+  );
 }
 
 /**
@@ -174,14 +264,45 @@ function spaceBefore(prev: Block | undefined, block: Block, compact: boolean): s
   return "mt-5";
 }
 
-function BlockList({ blocks, quizKey, compact }: { blocks: Block[]; quizKey: string; compact: boolean }) {
+function BlockList({
+  blocks,
+  quizKey,
+  compact,
+  plain = false,
+}: {
+  blocks: Block[];
+  quizKey: string;
+  compact: boolean;
+  /** 項目名など、本文の書体・色を当てない小さな見出し。 */
+  plain?: boolean;
+}) {
+  const placed = groupImages(compact ? blocks : joinBrokenLines(blocks));
   return (
     <div className="flex flex-col">
-      {blocks.map((block, i) => (
-        <div key={i} className={`flex flex-col ${spaceBefore(blocks[i - 1], block, compact)}`}>
-          <BlockView block={block} quizKey={`${quizKey}-${i}`} compact={compact} />
-        </div>
-      ))}
+      {placed.map((item, i) => {
+        const prev = placed[i - 1];
+        const prevBlock = prev ? (prev.kind === "block" ? prev.block : ({ type: "image", id: "", alt: "" } as Block)) : undefined;
+        if (item.kind === "images") {
+          return (
+            <div key={i} className={prevBlock ? (compact ? "mt-2" : "mt-4") : ""}>
+              <ImageGrid ids={item.ids} compact={compact} />
+            </div>
+          );
+        }
+        if (plain && item.block.type === "paragraph") {
+          return (
+            <span key={i} className={PHRASE_WRAP}>
+              <InlineText inlines={item.block.inlines} />
+            </span>
+          );
+        }
+        return (
+          <div key={i} className={`flex flex-col ${spaceBefore(prevBlock, item.block, compact)}`}>
+            {/* テストの結果を端末に保存する名前は、元の並びの番号で作る(つないだ行・まとめた写真で番号がずれないように) */}
+            <BlockView block={item.block} quizKey={`${quizKey}-${blocks.indexOf(item.block)}`} compact={compact} />
+          </div>
+        );
+      })}
     </div>
   );
 }

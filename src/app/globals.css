@@ -39,6 +39,8 @@
 
   --font-heading: var(--font-futura), futura-pt, sans-serif;
   --font-body: var(--font-zen), -apple-system, system-ui, sans-serif;
+  /* 長い本文(教科書など)。Zen Kaku Gothic New はかなの字間が広く見えるため、端末の読みやすい和文書体を使う */
+  --font-prose: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "BIZ UDPGothic", "Yu Gothic UI", Meiryo, sans-serif;
 }
 
 html {
