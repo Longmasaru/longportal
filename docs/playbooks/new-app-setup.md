@@ -120,7 +120,9 @@ vercel --version ; vercel whoami                  # ログインしていなけ�
    ```
 2. **Claude**: 実行前チェック(本番のホスト名であること、開発用のホストと違うこと、`DB_TARGET=production`)→ **読み取りだけ**で現状を確認(適用済み migration 数、テーブルの有無)→ 実行。
    ```bash
-   set -a; . ./.env.production.local; set +a
+   # 「set -a; . ./.env.production.local」は使わない(接続文字列の & でシェルが文を区切り、本番の値が読まれず .env.local の開発 DB に向かう)
+   while IFS= read -r line || [ -n "$line" ]; do line="${line%$'\r'}"; case "$line" in [A-Z_]*=*) export "${line%%=*}=${line#*=}";; esac; done < .env.production.local
+   node -e 'console.log(new URL(process.env.DATABASE_URL).host)'   # 本番のホストであることを確かめてから進む
    npx drizzle-kit migrate      # 成功は「migrations applied successfully」で確認する(終了コードだけに頼らない)
    npx tsx scripts/seed.ts      # 初期管理者(初回ログインでパスワード変更が必須)・権限・初期データ
    ```
