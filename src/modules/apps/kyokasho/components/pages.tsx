@@ -7,7 +7,7 @@ import { chapterOutline, countQuizQuestions } from "../content";
 import { groupBooks } from "../logic";
 import { manifest } from "../manifest";
 import { canManageBooks, listBooksForActor, requireBookForActor } from "../queries";
-import { Blocks } from "./blocks";
+import { Blocks, PHRASE_WRAP, Phrased } from "./blocks";
 
 // ロングの教科書の画面(一覧 → 目次 → 章)。入口は requireAppAccess("kyokasho")、教科書ごとに見られる人を判定する。
 
@@ -20,7 +20,8 @@ function Shell({ children }: { children: ReactNode }) {
 function Eyebrow({ ja }: { ja: string }) {
   return (
     <p className="font-heading text-brand03 text-xs font-bold tracking-[0.2em]">
-      TEXTBOOK<span className="text-brand04 ml-3 font-medium tracking-[0.1em]">{ja}</span>
+      TEXTBOOK
+      <span className="text-brand04 ml-3 font-medium tracking-[0.1em]">{ja}</span>
     </p>
   );
 }
@@ -143,7 +144,9 @@ export async function BookPage({ slug }: { slug: string }) {
                   href={`${BASE}/${book.slug}/${i + 1}`}
                   className="hover:text-brand03 text-brand01 flex flex-wrap items-baseline justify-between gap-2 p-4 font-bold transition-colors"
                 >
-                  <span className="[word-break:auto-phrase]">{chapter.title}</span>
+                  <span className={PHRASE_WRAP}>
+                    <Phrased text={chapter.title} />
+                  </span>
                   {quiz > 0 ? <span className="text-brand04 text-xs font-normal">テスト {quiz} 問</span> : null}
                 </Link>
                 {outline.length > 0 ? (
@@ -185,11 +188,16 @@ export async function ChapterPage({ slug, chapter: chapterParam }: { slug: strin
         <Breadcrumb
           items={[
             { href: BASE, label: "ロングの教科書" },
-            { href: `${BASE}/${book.slug}`, label: `${book.department} ${book.title}` },
+            {
+              href: `${BASE}/${book.slug}`,
+              label: `${book.department} ${book.title}`,
+            },
             { label: chapter.title },
           ]}
         />
-        <h1 className="text-brand01 text-2xl font-bold [word-break:auto-phrase]">{chapter.title}</h1>
+        <h1 className={`text-brand01 text-2xl font-bold ${PHRASE_WRAP}`}>
+          <Phrased text={chapter.title} />
+        </h1>
       </div>
 
       {outline.length > 1 ? (
@@ -198,8 +206,8 @@ export async function ChapterPage({ slug, chapter: chapterParam }: { slug: strin
           <ul className="flex flex-col gap-1 text-sm">
             {outline.map((h) => (
               <li key={h.id} className={h.level === 3 ? "pl-4" : ""}>
-                <a href={`#${h.id}`} className="text-brand01 hover:text-brand03">
-                  {h.text}
+                <a href={`#${h.id}`} className={`text-brand01 hover:text-brand03 ${PHRASE_WRAP}`}>
+                  <Phrased text={h.text.replace(/\*\*/g, "")} />
                 </a>
               </li>
             ))}
