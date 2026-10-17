@@ -11,6 +11,7 @@ import {
   parseClock,
   parseDateLabel,
   parseLatLng,
+  rescheduleTimes,
   type Stop,
 } from "./schedule";
 
@@ -72,6 +73,44 @@ test("buildSchedule: 到着・出発・帰着の時刻", () => {
   assert.equal(r.schedule[0].depart, "09:00");
   assert.equal(r.schedule[0].yoken, "納品");
   assert.equal(r.backTime, "09:20");
+});
+
+test("buildSchedule: 待ち時間は到着のあとに足し、それ以降の時刻を後ろにずらす", () => {
+  const base = { person: "", address: "", tel: "", latlng: "", yoken: "", detail: "" };
+  const stops: Stop[] = [
+    { ...base, row: 2, name: "A", stay: 10, wait: 30 },
+    { ...base, row: 3, name: "B", stay: 10 },
+  ];
+  const r = buildSchedule(stops, "08:30", [20, 15, 20], [null, null, null]);
+  assert.equal(r.schedule[0].arrive, "08:50");
+  assert.equal(r.schedule[0].wait, 30);
+  assert.equal(r.schedule[0].depart, "09:30");
+  assert.equal(r.schedule[1].arrive, "09:45");
+  assert.equal(r.schedule[1].wait, 0);
+  assert.equal(r.backTime, "10:15");
+});
+
+test("rescheduleTimes: 移動時間はそのままで、待ちを入れた先の時刻と帰着を付け直す", () => {
+  const base = { person: "", address: "", tel: "", latlng: "", yoken: "納品", detail: "" };
+  const first = buildSchedule(
+    [
+      { ...base, row: 2, name: "A", stay: 10 },
+      { ...base, row: 3, name: "B", stay: 10 },
+    ],
+    "10:30",
+    [20, 15, 20],
+    [3.1, 2, 4],
+  );
+  const result = { startTime: "10:30", lastLegMin: 20, lastLegKm: 4, backTime: first.backTime, schedule: first.schedule };
+  assert.equal(result.backTime, "11:45");
+  result.schedule[0].wait = 30;
+  const r = rescheduleTimes(result);
+  assert.equal(r.schedule[0].arrive, "10:50");
+  assert.equal(r.schedule[0].depart, "11:30");
+  assert.equal(r.schedule[1].arrive, "11:45");
+  assert.equal(r.schedule[1].travelKm, 2);
+  // 帰り道で昼休み(12:00〜12:45)にかかり、帰着は 13:00
+  assert.equal(r.backTime, "13:00");
 });
 
 test("buildMapLinks: 10 件までは 1 本で、会社に戻る", () => {

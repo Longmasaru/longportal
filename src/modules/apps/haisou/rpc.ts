@@ -19,6 +19,7 @@ const StopSchema = z.object({
   yoken: Str(100).default("納品"),
   detail: Str(2000).default(""),
   stay: z.number().int().min(0).max(24 * 60),
+  wait: z.number().int().min(0).max(24 * 60).default(0),
 });
 
 const CalcSchema = z.object({
@@ -43,6 +44,7 @@ const ScheduleSchema = z.object({
   yoken: Str(100).default(""),
   detail: Str(2000).default(""),
   stay: z.number().int(),
+  wait: z.number().int().min(0).max(24 * 60).default(0),
   travelMin: z.number(),
   travelKm: z.number().nullable(),
   arrive: Str(10),
@@ -118,6 +120,7 @@ const HANDLERS: Record<string, Handler> = {
   ),
   getHistoryDetailsByCompany: fn([], () => svc.getHistoryDetailsByCompany()),
   calcRoute: fn([CalcSchema], ([payload], ctx) => svc.calcRoute(payload, ctx.today)),
+  reschedule: fn([ResultSchema], async ([result]) => svc.reschedule(result)),
   saveHistory: fn([ResultSchema], ([result], ctx) => svc.saveHistory(result, ctx.userId)),
   listRouteStates: fn([], () => svc.listRouteStates()),
   saveRouteState: fn([Str(200), z.record(z.string(), z.unknown())], ([name, payload], ctx) =>
