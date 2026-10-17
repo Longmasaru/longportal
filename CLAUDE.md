@@ -14,7 +14,7 @@ LONG PORTAL は株式会社ロングの社内ポータル基盤。設計の正�
 - `npm run dev` / `npm run build` / `npm run start`
 - `npm run lint` — ESLint。module 境界(`no-restricted-imports`)もここで検査される
 - `npm run typecheck` — `tsc --noEmit`
-- `npm run sync:manifests` — コード側の定義(権限)を DB に反映。`npm run db:grant-admin -- <login_id>` — 管理者の復旧。`npm run db:import-employees -- <CSV> --actor <login_id> [--apply]` — 社員の一括取り込み(追加のみ。既定は確認だけ。CSV は個人情報なのでリポジトリの外に置く。docs/DESIGN.md 21 章)。`npm run db:issue-accounts -- --actor <login_id> --out <CSV> [--apply]` — アカウントの一括発行(ログイン ID = 社員番号。初期パスワードの配布用 CSV はリポジトリの外に書き出す)。`npm run db:import-kyokasho -- <docx> --slug <名前> --actor <login_id> [--apply]` — ロングの教科書の取り込み(Google ドキュメントを Word で保存したもの。docs/DESIGN.md 30 章)
+- `npm run sync:manifests` — コード側の定義(権限)を DB に反映。`npm run db:grant-admin -- <login_id>` — 管理者の復旧。`npm run db:import-employees -- <CSV> --actor <login_id> [--apply]` — 社員の一括取り込み(追加のみ。既定は確認だけ。CSV は個人情報なのでリポジトリの外に置く。docs/DESIGN.md 21 章)。`npm run db:issue-accounts -- --actor <login_id> --out <CSV> [--apply]` — アカウントの一括発行(ログイン ID = 社員番号。初期パスワードの配布用 CSV はリポジトリの外に書き出す)。`npm run db:import-kyokasho -- <docx|zip> --slug <名前> --actor <login_id> [--apply]` — ロングの教科書の取り込み(Google ドキュメントを Word で保存したもの。図形描画の図がある文書は「ウェブページ」で保存した zip。docs/DESIGN.md 30 章)
 - `npm run db:generate` / `db:migrate` / `db:check` / `db:seed` — Drizzle。migration は `DATABASE_URL_UNPOOLED`(direct connection)で実行する。`DB_TARGET`(development / production)の明示が必須で、production への実行には `CONFIRM_PRODUCTION=yes` も要る。ローカルの `.env.local` は development ブランチの接続先にし、本番の接続文字列は置かない。手書き SQL が要る制約(EXCLUDE など)は `drizzle-kit generate --custom` で migration を作る
 - `npm test` — ユニットテスト(`node:test` + `tsx`。アクセス判定の純粋関数など)
 

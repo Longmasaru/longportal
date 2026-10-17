@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { parseBookHtml } from "./import";
+import { deflateRawSync } from "node:zlib";
+import { importGoogleZip, parseBookHtml, readZip } from "./import";
 import { splitAnswer, splitQuestion } from "./quiz";
 
 const resolve = (src: string) => (src.startsWith("img:") ? src.slice(4) : null);
@@ -120,4 +121,66 @@ test("選択肢と解答の分け方", () => {
   ]);
   assert.deepEqual(splitAnswer("Ｃ 解説：理由"), { answer: "C", explanation: "理由" });
   assert.equal(splitAnswer("解説だけ"), null);
+});
+
+/** テスト用の zip を作る(1 つ目は保存、2 つ目以降は deflate)。 */
+function makeZip(files: Record<string, string>): Buffer {
+  const locals: Buffer[] = [];
+  const centrals: Buffer[] = [];
+  let offset = 0;
+  Object.entries(files).forEach(([name, text], i) => {
+    const raw = Buffer.from(text, "utf8");
+    const method = i === 0 ? 0 : 8;
+    const data = method === 0 ? raw : deflateRawSync(raw);
+    const nameBuf = Buffer.from(name, "utf8");
+    const local = Buffer.alloc(30);
+    local.writeUInt32LE(0x04034b50, 0);
+    local.writeUInt16LE(method, 8);
+    local.writeUInt32LE(data.length, 18);
+    local.writeUInt32LE(raw.length, 22);
+    local.writeUInt16LE(nameBuf.length, 26);
+    const central = Buffer.alloc(46);
+    central.writeUInt32LE(0x02014b50, 0);
+    central.writeUInt16LE(method, 10);
+    central.writeUInt32LE(data.length, 20);
+    central.writeUInt32LE(raw.length, 24);
+    central.writeUInt16LE(nameBuf.length, 28);
+    central.writeUInt32LE(offset, 42);
+    locals.push(local, nameBuf, data);
+    centrals.push(central, nameBuf);
+    offset += 30 + nameBuf.length + data.length;
+  });
+  const cd = Buffer.concat(centrals);
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0);
+  end.writeUInt16LE(Object.keys(files).length, 8);
+  end.writeUInt16LE(Object.keys(files).length, 10);
+  end.writeUInt32LE(cd.length, 12);
+  end.writeUInt32LE(offset, 16);
+  return Buffer.concat([...locals, cd, end]);
+}
+
+test("zip を読む(保存と deflate)", () => {
+  const files = readZip(makeZip({ "a.txt": "あいう", "dir/b.txt": "かきく" }));
+  assert.equal(files.get("a.txt")?.toString("utf8"), "あいう");
+  assert.equal(files.get("dir/b.txt")?.toString("utf8"), "かきく");
+});
+
+test("Google ドキュメントのウェブページ書き出しを読む(太字・転送 URL・コメント・字下げ)", async () => {
+  const html =
+    '<html><head><style>.c1{}</style></head><body><h1>1️⃣図面<sup><a href="#cmnt1" id="cmnt_ref1">[a]</a></sup></h1>' +
+    '<p><span style="font-weight:700">≪ルール≫</span></p>' +
+    "<p><span>手順2) 描き込みます。</span></p><p><span>&nbsp; &nbsp; すなわち三面です。</span></p>" +
+    '<p><a href="https://www.google.com/url?q=https://www.long-kanazawa.com/machines/&amp;sa=D">設備</a></p>' +
+    '<div><p><a href="#cmnt_ref1" id="cmnt1">[a]</a>要確認</p></div></body></html>';
+  const { content, warnings } = await importGoogleZip(makeZip({ "index.html": html }));
+  assert.deepEqual(warnings, []);
+  const [ch] = content.chapters;
+  assert.equal(ch.title, "1️⃣図面");
+  assert.deepEqual(ch.blocks, [
+    { type: "paragraph", inlines: [{ text: "≪ルール≫", bold: true }] },
+    { type: "paragraph", inlines: [{ text: "手順2) 描き込みます。" }] },
+    { type: "paragraph", inlines: [{ text: "\u3000\u3000\u3000\u3000すなわち三面です。" }] },
+    { type: "paragraph", inlines: [{ text: "設備", href: "https://www.long-kanazawa.com/machines/" }] },
+  ]);
 });
