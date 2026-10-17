@@ -1,0 +1,106 @@
+import { createSign } from "node:crypto";
+
+// LINE WORKS の Bot からトークルームへ知らせを送る(API 2.0。docs/DESIGN.md 33 章)。サーバー側専用。
+// 認証はサービスアカウントの JWT(RS256)でアクセストークンを取り、Bot の API を呼ぶ。
+// 鍵などは環境変数(LINEWORKS_*)に置く。未設定なら何もしない(通知は「あれば便利」なもので、本来の操作は止めない)。
+
+const TOKEN_URL = "https://auth.worksmobile.com/oauth2/v2.0/token";
+const API_BASE = "https://www.worksapis.com/v1.0";
+const TIMEOUT_MS = 10_000;
+
+export type LineWorksConfig = {
+  clientId: string;
+  clientSecret: string;
+  serviceAccount: string;
+  privateKey: string;
+  botId: string;
+};
+
+export function lineWorksConfig(env: Record<string, string | undefined> = process.env): LineWorksConfig | null {
+  const clientId = env.LINEWORKS_CLIENT_ID?.trim();
+  const clientSecret = env.LINEWORKS_CLIENT_SECRET?.trim();
+  const serviceAccount = env.LINEWORKS_SERVICE_ACCOUNT?.trim();
+  // 1 行で保存された鍵(改行が \n の文字)も受け付ける。
+  const privateKey = env.LINEWORKS_PRIVATE_KEY?.replace(/\\n/g, "\n").trim();
+  const botId = env.LINEWORKS_BOT_ID?.trim();
+  if (!clientId || !clientSecret || !serviceAccount || !privateKey || !botId) return null;
+  return { clientId, clientSecret, serviceAccount, privateKey, botId };
+}
+
+function base64url(input: string | Buffer): string {
+  return Buffer.from(input).toString("base64url");
+}
+
+/** アクセストークンを取るための JWT(RS256)。 */
+export function signAssertion(config: LineWorksConfig, nowSeconds: number): string {
+  const header = base64url(JSON.stringify({ alg: "RS256", typ: "JWT" }));
+  const payload = base64url(
+    JSON.stringify({ iss: config.clientId, sub: config.serviceAccount, iat: nowSeconds, exp: nowSeconds + 3600 }),
+  );
+  const signer = createSign("RSA-SHA256");
+  signer.update(`${header}.${payload}`);
+  return `${header}.${payload}.${signer.sign(config.privateKey).toString("base64url")}`;
+}
+
+let cached: { token: string; expiresAt: number } | null = null;
+
+async function accessToken(config: LineWorksConfig): Promise<string> {
+  const now = Date.now();
+  if (cached && cached.expiresAt > now + 60_000) return cached.token;
+  const res = await fetch(TOKEN_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      assertion: signAssertion(config, Math.floor(now / 1000)),
+      grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+      client_id: config.clientId,
+      client_secret: config.clientSecret,
+      scope: "bot",
+    }),
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+  });
+  if (!res.ok) throw new Error(`LINE WORKS のトークンを取れませんでした(${res.status})`);
+  const data = (await res.json()) as { access_token?: string; expires_in?: string | number };
+  if (!data.access_token) throw new Error("LINE WORKS のトークンが返りませんでした");
+  cached = { token: data.access_token, expiresAt: now + Number(data.expires_in ?? 3600) * 1000 };
+  return data.access_token;
+}
+
+async function botApi(config: LineWorksConfig, path: string, body: unknown): Promise<Response> {
+  const res = await fetch(`${API_BASE}/bots/${encodeURIComponent(config.botId)}${path}`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${await accessToken(config)}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(TIMEOUT_MS),
+  });
+  if (!res.ok) throw new Error(`LINE WORKS の Bot の呼び出しに失敗しました(${res.status})`);
+  return res;
+}
+
+/**
+ * トークルーム(channel)に文字を送る。設定がなければ送らずに false。
+ * 失敗しても例外は投げず、ログに残して false を返す(呼び出し元の操作は成功のままにする)。
+ */
+export async function sendLineWorksChannelText(channelId: string | undefined, text: string): Promise<boolean> {
+  const config = lineWorksConfig();
+  if (!config || !channelId) return false;
+  try {
+    await botApi(config, `/channels/${encodeURIComponent(channelId)}/messages`, {
+      content: { type: "text", text: text.slice(0, 2000) },
+    });
+    return true;
+  } catch (err) {
+    console.error(`[lineworks] 送れませんでした: ${err instanceof Error ? err.message : "不明"}`);
+    return false;
+  }
+}
+
+/** Bot が入ったトークルームを作り、その channelId を返す(準備のとき、スクリプトから使う)。 */
+export async function createLineWorksChannel(members: string[], title: string): Promise<string> {
+  const config = lineWorksConfig();
+  if (!config) throw new Error("LINEWORKS_* の環境変数が足りません。");
+  const res = await botApi(config, "/channels", { members, title });
+  const data = (await res.json()) as { channelId?: string };
+  if (!data.channelId) throw new Error("channelId が返りませんでした。");
+  return data.channelId;
+}
