@@ -1,6 +1,6 @@
 import { createSign } from "node:crypto";
 
-// LINE WORKS の Bot からトークルームへ知らせを送る(API 2.0。docs/DESIGN.md 33 章)。サーバー側専用。
+// LINE WORKS の Bot からトークルームへ知らせを送る(API 2.0。docs/DESIGN.md 35 章)。サーバー側専用。
 // 認証はサービスアカウントの JWT(RS256)でアクセストークンを取り、Bot の API を呼ぶ。
 // 鍵などは環境変数(LINEWORKS_*)に置く。未設定なら何もしない(通知は「あれば便利」なもので、本来の操作は止めない)。
 

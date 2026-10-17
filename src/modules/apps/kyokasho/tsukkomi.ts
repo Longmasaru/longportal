@@ -72,7 +72,7 @@ export function canDeleteOwnComment(
 }
 
 /**
- * 新しいツッコミを知らせる LINE WORKS のトークルーム(docs/DESIGN.md 33 章)。
+ * 新しいツッコミを知らせる LINE WORKS のトークルーム(docs/DESIGN.md 35 章)。
  * 教科書ごと・部署ごとのトークルームは KYOKASHO_LINEWORKS_CHANNELS(JSON。{"教科書の slug か部署名": "channelId"})に置く。
  * 同じ部署に教科書が何冊もある(ブレーキ部の初級編・スタッド・メタルエステ)ので、slug を先に見て、次に部署名を見る。
  * どちらにもないもの(全部署共通など)は、全体用の KYOKASHO_LINEWORKS_CHANNEL_ID へ送る(届け漏れを防ぐため)。

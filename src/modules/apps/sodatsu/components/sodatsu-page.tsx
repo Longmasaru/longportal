@@ -1,5 +1,6 @@
+import Link from "next/link";
 import type { ReactNode } from "react";
-import { requireAppAccess } from "@/modules/core/apps";
+import { canAccessApp, requireAppAccess } from "@/modules/core/apps";
 import { manifest } from "../manifest";
 import {
   CHAIN,
@@ -71,10 +72,11 @@ function Key({ children }: { children: ReactNode }) {
  */
 export async function SodatsuPage() {
   const actor = await requireAppAccess(manifest.appKey);
-  return <SodatsuContent userId={actor.userId} />;
+  // ありがとうカード(apps/arigato)は直接参照せず、使えるかどうかと URL だけを使う(docs/DESIGN.md 34 章)。
+  return <SodatsuContent userId={actor.userId} showArigato={await canAccessApp(actor, "arigato")} />;
 }
 
-export function SodatsuContent({ userId }: { userId: string }) {
+export function SodatsuContent({ userId, showArigato = false }: { userId: string; showArigato?: boolean }) {
   return (
     <article className="text-brand01/90">
       <header className="bg-brand01 text-white">
@@ -267,6 +269,20 @@ export function SodatsuContent({ userId }: { userId: string }) {
         </Section>
 
         <Section en="START TODAY" ja="今日から、あなたにできること" title="3つのうち、一つからで大丈夫">
+          {showArigato ? (
+            <Link
+              href="/apps/arigato"
+              className="border-brand03 hover:bg-bg01 flex items-center gap-4 border-2 px-4 py-3 transition-colors"
+            >
+              <span className="min-w-0 flex-1">
+                <span className="text-brand01 block font-bold">ありがとうカードを送る</span>
+                <span className="text-brand04 block text-sm">教えてくれた人・助けてくれた人に、一言で伝えましょう。</span>
+              </span>
+              <span aria-hidden className="text-brand03 text-xl">
+                ›
+              </span>
+            </Link>
+          ) : null}
           <TodayActions userId={userId} />
           <Key>
             ロングが作りたいのは、ミスをしない人だけを評価する会社ではありません。教わり、挑戦し、失敗から学び、その経験を次の人へ渡せる会社です。

@@ -1,4 +1,4 @@
-// LINE WORKS の Bot の準備(docs/DESIGN.md 33 章): Bot が入ったトークルームを作り、試しに 1 通送って、channelId を表示する。
+// LINE WORKS の Bot の準備(docs/DESIGN.md 35 章): Bot が入ったトークルームを作り、試しに 1 通送って、channelId を表示する。
 //
 // 1) 名指しで 1 つ作る:
 //    npm run lineworks:setup -- --members <LINE WORKS の ID をカンマ区切り> --title <トークルームの名前>

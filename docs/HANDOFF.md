@@ -55,7 +55,7 @@
 | ログイン強化 | 入力長の上限(ID 50 / PW 200)、失敗回数の制限(ID は 15 分 5 回、接続元は 15 分 50 回。`core.login_attempts`)、セキュリティヘッダー |
 | ファイル保管 | Cloudflare R2 の基盤(`core/storage`、署名付き URL、接続確認 `npm run r2:check`、CORS 設定済み) |
 | 最初の業務アプリ | `apps/sodatsu`(人事ポリシー「育てて、育つ。」の紹介。`/apps/sodatsu`、閲覧のみ・DB なし・専用権限なし。記入欄とふりかえりは端末のブラウザにだけ保存)。サイドバーへの表示は、手順 6 までは `queries.ts` の `listVisibleApps` が固定で返している |
-| 会社カレンダー | `apps/calendar`(`/apps/calendar`。会社の休日・出勤日の月表示、今日・次の休み・残りの出勤日数、年間のまとめ。休日データは `company-calendar.ts` にコードで持つ(2026 年分のみ。紙のカレンダーを写したもので、`logic.test.ts` で照合)。本人だけのメモ・予定は `calendar.entries`(migration `0011_calendar_entries`、`user_id` でスコープ)。専用権限なし。アプリの登録簿(`sync:manifests`)に登録し、入場は `requireAppAccess`。本番で使うには、アプリ管理(`/admin/apps`)で有効にし、表示する相手を決める |
+| 会社カレンダー | `apps/calendar`(`/apps/calendar`。会社の休日・出勤日の月表示、今日・次の休み・残りの出勤日数、年間のまとめ。休日データは `company-calendar.ts` にコードで持つ(2026 年分のみ。紙のカレンダーを写したもので、`logic.test.ts` で照合)。本人だけのメモ・予定は `calendar.entries`(migration `0011_calendar_entries`、`user_id` でスコープ)。専用権限なし。アプリの登録簿(`sync:manifests`)に登録し、入場は `requireAppAccess`。本番で使うには、アプリ管理(`/admin/apps`)で有効にし、表示する相手を決める。2026-10-17 に第 1 弾(連休のカウントダウン・出勤土曜の前日・明日から連休・本人の入社の周年・給料日(毎月 29 日、休みなら前の出勤日)・今日のひとこと。ホームの一番上にも出す。DESIGN.md 33 章。DB の変更なし)。第 2 弾は全社の予定(一斉有給取得日は「休み + 有給の印」で通知なし、臨時休業、行事。管理者が画面で書き込む)の予定 |
 
 ### 社員データ(2026-10-14)
 - 社内サーバーの `社員名簿.xls`(「名簿 (2)」シート)から、在籍 54 人を**開発 DB に取り込み済み**(`npm run db:import-employees`、DESIGN.md 21 章)。**本番は未実施**。
@@ -78,7 +78,7 @@
 
 - **作業中(2026-10-17)**: ロングの教科書(`apps/kyokasho`、`/apps/kyokasho`、DESIGN.md 30 章)。部署ごとの教科書を 1 つのアプリに並べる。正本は Google ドキュメント(持ち主は外部支援のアカウント)で、Word(.docx)で保存したものを `npm run db:import-kyokasho` で取り込む。中身と画像はリポジトリに入れない(DB と R2)。本番に出すには: migration `0015_kyokasho_app` を本番に適用 → `sync:manifests` → 教科書を取り込む → `/admin/apps` で有効化 → `/apps/kyokasho/manage` で公開。
 
-- **教科書の「ツッコミ」(2026-10-17 本番公開)**: DESIGN.md 32 章。読んだ人の疑問・付け足し・まちがい(右下のボタン、文を選んで引用、音声入力、「AIで整える」)、教科書チームの返事と採用、ありがとう、教科書をよくしてくれた人。migration `0018_kyokasho_comments`(本番に適用済み)、権限 `kyokasho.comments.manage`(本番に sync 済み。今は system_admin と `kyokasho.books.manage` の人が返事できる)。未着手: 新しいツッコミの通知(`core/mail` ができてから)。
+- **教科書の「ツッコミ」(2026-10-17 本番公開)**: DESIGN.md 32 章。読んだ人の疑問・付け足し・まちがい(右下のボタン、文を選んで引用、音声入力、「AIで整える」)、教科書チームの返事と採用、ありがとう、教科書をよくしてくれた人。migration `0018_kyokasho_comments`(本番に適用済み)、権限 `kyokasho.comments.manage`(本番に sync 済み。今は system_admin と `kyokasho.books.manage` の人が返事できる)。新しいツッコミの知らせは LINE WORKS(DESIGN.md 35 章。2026-10-17。Bot「LONG PORTAL」、鍵と送り先は Vercel Production に Sensitive で登録済み)。**社員にポータルを周知するまでは、長井さんだけの試験の部屋に届く**(`KYOKASHO_LINEWORKS_CHANNEL_ID` = 試験の部屋、`KYOKASHO_LINEWORKS_CHANNELS` は未登録)。周知のあと、ユーザーの PC の `ドキュメント\LONGPORTAL\lineworks-rooms.json`(全社・ブレーキ部・技術部・スタッド・メタルエステの 5 部屋)で `npm run lineworks:setup -- --rooms <JSON> --apply` を実行し、表示された値を Vercel に登録し直す(社員に通知が届く操作なので、ユーザーの「作って」の指示を得てから)。
 
 ### まだ「枠だけ」の部分
 - 見本(架空)のデータは 2026-10-14 に削除した(`mock-data.ts`)。ホームとサイドバーの**お知らせ・アプリ・社内リンク・要対応**は、`queries.ts` の `listVisible*` が空を返す(アプリは apps/sodatsu だけを固定で返す)ので、枠と「まだありません」の表示だけが出る。実装時は、この関数の中身を差し替える。
@@ -88,7 +88,8 @@
 1. ~~**手順 6**~~(2026-10-15 完了。DESIGN.md 24 章。登録簿 `/admin/apps`、ポータルの中のアプリは `requireAppAccess` で入場を制限、別プロジェクトのアプリは URL で登録。自動ログイン(SSO)と、アプリごとの開発者・管理者の指定は、あとの段階):  app registry(コード側の manifest + DB の運用設定)、manifest の同期(`npm run sync:manifests` に、アプリの権限と `app_registry` を追加)、`canAccessApp` / `requireAppAccess`。サイドバーとホームのアプリ表示を、Audience の判定につなぐ。Audience の「利用先」の表示と「利用中は削除不可」(`listAudienceUsages`)もここで有効にする。
 2. ~~**手順 7**~~(2026-10-15 完了・本番反映済み): お知らせ(全社・Audience・個人指定、通常・重要・緊急、ホームのバナー、既読、確認ボタン)と社内リンク。管理画面 `/admin/notices`・`/admin/links`、権限 `core.notices.manage`・`core.links.manage`。DESIGN.md 23 章。
 3. ~~**手順 8**~~(2026-10-16 完了・本番反映済み。DESIGN.md 25 章。`/apps/todo`。カテゴリは仕事向け 9 種、Claude Haiku 5.5 で自動分類、添付は 25MB まで。本番のアプリ管理ではまだ「無効」。Vercel Production に `ANTHROPIC_API_KEY`(Sensitive)、手元の `.env.local` にも同名のキーを登録済み): TODO アプリの移植(TODOSample から。TODO は `user_id` に紐づく個人データ。Claude による自動分類、R2 添付ファイルも含む)。添付のメタ情報テーブル(ファイル名・サイズ・所有者)は、このときに migration で追加する。
-4. 以後: 教育・スキル、改善提案、出し直し管理、マニュアル、設備管理など。
+4. **ありがとうカード**(2026-10-15 実装。DESIGN.md 34 章。`/apps/arigato`、集計は `/apps/arigato/stats`。「育てて、育つ。」を風土として根づかせる最初の参加型アプリ): 2026-10-17 に「ありがとう番付」(`/apps/arigato/banzuke`。四股名・年六場所・白星・昇進・伝達式・今週の一枚スタンプカード)を追加し、テーブル `arigato.shikona`・`arigato.banzuke` も同じ migration に含めた。2026-10-17 に main(0018 まで)へそろえ、migration は `0019_arigato_cards` に作り直した。本番に出すときは、コードを `main` に送る前に migration `0019_arigato_cards` を本番 DB に適用し、`npm run sync:manifests`(権限 `arigato.stats.view`・`arigato.cards.manage` とアプリの登録)を実行してから、`/admin/apps` で有効にする。集計・削除の権限は、管理画面でロールに付ける(system_admin には sync で自動付与)。
+5. 以後: 教育・スキル、改善提案、出し直し管理、マニュアル、設備管理など。
 
 ### 社員にアカウントを配る前のチェック(未了)
 - ~~見本データの除去~~(2026-10-14 に完了)。お知らせ・アプリ・社内リンクの実装(手順 6・7)。

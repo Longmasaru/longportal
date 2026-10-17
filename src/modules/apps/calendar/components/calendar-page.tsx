@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { requireAppAccess } from "@/modules/core/apps";
+import { diffDays } from "@/modules/core/shared/date";
 import { todayJst } from "@/modules/core/shared/jst";
 import {
   addMonths,
@@ -13,8 +14,11 @@ import {
   shortDate,
   yearSummary,
 } from "../logic";
+import { dailyNote } from "../daily-notes";
+import { anniversaryDate, nextLongHoliday, paydayOf, todaysHighlights } from "../highlights";
 import { manifest } from "../manifest";
-import { listEntries } from "../queries";
+import { getHiredOn, listEntries } from "../queries";
+import { HighlightList } from "./highlight-list";
 import { MonthBoard } from "./month-board";
 
 function SummaryCard({ label, children }: { label: string; children: ReactNode }) {
@@ -37,13 +41,27 @@ export async function CalendarPage({ month }: { month: string | null }) {
   const current = month ?? today.slice(0, 7);
   const first = `${current}-01`;
   const last = `${current}-${String(daysInMonth(current)).padStart(2, "0")}`;
-  const entries = await listEntries(actor.userId, first, last);
+  const [entries, hiredOn] = await Promise.all([
+    listEntries(actor.userId, first, last),
+    getHiredOn(actor.employee?.id),
+  ]);
 
   const todayInfo = dayInfo(today);
   const nextOff = nextOffDay(today);
   const remaining = remainingWorkdays(today);
   const year = Number(current.slice(0, 4));
   const summary = yearSummary(year);
+  const highlights = todaysHighlights(today, { hiredOn });
+  const longHoliday = nextLongHoliday(today);
+
+  // 月の表に付ける印(給料日・本人の入社記念日)
+  const marks: Record<string, string[]> = {};
+  const addMark = (date: string, label: string) => {
+    if (date.startsWith(current)) marks[date] = [...(marks[date] ?? []), label];
+  };
+  const payday = paydayOf(current);
+  if (payday) addMark(payday, "給料日");
+  if (hiredOn && year > Number(hiredOn.slice(0, 4))) addMark(anniversaryDate(hiredOn, year), "入社記念日");
   const href = (m: string) => `/apps/calendar?month=${m}`;
 
   return (
@@ -58,7 +76,14 @@ export async function CalendarPage({ month }: { month: string | null }) {
         </p>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      <HighlightList items={highlights} />
+
+      <p className="border-brand01/15 text-brand01 border-y py-3 text-sm leading-relaxed">
+        <span className="text-brand03 mr-2 text-xs font-bold tracking-widest">今日のひとこと</span>
+        {dailyNote(today)}
+      </p>
+
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <SummaryCard label="今日">
           {shortDate(today)}{" "}
           {todayInfo.kind === "unknown" ? (
@@ -78,6 +103,26 @@ export async function CalendarPage({ month }: { month: string | null }) {
             </>
           ) : (
             <span className="text-brand04 text-sm">まだ登録されていません</span>
+          )}
+        </SummaryCard>
+        <SummaryCard label={longHoliday && longHoliday.start <= today ? "連休中" : "次の連休まで"}>
+          {!longHoliday ? (
+            <span className="text-brand04 text-sm">まだ登録されていません</span>
+          ) : longHoliday.start <= today ? (
+            <>
+              {longHoliday.name}
+              <span className="text-brand04 ml-2 text-sm font-medium">
+                {longHoliday.truncated ? "(翌年分は未登録)" : `あと${diffDays(today, longHoliday.end) + 1}日`}
+              </span>
+            </>
+          ) : (
+            <>
+              あと <span className="text-3xl font-black tabular-nums">{diffDays(today, longHoliday.start)}</span> 日
+              <span className="text-brand04 mt-1 block text-sm font-medium">
+                {longHoliday.name} {shortDate(longHoliday.start)}〜
+                {longHoliday.truncated ? "(翌年分は未登録)" : `${shortDate(longHoliday.end)}・${longHoliday.days}日間`}
+              </span>
+            </>
           )}
         </SummaryCard>
         <SummaryCard label="今月の残りの出勤日(今日を含む)">
@@ -119,6 +164,7 @@ export async function CalendarPage({ month }: { month: string | null }) {
           key={current}
           weeks={monthGrid(current)}
           entries={entries}
+          marks={marks}
           today={today}
           initialDate={today.startsWith(current) ? today : first}
         />
@@ -129,15 +175,24 @@ export async function CalendarPage({ month }: { month: string | null }) {
           <h2 id="calendar-year" className="text-brand01 text-lg font-bold">
             {year}年のまとめ
           </h2>
-          <div className="grid gap-3 sm:grid-cols-3">
-            <SummaryCard label="年間の休日">
-              <span className="text-3xl font-black tabular-nums">{summary.offDays}</span> 日
-            </SummaryCard>
-            <SummaryCard label="年間の出勤日">
-              <span className="text-3xl font-black tabular-nums">{summary.workDays}</span> 日
-            </SummaryCard>
-            <SummaryCard label="出勤する土曜">
-              <ul className="flex flex-wrap gap-x-3 gap-y-1 text-sm">
+          <div className="border-brand01/15 flex flex-col gap-4 border bg-white p-4 md:flex-row md:items-start md:gap-10">
+            <dl className="flex gap-8">
+              <div>
+                <dt className="text-brand04 text-xs font-bold tracking-widest">休日</dt>
+                <dd className="text-brand01 font-bold">
+                  <span className="text-3xl font-black tabular-nums">{summary.offDays}</span> 日
+                </dd>
+              </div>
+              <div>
+                <dt className="text-brand04 text-xs font-bold tracking-widest">出勤日</dt>
+                <dd className="text-brand01 font-bold">
+                  <span className="text-3xl font-black tabular-nums">{summary.workDays}</span> 日
+                </dd>
+              </div>
+            </dl>
+            <div className="md:border-brand01/15 md:border-l md:pl-10">
+              <p className="text-brand04 text-xs font-bold tracking-widest">出勤する土曜</p>
+              <ul className="text-brand01 mt-1 flex flex-wrap gap-x-3 gap-y-1 text-sm font-bold">
                 {summary.workSaturdays.map((d) => (
                   <li key={d}>
                     <Link href={href(d.slice(0, 7))} className="hover:text-brand03 transition-colors">
@@ -146,7 +201,7 @@ export async function CalendarPage({ month }: { month: string | null }) {
                   </li>
                 ))}
               </ul>
-            </SummaryCard>
+            </div>
           </div>
         </section>
       ) : null}

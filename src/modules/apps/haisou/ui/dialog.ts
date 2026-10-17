@@ -129,6 +129,14 @@ export const DIALOG_HTML = String.raw`<!DOCTYPE html>
   .rcard .t { font-weight:bold; font-size:14px; }
   .rcard .s { color:#555; font-size:12px; margin:3px 0 6px; }
   .rcard .counts b { font-size:14px; color:var(--navy); }
+  .drop-zone { border:2px dashed transparent; border-radius:6px; padding:0 4px 4px; margin:0 -6px; }
+  body.day-dragging .drop-zone { border-color:#bcd7d6; }
+  .drop-zone.over { border-color:var(--teal) !important; background:#eef8f7; }
+  .drop-zone.empty { color:#888; font-size:12px; padding:8px; margin:8px -6px 0; }
+  body.day-dragging .drop-zone.empty { background:#f6fbfb; }
+  tr.drag-row { cursor:grab; }
+  tr.drag-row:hover { background:#f6fbfb; }
+  .grip { color:#9aa5b4; margin-right:4px; }
   .day-sum { width:auto; margin:4px 0 14px; font-size:13px; }
   .day-sum td, .day-sum th { padding:4px 10px; }
   .wait-tag { display:inline-block; background:#fff1d6; color:#8a4b00; border:1px solid var(--amber);
@@ -338,6 +346,10 @@ export const DIALOG_HTML = String.raw`<!DOCTYPE html>
     <div class="co">発行: <span id="cmpNow"></span></div>
   </div>
   <div id="compareSummary"></div>
+  <div id="compareHint" class="noprint" style="display:none;font-size:12px;color:#555;margin:-6px 0 10px">
+    ⠿ 配達先をドラッグして、別の便・別の配達者の表へ落とすと移せます（スマホは「↪」から）。移すと、両方の便を計算し直して保存します。
+    <span id="compareMsg" style="color:var(--teal);font-weight:bold;margin-left:8px"></span>
+  </div>
   <div id="compareCols" style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap"></div>
   <div class="foot noprint" style="margin-top:14px">
     <button class="btn gray" onclick="backToSelectFromCompare()">◀ 選択画面に戻る</button>
@@ -874,7 +886,9 @@ function compareRoutes() {
     .loadRouteState(n1);
 }
 
-function renderCompareColumn(label, data) {
+/* bi: 1日の全トラック表示のときの列番号（このときは配達先をドラッグで別の便へ移せる） */
+function renderCompareColumn(label, data, bi) {
+  const board = bi !== undefined;
   let html = '<div style="border:1px solid var(--navy);border-left:6px solid ' + driverColor(data.driver) +
     ';border-radius:8px;padding:10px 12px">';
   html += '<div class="shift-result-title" style="margin-top:0">' + esc(label) + '</div>';
@@ -885,10 +899,21 @@ function renderCompareColumn(label, data) {
   ['AM', 'PM'].forEach(shift => {
     const r = data.results && data.results[shift];
     const stops = (data.stops && data.stops[shift]) || [];
-    if (!stops.length && !r) return;
+    if (!stops.length && !r) {
+      if (board) {
+        html += '<div class="drop-zone empty" ondragover="dayDragOver(event)" ondragleave="dayDragLeave(event)" ' +
+          'ondrop="dayDrop(event,' + bi + ',\'' + shift + '\')">' + (shift === 'AM' ? 'AM便' : 'PM便') +
+          '　（配達先なし。ここへ移せます）</div>';
+      }
+      return;
+    }
     any = true;
     const shiftLabel = shift === 'AM' ? 'AM便' : 'PM便';
     const w = r ? totalWait(r) : 0;
+    if (board) {
+      html += '<div class="drop-zone" ondragover="dayDragOver(event)" ondragleave="dayDragLeave(event)" ' +
+        'ondrop="dayDrop(event,' + bi + ',\'' + shift + '\')">';
+    }
     html += '<div style="font-weight:bold;color:var(--navy);margin:8px 0 4px">' + shiftLabel +
       (r ? '　｜　出発 ' + r.startTime + ' ／ 帰着予定 ' + r.backTime +
            (w ? '<span class="wait-tag">⏳ 待ち 計' + w + '分</span>' : '') +
@@ -896,15 +921,22 @@ function renderCompareColumn(label, data) {
          : '　（未計算）') + '</div>';
     html += '<table style="font-size:12px"><thead><tr>' +
       '<th style="width:26px">順</th><th>会社名</th><th style="width:60px">到着</th><th style="width:60px">出発</th>' +
+      (board ? '<th class="noprint" style="width:34px"></th>' : '') +
       '</tr></thead><tbody>';
     const list = r ? r.schedule : stops.map((s, i) => ({ no: i + 1, name: s.name, arrive: '-', depart: '-' }));
-    list.forEach(s => {
-      html += '<tr><td style="text-align:center">' + s.no + '</td><td>' + esc(s.name) +
+    list.forEach((s, idx) => {
+      html += '<tr' + (board ? ' class="drag-row" draggable="true" title="ドラッグして別の便・配達者へ移せます" ' +
+          'ondragstart="dayDragStart(event,' + bi + ',\'' + shift + '\',' + idx + ')" ondragend="dayDragEnd()"' : '') + '>' +
+        '<td style="text-align:center">' + s.no + '</td><td>' + (board ? '<span class="grip">⠿</span>' : '') + esc(s.name) +
         (s.wait ? '<span class="wait-tag">⏳' + s.wait + '分</span>' : '') + '</td>' +
         '<td style="text-align:center">' + (s.arrive || '-') + '</td>' +
-        '<td style="text-align:center">' + (s.depart || '-') + '</td></tr>';
+        '<td style="text-align:center">' + (s.depart || '-') + '</td>' +
+        (board ? '<td class="noprint" style="text-align:center"><button type="button" class="edit-btn" title="別の便・配達者へ移す" ' +
+          'onclick="dayMoveMenu(' + bi + ',\'' + shift + '\',' + idx + ')">↪</button></td>' : '') +
+        '</tr>';
     });
     html += '</tbody></table>';
+    if (board) html += '</div>';
   });
   if (!any) html += '<div style="color:#888">配達先が保存されていません</div>';
 
@@ -944,10 +976,15 @@ function showCompareMany(list, title, summary) {
   document.getElementById('cmpTitle').textContent = title;
   document.getElementById('compareSummary').innerHTML = summary ? renderDaySummary(list) : '';
   const minW = list.length >= 3 ? 300 : 340;
-  document.getElementById('compareCols').innerHTML = list.map(o =>
-    '<div style="flex:1;min-width:' + minW + 'px">' + renderCompareColumn(o.name, o.data) + '</div>').join('');
+  DAY_LIST = summary ? list : [];
+  document.getElementById('compareHint').style.display = summary ? 'block' : 'none';
+  document.getElementById('compareCols').innerHTML = list.map((o, i) =>
+    '<div style="flex:1;min-width:' + minW + 'px">' + renderCompareColumn(o.name, o.data, summary ? i : undefined) + '</div>').join('');
   document.getElementById('cmpNow').textContent = new Date().toLocaleString('ja-JP');
-  compareFromCal = document.getElementById('pageCalendar').style.display !== 'none';
+  // 比較画面のまま表示し直すときは、戻り先をそのままにする
+  if (document.getElementById('pageCompare').style.display === 'none') {
+    compareFromCal = document.getElementById('pageCalendar').style.display !== 'none';
+  }
   document.getElementById('pageSelect').style.display = 'none';
   document.getElementById('pageResult').style.display = 'none';
   document.getElementById('pageCalendar').style.display = 'none';
@@ -955,8 +992,145 @@ function showCompareMany(list, title, summary) {
   window.scrollTo(0, 0);
 }
 
+/* ---------- 1日の全トラック表示で、配達先を別の便・配達者へ移す ---------- */
+let DAY_LIST = [];        // 表示中の {name, data}
+let dayDrag = null;       // ドラッグ中の { bi, shift, idx }
+
+function gsr(fn) {
+  const args = Array.prototype.slice.call(arguments, 1);
+  return new Promise((ok, ng) => {
+    const run = google.script.run.withSuccessHandler(ok).withFailureHandler(ng);
+    run[fn].apply(run, args);
+  });
+}
+
+function dayDragStart(ev, bi, shift, idx) {
+  dayDrag = { bi: bi, shift: shift, idx: idx };
+  ev.dataTransfer.effectAllowed = 'move';
+  ev.dataTransfer.setData('text/plain', bi + ':' + shift + ':' + idx);
+  document.body.classList.add('day-dragging');
+}
+function dayDragEnd() {
+  document.body.classList.remove('day-dragging');
+  document.querySelectorAll('.drop-zone.over').forEach(el => el.classList.remove('over'));
+}
+function dayDragOver(ev) {
+  if (!dayDrag) return;
+  ev.preventDefault();
+  ev.dataTransfer.dropEffect = 'move';
+  ev.currentTarget.classList.add('over');
+}
+function dayDragLeave(ev) {
+  if (!ev.currentTarget.contains(ev.relatedTarget)) ev.currentTarget.classList.remove('over');
+}
+function dayDrop(ev, bi, shift) {
+  ev.preventDefault();
+  const from = dayDrag;
+  dayDrag = null;
+  dayDragEnd();
+  if (from) dayMoveStop(from, { bi: bi, shift: shift });
+}
+
+function dayShiftLabel(bi, shift) {
+  return (DAY_LIST[bi].data.driver || DAY_LIST[bi].name) + ' の ' + (shift === 'AM' ? 'AM便' : 'PM便');
+}
+
+/* ドラッグできない画面（スマホなど）向け：番号で移す先を選ぶ */
+function dayMoveMenu(bi, shift, idx) {
+  const dests = [];
+  DAY_LIST.forEach((o, i) => ['AM', 'PM'].forEach(sh => {
+    if (i !== bi || sh !== shift) dests.push({ bi: i, shift: sh });
+  }));
+  const name = dayStopsOf(DAY_LIST[bi].data, shift)[idx].name;
+  const input = prompt('「' + name + '」をどこへ移しますか？ 番号を入れてください。\n' +
+    dests.map((d, i) => (i + 1) + '：' + dayShiftLabel(d.bi, d.shift)).join('\n'), '');
+  if (input === null) return;
+  const n = Number(String(input).trim());
+  if (!Number.isInteger(n) || n < 1 || n > dests.length) { alert('番号が正しくありません。'); return; }
+  dayMoveStop({ bi: bi, shift: shift, idx: idx }, dests[n - 1]);
+}
+
+/* 保存データから、その便の配達先（計算に渡す形）を取り出す */
+function dayStopsOf(data, shift) {
+  const r = data.results && data.results[shift];
+  const saved = (data.stops && data.stops[shift]) || [];
+  if (!r) return saved.map(s => Object.assign({}, s));
+  return r.schedule.map((s, i) => {
+    const ci = findClientIdx(s);
+    const kind = (saved[i] && saved[i].name === s.name && saved[i].kind) || (ci >= 0 ? CLIENTS[ci].kind : '1');
+    return { row: s.row, name: s.name, person: s.person, address: s.address, tel: s.tel, kind: kind,
+             latlng: s.latlng || '', yoken: s.yoken, detail: s.detail, stay: s.stay, wait: s.wait || 0 };
+  });
+}
+
+function dayDriverEmail(name) {
+  const op = [...document.getElementById('driver').options].find(o => o.value === name);
+  return op ? (op.dataset.email || '') : '';
+}
+
+/* その便を、渡した順番のまま計算し直して保存データに入れる */
+async function dayRecalc(data, shift, stops) {
+  if (!data.results) data.results = { AM: null, PM: null };
+  if (!data.stops) data.stops = { AM: [], PM: [] };
+  data.stops[shift] = stops.map(stopForSave);
+  if (!stops.length) { data.results[shift] = null; return; }
+  const r0 = data.results[shift];
+  const r = await gsr('calcRoute', {
+    date: data.date || '',
+    startTime: (r0 && r0.startTime) || data['start' + shift] || (shift === 'AM' ? '09:00' : '13:00'),
+    shift: shift,
+    driver: data.driver || '',
+    driverEmail: (r0 && r0.driverEmail) || dayDriverEmail(data.driver),
+    optimize: false,
+    avoidHighways: r0 ? !!r0.avoidHighways
+      : (data['avoidHighways' + shift] !== undefined ? !!data['avoidHighways' + shift] : true),
+    stops: stops
+  });
+  data.results[shift] = r;
+  data['skip' + shift] = false;
+}
+
+async function dayMoveStop(from, to) {
+  if (from.bi === to.bi && from.shift === to.shift) return;
+  const src = DAY_LIST[from.bi], dst = DAY_LIST[to.bi];
+  const stop = dayStopsOf(src.data, from.shift)[from.idx];
+  if (!stop) return;
+  if (!confirm('「' + stop.name + '」を\n' + dayShiftLabel(from.bi, from.shift) + ' → ' + dayShiftLabel(to.bi, to.shift) +
+               '\nへ移します。\n\n移した先では最後に入ります。両方の便の時刻を計算し直して、ルート表を保存します。よろしいですか？')) return;
+  const msg = document.getElementById('compareMsg');
+  msg.textContent = '移しています...（計算し直して保存中）';
+  try {
+    // ほかの人が変えていないか、保存されている最新の内容で確かめてから移す
+    const srcData = await gsr('loadRouteState', src.name);
+    const dstData = dst.name === src.name ? srcData : await gsr('loadRouteState', dst.name);
+    const srcStops = dayStopsOf(srcData, from.shift);
+    if (!srcStops[from.idx] || srcStops[from.idx].name !== stop.name) {
+      msg.textContent = '';
+      alert('このあいだに、ほかの人がルート表を変えたようです。読み込み直すので、もう一度移してください。');
+      reloadDayBoard();
+      return;
+    }
+    const moved = srcStops.splice(from.idx, 1)[0];
+    const dstStops = dayStopsOf(dstData, to.shift).concat([moved]);
+    await dayRecalc(srcData, from.shift, srcStops);
+    await dayRecalc(dstData, to.shift, dstStops);
+    await gsr('saveRouteState', src.name, srcData);
+    if (dst.name !== src.name) await gsr('saveRouteState', dst.name, dstData);
+    msg.textContent = '✔ 「' + stop.name + '」を ' + dayShiftLabel(to.bi, to.shift) + ' へ移して保存しました';
+    reloadDayBoard(msg.textContent);
+  } catch (e) {
+    msg.textContent = '';
+    alert('移せませんでした: ' + (e && e.message ? e.message : e));
+    reloadDayBoard();
+  }
+}
+
+function reloadDayBoard(note) {
+  refreshSavedList(() => showDayBoard(note));
+}
+
 /* カレンダーで選んだ日の、全トラックのルート表を並べて表示 */
-function showDayBoard() {
+function showDayBoard(note) {
   if (!calSelKey || calSelKey === 'nodate') return;
   const items = SAVED_LIST.filter(o => savedDateKey(o) === calSelKey).sort((x, y) =>
     (DRIVERS.indexOf(x.driver) - DRIVERS.indexOf(y.driver)) || String(x.name).localeCompare(String(y.name), 'ja'));
@@ -970,6 +1144,7 @@ function showDayBoard() {
       const [y, m, d] = calSelKey.split('-').map(Number);
       const w = ['日', '月', '火', '水', '木', '金', '土'][new Date(y, m - 1, d).getDay()];
       showCompareMany(loaded, '🚚 ' + m + '月' + d + '日(' + w + ') の配達　' + loaded.length + '件のルート表', true);
+      document.getElementById('compareMsg').textContent = note || '';
       return;
     }
     google.script.run

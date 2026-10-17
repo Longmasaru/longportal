@@ -134,6 +134,13 @@
       "when": 1792260701525,
       "tag": "0018_kyokasho_comments",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1792266119858,
+      "tag": "0019_arigato_cards",
+      "breakpoints": true
     }
   ]
 }
