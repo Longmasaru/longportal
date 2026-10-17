@@ -8,7 +8,7 @@ import { employeeAssignments, employees } from "@/modules/core/employees/schema"
 import { employmentTypes } from "@/modules/core/employment-types/schema";
 import { locations } from "@/modules/core/locations/schema";
 import { positions } from "@/modules/core/positions/schema";
-import { canManageEmployee, pageMode, type PageMode } from "./logic";
+import { canManageEmployee, pageMode, type NameParts, type PageMode } from "./logic";
 import { HR_RECORDS_MANAGE } from "./manifest";
 import {
   hrAbilities,
@@ -149,6 +149,21 @@ export async function listRecords(employeeId: string, mode: Exclude<PageMode, "n
       ),
     )
     .orderBy(desc(hrRecords.occurredOn), desc(hrRecords.createdAt));
+}
+
+/** 氏名の部品(AI に送る前に伏せるため。31.3)。 */
+export async function getNameParts(employeeId: string): Promise<NameParts | null> {
+  const [row] = await db
+    .select({
+      familyName: employees.familyName,
+      givenName: employees.givenName,
+      familyNameKana: employees.familyNameKana,
+      givenNameKana: employees.givenNameKana,
+    })
+    .from(employees)
+    .where(eq(employees.id, employeeId))
+    .limit(1);
+  return row ?? null;
 }
 
 /** 記録 1 件(更新・削除の前の確認用)。 */
