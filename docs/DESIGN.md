@@ -676,4 +676,10 @@ TODOSample の TODO を、ポータルの中のアプリ(`modules/apps/todo`、`
 - **鍵**: アプリごとに別の鍵(AI教室は `SSO_SECRET_AIKYOSHITSU`)。ポータルの Vercel とアプリの Vercel に同じ値を置く(Sensitive)。
 - **権限**: 契約の権限は `npm run sync:manifests` で `core.permissions` に登録され(`app_key` 付き)、ほかの権限と同じくロールで渡す。AI教室の `aikyoshitsu.materials.manage` = 回と資料の登録・変更・削除(講師に渡す)。
 - 退職などでポータルにログインできなくなった人は、新しい通行証を受け取れない。発行済みのアプリのログイン状態は、その期限(AI教室は 8 時間)まで残る。
+- **ポータルの中に表示する(2026-10-17 追加)**: ユーザーの希望は「作り方は別プロジェクトのまま、見え方はポータルの中のアプリの 1 つ(「育てて、育つ。」と同じ)」。別ウィンドウにしない。
+  - external のアプリは、サイドバー・ホームから**同じタブで** `/apps/<app_key>`(`src/app/(portal)/apps/[appKey]/page.tsx`、本体は `core/sso` の `resolveExternalAppPage`)を開く。internal のアプリはそれぞれの静的なルートが優先される。
+  - 契約に `embedPath`(AI教室は `/aikyoshitsu`)があるアプリは、ポータルの画面(ヘッダー・サイドバー)の中に iframe で埋め込む。iframe の中身は `/apps/launch/<app_key>` → `<embedPath>/sso?token=…`(相対の住所)。`embedPath` がないアプリは、入口へ移動する(ポータルの外へ出る)。
+  - `embedPath` への要求は、ポータルが Next.js の multi-zones の rewrites でアプリへ転送する(`next.config.ts` の `ZONES`。転送先は `AIKYOSHITSU_ORIGIN`、未設定なら `https://ai-kyoshitsu.vercel.app`)。利用者から見た住所はポータルのまま(同じサイト)なので、アプリのログイン状態の cookie は第三者 cookie にならない。アプリ側は `basePath` を `embedPath` と同じにし、ポータル経由の Server Action のために `serverActions.allowedOrigins` にポータルの住所を入れる。
+  - 埋め込みの許可: ポータルの画面は今までどおり `X-Frame-Options: DENY`。`embedPath` の住所だけはポータルのヘッダーを付けず、アプリが `X-Frame-Options: SAMEORIGIN` と `frame-ancestors 'self'` を返す。`proxy.ts` の matcher から `embedPath` を外す(ログインの確認はアプリ側)。
+  - 全画面: iframe に `allow="fullscreen"`。アプリは埋め込まれているとき(`window.self !== window.top`)、自分の上のバーを出さない。
 

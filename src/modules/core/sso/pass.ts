@@ -14,6 +14,12 @@ export type ExternalAppContract = {
   ssoSecretEnv: string;
   /** そのアプリの権限。sync:manifests で DB に登録し、持っているものを通行証に載せる。 */
   permissions: readonly { code: string; description: string }[];
+  /**
+   * ポータルの住所の中で表示する場合の、アプリの住所(例: "/aikyoshitsu")。
+   * ポータルがこの住所への要求をアプリへ転送し(next.config の rewrites)、ポータルの画面の中に埋め込んで開く。
+   * 指定がなければ、登録された URL へ移動する。
+   */
+  embedPath?: string;
 };
 
 export type Pass = {
@@ -55,6 +61,11 @@ export function signPass(pass: Pass, secret: string): string {
   const body = Buffer.from(JSON.stringify(pass)).toString("base64url");
   const mac = createHmac("sha256", secret).update(body).digest("base64url");
   return `${body}.${mac}`;
+}
+
+/** ポータルの住所の中で表示するアプリの、通行証を受け取る入口(相対の住所)。 */
+export function ssoEntryPath(embedPath: string, token: string): string {
+  return `${embedPath.replace(/\/+$/, "")}/sso?${new URLSearchParams({ token })}`;
 }
 
 /** アプリの URL に、通行証を受け取る入口(/sso)をつなげる。 */

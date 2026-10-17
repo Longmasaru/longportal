@@ -71,7 +71,7 @@
 - 2026-10-16: Audience の条件に「社員」(一覧から名指しで選ぶ)を追加(DESIGN.md 27 章、migration 0013。本番にも適用済み)。
 - **作業中(2026-10-16)**: 本人によるパスワード再設定(DESIGN.md 26 章)。済み: 設計、`core.users.email` / `email_verified_at`、`core.auth_tokens` の schema と migration 0012(本番にも適用済み。まだ使うコードはない)。未着手: `core/mail`(送信。Resend を Vercel Marketplace で接続してから組み込む)、初回ログインでのメール登録、確認メール、`/forgot-password`・`/reset-password`・`/verify-email`(proxy の matcher から除外が必要)、未確認の案内、Cloudflare DNS への Resend の設定。
 
-- **作業中(2026-10-17)**: AI教室(別アプリ。リポジトリ `ai-kyoshitsu`、DESIGN.md 28 章)と、ポータルからのログインの受け渡し(SSO)。ポータル側: 入口 `/apps/launch/<app_key>`、`core/sso`、契約 `modules/apps/external-apps.ts`、環境変数 `SSO_SECRET_AIKYOSHITSU`。本番に出すには: ポータルとアプリの Vercel に同じ鍵を置く → `sync:manifests`(権限の登録)→ `/admin/apps` で external として URL を登録・有効化 → 講師にロールで `aikyoshitsu.materials.manage` を渡す。
+- 2026-10-17: AI教室(別アプリ。リポジトリ `ai-kyoshitsu`、本番 `https://ai-kyoshitsu.vercel.app`、DESIGN.md 28 章)を本番公開。ログインはポータルの通行証(SSO。入口 `/apps/launch/<app_key>`、`core/sso`、契約 `modules/apps/external-apps.ts`、鍵 `SSO_SECRET_AIKYOSHITSU`)。講師の老川さん(0052)にロール「AI教室 講師」(`aikyoshitsu.materials.manage`)。第1回の資料 4 つを投入済み。同日、**見え方をポータルの中のアプリにした**: サイドバーから同じタブで `/apps/aikyoshitsu` を開き、ポータルの画面の中に埋め込む。`/aikyoshitsu/…` はポータルがアプリへ転送する(multi-zones。`next.config.ts` の `ZONES`、アプリは basePath `/aikyoshitsu`)。
 
 ### まだ「枠だけ」の部分
 - 見本(架空)のデータは 2026-10-14 に削除した(`mock-data.ts`)。ホームとサイドバーの**お知らせ・アプリ・社内リンク・要対応**は、`queries.ts` の `listVisible*` が空を返す(アプリは apps/sodatsu だけを固定で返す)ので、枠と「まだありません」の表示だけが出る。実装時は、この関数の中身を差し替える。
