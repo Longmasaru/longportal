@@ -10,7 +10,7 @@ import {
   type Contributor,
 } from "../tsukkomi";
 import type { CommentView, MyComment } from "../tsukkomi-queries";
-import { BubbleIcon, DeleteCommentButton, HandleCommentForm, TsukkomiForm } from "./tsukkomi-client";
+import { BubbleIcon, DeleteCommentButton, FloatingTsukkomi, HandleCommentForm, TsukkomiForm } from "./tsukkomi-client";
 
 // ツッコミの表示(docs/DESIGN.md 32 章): 章の終わりの「この章へのツッコミ」、一覧のページの「あなたのツッコミ」「教科書をよくしてくれた人」。
 
@@ -120,6 +120,11 @@ export function CommentCard({
         <StatusBadge status={comment.status} />
       </div>
 
+      {comment.quote ? (
+        <blockquote className="border-brand01/25 text-brand04 font-prose border-l-2 pl-3 text-sm leading-relaxed">
+          「{comment.quote}」
+        </blockquote>
+      ) : null}
       <p className="font-prose text-ink leading-[1.8] break-words whitespace-pre-wrap">{comment.body}</p>
 
       <div className="text-brand04 flex flex-wrap items-center gap-x-2 text-xs">
@@ -186,11 +191,12 @@ export function ChapterTsukkomi({
           {comments.length > 0 ? <span className="text-brand04 text-base font-medium">{comments.length} 件</span> : null}
         </h2>
         <p className="text-brand04 text-sm leading-relaxed">
-          「あれ?」「ここはこうでは?」と思ったら、気軽にツッコんでください。教科書チームが読んで返事をし、採用したら教科書を直します。
+          「あれ?」「ここはこうでは?」と思ったら、気軽にツッコんでください。右下の「ツッコむ」や見出しの横のボタンから書けます。気になった文を指でなぞって選ぶと、その文を引用できます。教科書チームが読んで返事をし、採用したら教科書を直します。
         </p>
       </div>
 
       <TsukkomiForm bookId={bookId} chapterNo={chapterNo} sections={sections} />
+      <FloatingTsukkomi />
 
       {comments.length === 0 ? (
         <p className="text-brand04 bg-white p-5 text-center text-sm">まだツッコミはありません。最初のひとりになってください。</p>

@@ -14,7 +14,7 @@ import { canViewBook } from "./logic";
 import { manifest } from "./manifest";
 import { canManageBooks } from "./queries";
 import { kyokashoBooks, kyokashoCommentThanks, kyokashoComments } from "./schema";
-import { BODY_MAX, COMMENT_KINDS, COMMENT_STATUSES, REPLY_MAX, canDeleteOwnComment } from "./tsukkomi";
+import { BODY_MAX, COMMENT_KINDS, COMMENT_STATUSES, QUOTE_MAX, REPLY_MAX, canDeleteOwnComment } from "./tsukkomi";
 import { canHandleComments } from "./tsukkomi-queries";
 
 // ツッコミの書き込み(docs/DESIGN.md 32 章)。書く・消す・ありがとうは、その教科書を見られる人だけ。
@@ -46,6 +46,10 @@ const postSchema = z.object({
   bookId: z.uuid("不正なリクエストです。"),
   chapterNo: z.coerce.number().int().min(1).max(999),
   sectionId: z.string().max(80),
+  quote: z
+    .string()
+    .transform((v) => v.replace(/\s+/g, " ").trim())
+    .pipe(z.string().max(QUOTE_MAX, "引用が長すぎます。短く選び直してください。")),
   kind: z.enum(COMMENT_KINDS, "ツッコミの種類を選んでください。"),
   body: z
     .string()
@@ -60,6 +64,7 @@ export async function postCommentAction(_prev: TsukkomiFormState, formData: Form
     bookId: text(formData, "bookId"),
     chapterNo: text(formData, "chapterNo"),
     sectionId: text(formData, "sectionId"),
+    quote: text(formData, "quote"),
     kind: text(formData, "kind"),
     body: text(formData, "body"),
   });
@@ -77,6 +82,7 @@ export async function postCommentAction(_prev: TsukkomiFormState, formData: Form
     chapterTitle: chapter.title.slice(0, 200),
     sectionId: section ? section.id : null,
     sectionTitle: section ? section.text.replace(/\*\*/g, "").slice(0, 200) : "",
+    quote: v.quote,
     kind: v.kind,
     body: v.body,
     authorUserId: actor.userId,

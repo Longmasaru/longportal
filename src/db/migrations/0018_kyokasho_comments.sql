@@ -12,6 +12,7 @@ CREATE TABLE "kyokasho"."comments" (
 	"chapter_title" varchar(200) NOT NULL,
 	"section_id" varchar(80),
 	"section_title" varchar(200) DEFAULT '' NOT NULL,
+	"quote" varchar(300) DEFAULT '' NOT NULL,
 	"kind" varchar(20) NOT NULL,
 	"body" text NOT NULL,
 	"author_user_id" uuid,

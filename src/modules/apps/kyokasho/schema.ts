@@ -92,6 +92,8 @@ export const kyokashoComments = kyokasho.table(
     /** 節の見出しの id(章全体へのツッコミは null)。 */
     sectionId: varchar("section_id", { length: 80 }),
     sectionTitle: varchar("section_title", { length: 200 }).notNull().default(""),
+    /** 本文から選んで引用した文(なければ空)。 */
+    quote: varchar("quote", { length: 300 }).notNull().default(""),
     kind: varchar("kind", { length: 20 }).notNull(),
     body: text("body").notNull(),
     authorUserId: uuid("author_user_id").references(() => users.id, { onDelete: "set null" }),

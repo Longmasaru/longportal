@@ -28,6 +28,7 @@ export type CommentView = {
   chapterTitle: string;
   sectionId: string | null;
   sectionTitle: string;
+  quote: string;
   kind: string;
   body: string;
   status: CommentStatus;
@@ -47,6 +48,7 @@ const viewColumns = {
   chapterTitle: kyokashoComments.chapterTitle,
   sectionId: kyokashoComments.sectionId,
   sectionTitle: kyokashoComments.sectionTitle,
+  quote: kyokashoComments.quote,
   kind: kyokashoComments.kind,
   body: kyokashoComments.body,
   status: sql<CommentStatus>`${kyokashoComments.status}`,

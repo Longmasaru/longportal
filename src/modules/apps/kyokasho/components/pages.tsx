@@ -15,6 +15,7 @@ import {
 } from "../tsukkomi-queries";
 import { Blocks, PHRASE_WRAP, Phrased } from "./blocks";
 import { ChapterTsukkomi, TsukkomiOverview } from "./tsukkomi";
+import { BODY_ID } from "./tsukkomi-client";
 
 // ロングの教科書の画面(一覧 → 目次 → 章)。入口は requireAppAccess("kyokasho")、教科書ごとに見られる人を判定する。
 
@@ -254,7 +255,7 @@ export async function ChapterPage({ slug, chapter: chapterParam }: { slug: strin
         </nav>
       ) : null}
 
-      <article className="flex flex-col gap-4">
+      <article id={BODY_ID} className="flex flex-col gap-4">
         <Blocks
           blocks={chapter.blocks}
           quizKey={`kyokasho:${actor.userId}:${book.id}:${index + 1}`}

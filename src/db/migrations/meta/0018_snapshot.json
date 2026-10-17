@@ -1,5 +1,5 @@
 {
-  "id": "8c826007-4bab-4d4e-84cb-4ad91b666b12",
+  "id": "deebd336-057a-4ae1-8828-81bd19dc88e8",
   "prevId": "698f436a-0c77-48e4-93e6-1539f5e18d4d",
   "version": "7",
   "dialect": "postgresql",
@@ -1975,6 +1975,13 @@
         "section_title": {
           "name": "section_title",
           "type": "varchar(200)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "quote": {
+          "name": "quote",
+          "type": "varchar(300)",
           "primaryKey": false,
           "notNull": true,
           "default": "''"

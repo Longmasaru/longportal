@@ -37,6 +37,7 @@ export function isAdopted(status: string): boolean {
 
 export const BODY_MAX = 1000;
 export const REPLY_MAX = 1000;
+export const QUOTE_MAX = 300;
 
 export type Contributor = { userId: string; name: string; count: number; adopted: number };
 

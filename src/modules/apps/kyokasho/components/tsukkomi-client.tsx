@@ -1,12 +1,14 @@
 "use client";
 
 import { startTransition, useActionState, useEffect, useRef, useState, type FormEvent } from "react";
+import { DictationButton } from "@/modules/core/shared/ui/dictation";
 import { BUTTON_PRIMARY, BUTTON_SECONDARY, FIELD_CLASS, FormNotice } from "@/modules/core/shared/ui/form";
 import {
   BODY_MAX,
   COMMENT_KINDS,
   COMMENT_STATUSES,
   KIND_LABELS,
+  QUOTE_MAX,
   REPLY_MAX,
   STATUS_LABELS,
   type CommentKind,
@@ -22,13 +24,108 @@ import {
 
 const EVENT = "kyokasho:tsukkomi";
 export const FORM_ID = "tsukkomi";
+/** 章の本文を囲む要素の id(選んだ文と、読んでいる節を探す範囲)。 */
+export const BODY_ID = "kyokasho-body";
+
+type Pick = { sectionId: string; quote?: string };
+
+function openForm(pick: Pick) {
+  window.dispatchEvent(new CustomEvent<Pick>(EVENT, { detail: pick }));
+}
+
+/** node より前にある、いちばん近い節の見出し(見出し 2・3)の id。 */
+function sectionBefore(node: Node | null): string {
+  const body = document.getElementById(BODY_ID);
+  if (!body || !node) return "";
+  let found = "";
+  for (const h of body.querySelectorAll<HTMLElement>("h2[id], h3[id]")) {
+    if (h === node || h.contains(node) || h.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING) found = h.id;
+    else break;
+  }
+  return found;
+}
+
+/** 画面の上の方に見えている節(読んでいるところ)の id。 */
+function currentSection(): string {
+  const body = document.getElementById(BODY_ID);
+  if (!body) return "";
+  let found = "";
+  for (const h of body.querySelectorAll<HTMLElement>("h2[id], h3[id]")) {
+    if (h.getBoundingClientRect().top < window.innerHeight * 0.4) found = h.id;
+    else break;
+  }
+  return found;
+}
+
+/** 本文の中で選ばれている文(なければ null)。 */
+function selectedInBody(): { text: string; node: Node } | null {
+  const sel = window.getSelection();
+  if (!sel || sel.isCollapsed || sel.rangeCount === 0) return null;
+  const body = document.getElementById(BODY_ID);
+  const node = sel.anchorNode;
+  if (!body || !node || !body.contains(node)) return null;
+  const text = sel.toString().replace(/\s+/g, " ").trim();
+  if (text.length < 2) return null;
+  return { text: text.length > QUOTE_MAX ? `${text.slice(0, QUOTE_MAX - 1)}…` : text, node };
+}
+
+/**
+ * 画面の右下にいつも出る「ツッコむ」。押すと、読んでいる節を選んだ状態で書く欄へ移る。
+ * 本文の文を指(マウス)でなぞって選ぶと「選んだ文にツッコむ」に変わり、その文を引用して書き始められる。
+ * 書く欄が見えている間は隠す。
+ */
+export function FloatingTsukkomi() {
+  const [selected, setSelected] = useState<{ text: string; sectionId: string } | null>(null);
+  const [formVisible, setFormVisible] = useState(false);
+  const clearTimer = useRef<number | null>(null);
+
+  useEffect(() => {
+    const onChange = () => {
+      const s = selectedInBody();
+      if (clearTimer.current) window.clearTimeout(clearTimer.current);
+      if (s) setSelected({ text: s.text, sectionId: sectionBefore(s.node) });
+      // ボタンを押した瞬間に選択が外れても使えるよう、消すのは少し待つ
+      else clearTimer.current = window.setTimeout(() => setSelected(null), 400);
+    };
+    document.addEventListener("selectionchange", onChange);
+    return () => document.removeEventListener("selectionchange", onChange);
+  }, []);
+
+  useEffect(() => {
+    const form = document.getElementById(FORM_ID);
+    if (!form) return;
+    const io = new IntersectionObserver(([e]) => setFormVisible(e.isIntersecting), { threshold: 0.15 });
+    io.observe(form);
+    return () => io.disconnect();
+  }, []);
+
+  if (formVisible && !selected) return null;
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        if (selected) {
+          openForm({ sectionId: selected.sectionId, quote: selected.text });
+          window.getSelection()?.removeAllRanges();
+          setSelected(null);
+        } else openForm({ sectionId: currentSection() });
+      }}
+      className={`fixed right-4 bottom-[calc(1rem+env(safe-area-inset-bottom))] z-40 inline-flex items-center gap-2 px-4 py-3 text-sm font-bold text-white shadow-[0_4px_16px_rgba(0,0,0,0.18)] transition-colors md:right-8 md:bottom-8 ${
+        selected ? "bg-brand03" : "bg-brand01 hover:bg-brand03"
+      }`}
+    >
+      <BubbleIcon className="size-5" />
+      {selected ? "選んだ文にツッコむ" : "ツッコむ"}
+    </button>
+  );
+}
 
 /** 見出しの横の小さなボタン。押すと、その節を選んだ状態でページ下のフォームへ移る。 */
 export function SectionTsukkomiButton({ sectionId, count }: { sectionId: string; count: number }) {
   return (
     <button
       type="button"
-      onClick={() => window.dispatchEvent(new CustomEvent(EVENT, { detail: sectionId }))}
+      onClick={() => openForm({ sectionId })}
       className="border-brand01/20 text-brand04 hover:border-brand03 hover:text-brand03 mt-0.5 inline-flex shrink-0 items-center gap-1 border bg-white px-2 py-1 font-sans text-xs font-bold whitespace-nowrap transition-colors"
       aria-label={count > 0 ? `この節にツッコむ(ツッコミ ${count} 件)` : "この節にツッコむ"}
     >
@@ -61,13 +158,15 @@ export function TsukkomiForm({
   const [kind, setKind] = useState<CommentKind>("question");
   const [sectionId, setSectionId] = useState("");
   const [body, setBody] = useState("");
+  const [quote, setQuote] = useState("");
   const wrap = useRef<HTMLDivElement>(null);
   const area = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     const onPick = (e: Event) => {
-      const id = (e as CustomEvent<string>).detail;
+      const { sectionId: id, quote: q } = (e as CustomEvent<Pick>).detail;
       setSectionId(sections.some((s) => s.id === id) ? id : "");
+      setQuote(q ?? "");
       wrap.current?.scrollIntoView({ behavior: "smooth", block: "start" });
       // スクロールが終わってから入力欄へ(すぐに focus すると、スマホで画面が飛ぶため)。
       window.setTimeout(() => area.current?.focus({ preventScroll: true }), 450);
@@ -76,11 +175,13 @@ export function TsukkomiForm({
     return () => window.removeEventListener(EVENT, onPick);
   }, [sections]);
 
-  useEffect(() => {
-    // 送れたら中身を空にする(送った時刻が変わるたび)。
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (state?.success) setBody("");
-  }, [state?.success, state?.at]);
+  // 送れたら中身を空にする(送った時刻が変わるたび。描画の中で一度だけ行う)。
+  const [seenAt, setSeenAt] = useState<number | undefined>(undefined);
+  if (state?.success && state.at !== seenAt) {
+    setSeenAt(state.at);
+    setBody("");
+    setQuote("");
+  }
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -94,6 +195,7 @@ export function TsukkomiForm({
         <input type="hidden" name="bookId" value={bookId} />
         <input type="hidden" name="chapterNo" value={chapterNo} />
         <input type="hidden" name="kind" value={kind} />
+        <input type="hidden" name="quote" value={quote} />
 
         <fieldset>
           <legend className="text-brand01 mb-2 text-sm font-bold">どんなツッコミ?</legend>
@@ -139,10 +241,28 @@ export function TsukkomiForm({
           </select>
         </div>
 
+        {quote ? (
+          <div className="border-brand01/25 bg-bg01 flex items-start gap-3 border-l-4 px-3 py-2">
+            <p className="font-prose text-ink min-w-0 flex-1 text-sm leading-relaxed">
+              <span className="text-brand01 mr-1 text-xs font-bold">引用</span>「{quote}」
+            </p>
+            <button
+              type="button"
+              onClick={() => setQuote("")}
+              className="text-brand04 hover:text-brand03 shrink-0 text-xs underline underline-offset-2"
+            >
+              外す
+            </button>
+          </div>
+        ) : null}
+
         <div>
-          <label htmlFor="tsukkomi-body" className="text-brand01 mb-1.5 block text-sm font-bold">
-            ツッコミ
-          </label>
+          <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+            <label htmlFor="tsukkomi-body" className="text-brand01 text-sm font-bold">
+              ツッコミ
+            </label>
+            <DictationButton onText={(t) => setBody((b) => `${b}${t}`.slice(0, BODY_MAX))} />
+          </div>
           <textarea
             ref={area}
             id="tsukkomi-body"
