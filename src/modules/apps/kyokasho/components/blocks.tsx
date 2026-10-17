@@ -6,6 +6,8 @@ import {
   isLabel,
   joinBrokenLines,
   tableCards,
+  tablePairs,
+  type Card,
   tableKind,
 } from "../layout";
 import { cleanText, phrases, softenLines, splitBold } from "../typeset";
@@ -15,8 +17,8 @@ import { Quiz } from "./quiz";
 
 // 文節の区切り(<wbr>)でだけ折り返す。長い英数字だけは、はみ出さないよう途中でも折る。
 export const PHRASE_WRAP = "[word-break:keep-all] [overflow-wrap:anywhere]";
-// 本文は 1 行が長すぎないように(和文で 1 行おおむね 40 字)。
-const PROSE = `font-prose text-ink max-w-[40em] ${PHRASE_WRAP}`;
+// 本文は、スマホでは 1 行が長すぎないように(和文でおおむね 40 字)。PC では区切らず、画面の幅いっぱいに書く(短く区切ると「事故・故障に|つながる。」のように窮屈に見えるため)。
+const PROSE = `font-prose text-ink max-w-[40em] md:max-w-none ${PHRASE_WRAP}`;
 // 写真・図の枠(続く写真は、この枠をそろえて並べる)。
 const FRAME = "border-brand01/10 rounded-sm border bg-white";
 
@@ -128,8 +130,8 @@ function BlockView({
   switch (block.type) {
     case "heading": {
       const style = {
-        2: "text-brand01 border-brand03 border-l-4 pl-3 text-xl font-bold",
-        3: "text-brand01 text-lg font-bold",
+        2: "text-brand01 border-brand03 border-l-4 pl-3 text-xl font-bold md:text-2xl",
+        3: "text-brand01 text-lg font-bold md:text-xl",
         4: "text-brand01 font-bold",
       }[block.level];
       const Tag = (["h2", "h3", "h4"] as const)[block.level - 2];
@@ -153,7 +155,7 @@ function BlockView({
         indent === 0 ? "" : indent === 1 ? "pl-[1em]" : "pl-[2em] md:pl-[4em]";
       return (
         <p
-          className={`${PROSE} ${compact ? "text-sm leading-relaxed" : "leading-[1.9]"} ${pad}`}
+          className={`${PROSE} ${compact ? "text-sm leading-relaxed md:text-base" : "leading-[1.9]"} ${pad}`}
         >
           <InlineText inlines={inlines} />
         </p>
@@ -163,7 +165,7 @@ function BlockView({
       const Tag = block.ordered ? "ol" : "ul";
       return (
         <Tag
-          className={`${PROSE} flex flex-col gap-1.5 pl-6 ${block.ordered ? "list-decimal" : "list-disc"} ${compact ? "text-sm leading-relaxed" : "leading-[1.9]"}`}
+          className={`${PROSE} flex flex-col gap-1.5 pl-6 ${block.ordered ? "list-decimal" : "list-disc"} ${compact ? "text-sm leading-relaxed md:text-base" : "leading-[1.9]"}`}
         >
           {block.items.map((item, i) => (
             <li key={i}>
@@ -181,7 +183,8 @@ function BlockView({
           src={imageUrl(block.id)}
           alt={block.alt}
           loading="lazy"
-          className={`${FRAME} h-auto max-w-full ${compact ? "max-h-72" : "max-h-[32rem]"} w-auto self-start object-contain`}
+          // カードや表の中は幅いっぱいにそろえる。本文では、小さい写真も見やすい大きさ(最低 24rem 幅)まで広げる。
+          className={`${FRAME} h-auto object-contain ${compact ? "max-h-80 w-full" : "max-h-[36rem] w-auto max-w-full min-w-[min(100%,24rem)] self-start md:min-w-[min(100%,30rem)]"}`}
         />
       );
     case "table":
@@ -209,7 +212,7 @@ function TableView({ block, quizKey }: { block: TableBlock; quizKey: string }) {
   const kind = tableKind(block);
   if (kind === "callout") {
     return (
-      <div className="bg-bg01 border-brand01/40 max-w-[44em] rounded-sm border-l-4 px-4 py-3">
+      <div className="bg-bg01 border-brand01/40 rounded-sm border-l-4 px-4 py-3">
         <BlockList
           blocks={flowCell(block.rows[0][0])}
           quizKey={`${quizKey}-c`}
@@ -218,69 +221,110 @@ function TableView({ block, quizKey }: { block: TableBlock; quizKey: string }) {
       </div>
     );
   }
+  if (kind === "pairs") {
+    return <CardView card={tablePairs(block)} quizKey={`${quizKey}-p`} wide />;
+  }
   const table = <GridTable block={block} quizKey={quizKey} />;
-  if (kind === "table") return table;
+  if (kind === "table") {
+    // 見出しの行として扱えない表(写真を横に並べた表、OK・NG の見本など)も、スマホでは横に動かす表にせず、
+    // 行ごとのカードにセルを縦に並べる。PC では表のまま。
+    return (
+      <>
+        <div className="flex flex-col gap-3 sm:hidden">
+          {tableCards(block, { header: false }).map((card, i) => (
+            <CardView key={i} card={card} quizKey={`${quizKey}-s${i}`} />
+          ))}
+        </div>
+        <div className="hidden sm:block">{table}</div>
+      </>
+    );
+  }
   return (
     <>
       <div className="flex flex-col gap-3 sm:hidden">
         {tableCards(block).map((card, i) => (
-          <section
-            key={i}
-            className="border-brand01/15 overflow-hidden rounded-md border bg-white"
-          >
-            <CardTitle blocks={card.title} quizKey={`${quizKey}-k${i}`} />
-            {card.fields.length ? (
-              <dl className="flex flex-col">
-                {card.fields.map((field, j) => {
-                  // 短い中身(役職・判定・空欄など)は項目名の右に、長い文や写真は項目名の下に置く。
-                  const side = isShort(field.value);
-                  return (
-                    <div
-                      key={j}
-                      className={`${side ? "grid grid-cols-[5.5em_1fr] items-baseline gap-x-3" : "flex flex-col gap-1"} px-4 py-2.5 ${j === 0 ? "" : field.divider ? "border-brand01/25 border-t-2" : "border-brand01/10 border-t"}`}
-                    >
-                      {field.label.length ? (
-                        <dt className="text-brand04/70 text-xs font-bold">
-                          <BlockList
-                            blocks={flowCell(field.label)}
-                            quizKey={`${quizKey}-k${i}-l${j}`}
-                            compact
-                            plain
-                          />
-                        </dt>
-                      ) : null}
-                      <dd
-                        className={
-                          field.label.length || !side
-                            ? "min-w-0"
-                            : "col-span-2 min-w-0"
-                        }
-                      >
-                        {field.value.length ? (
-                          <BlockList
-                            blocks={flowCell(field.value)}
-                            quizKey={`${quizKey}-k${i}-v${j}`}
-                            compact
-                          />
-                        ) : (
-                          // 元の表の空欄(氏名を書き込む欄など)。空いていることが分かるように残す。
-                          <span
-                            className="border-brand04/30 block h-6 border-b border-dashed"
-                            aria-label="空欄"
-                          />
-                        )}
-                      </dd>
-                    </div>
-                  );
-                })}
-              </dl>
-            ) : null}
-          </section>
+          <CardView key={i} card={card} quizKey={`${quizKey}-k${i}`} />
         ))}
       </div>
       <div className="hidden sm:block">{table}</div>
     </>
   );
+}
+
+/** 表の 1 行(または「項目名 | 中身」の表全体)を 1 枚のカードにして見せる。 */
+function CardView({
+  card,
+  quizKey,
+  wide = false,
+}: {
+  card: Card;
+  quizKey: string;
+  wide?: boolean;
+}) {
+  return (
+    <section
+      className={`border-brand01/15 overflow-hidden rounded-md border bg-white ${wide ? "max-w-3xl" : ""}`}
+    >
+      {card.title.length ? (
+        <CardTitle blocks={card.title} quizKey={quizKey} />
+      ) : null}
+      {card.fields.length ? (
+        <dl className="flex flex-col">
+          {/* 取り込めなかった写真の欄(元の文書の図形描画など)は、空の書き込み欄にせず出さない */}
+          {card.fields.filter((f) => f.value.length > 0 || !isPictureLabel(f.label)).map((field, j) => {
+            // 短い中身(役職・判定・空欄など)は項目名の右に、長い文や写真は項目名の下に置く。
+            const side = isShort(field.value);
+            const label = wide
+              ? "grid-cols-[7em_1fr]"
+              : "grid-cols-[5.5em_1fr]";
+            return (
+              <div
+                key={j}
+                className={`${side ? `grid ${label} items-baseline gap-x-3` : "flex flex-col gap-1"} px-4 py-2.5 ${j === 0 ? "" : field.divider ? "border-brand01/25 border-t-2" : "border-brand01/10 border-t"}`}
+              >
+                {field.label.length ? (
+                  <dt className="text-brand04/70 text-xs font-bold md:text-sm">
+                    <BlockList
+                      blocks={flowCell(field.label)}
+                      quizKey={`${quizKey}-l${j}`}
+                      compact
+                      plain
+                    />
+                  </dt>
+                ) : null}
+                <dd
+                  className={
+                    field.label.length || !side
+                      ? "min-w-0"
+                      : "col-span-2 min-w-0"
+                  }
+                >
+                  {field.value.length ? (
+                    <BlockList
+                      blocks={flowCell(field.value)}
+                      quizKey={`${quizKey}-v${j}`}
+                      compact
+                    />
+                  ) : (
+                    // 元の表の空欄(氏名を書き込む欄など)。空いていることが分かるように残す。
+                    <span
+                      className="border-brand04/30 block h-6 border-b border-dashed"
+                      aria-label="空欄"
+                    />
+                  )}
+                </dd>
+              </div>
+            );
+          })}
+        </dl>
+      ) : null}
+    </section>
+  );
+}
+
+/** 写真・画像の欄か。 */
+function isPictureLabel(label: Block[]): boolean {
+  return label.some((b) => b.type === "paragraph" && b.inlines.some((i) => /画像|写真|図/.test(i.text)));
 }
 
 /** 項目名の右に並べられるほど短い中身か(文字だけで 16 字まで)。 */
@@ -341,7 +385,7 @@ function CardTitle({ blocks, quizKey }: { blocks: Block[]; quizKey: string }) {
 function GridTable({ block, quizKey }: { block: TableBlock; quizKey: string }) {
   return (
     <div className="-mx-4 overflow-x-auto px-4 md:mx-0 md:px-0">
-      <table className="border-brand01/20 w-full min-w-[32rem] border-collapse border bg-white text-sm">
+      <table className="border-brand01/20 w-full min-w-[32rem] border-collapse border bg-white text-sm md:text-base">
         <tbody>
           {block.rows.map((row, r) => (
             <tr key={r} className={r === 0 ? "bg-bg01" : ""}>
@@ -371,9 +415,10 @@ function GridTable({ block, quizKey }: { block: TableBlock; quizKey: string }) {
 }
 
 // 並べる数に合わせた列の数(3 枚なら 3 列にして、1 枚だけ下に残らないようにする)。
+// スマホでは 3 列にしない(1 枚が 100px ほどになり、写真が見えないため)。カードや表の中は、スマホでは 1 枚ずつ大きく。
 function gridCols(count: number, compact: boolean): string {
-  if (compact) return count === 3 ? "grid-cols-3" : "grid-cols-2";
-  if (count === 3) return "grid-cols-3";
+  if (compact) return "grid-cols-1 min-[480px]:grid-cols-2 lg:grid-cols-3";
+  if (count === 3) return "grid-cols-2 sm:grid-cols-3";
   if (count === 4) return "grid-cols-2 sm:grid-cols-4";
   return "grid-cols-2 sm:grid-cols-3";
 }
@@ -381,7 +426,7 @@ function gridCols(count: number, compact: boolean): string {
 /** 続く写真・図。同じ大きさの枠にそろえて並べる(押すと元の大きさで開く)。 */
 function ImageGrid({ ids, compact }: { ids: string[]; compact: boolean }) {
   return (
-    <div className={`grid max-w-[44em] gap-2 ${gridCols(ids.length, compact)}`}>
+    <div className={`grid max-w-4xl gap-2 ${gridCols(ids.length, compact)}`}>
       {ids.map((id) => (
         <a
           key={id}
@@ -493,5 +538,10 @@ export function Blocks({
   blocks: Block[];
   quizKey: string;
 }) {
-  return <BlockList blocks={blocks} quizKey={quizKey} compact={false} />;
+  // PC では文字を一回り大きくする(画面が広いのに 16px のままだと、小さく窮屈に見えるため)。
+  return (
+    <div className="md:text-[17px] lg:text-lg">
+      <BlockList blocks={blocks} quizKey={quizKey} compact={false} />
+    </div>
+  );
 }

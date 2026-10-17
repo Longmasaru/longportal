@@ -88,15 +88,49 @@ export function groupImages(blocks: Block[]): Placed[] {
 
 type TableBlock = Extract<Block, { type: "table" }>;
 
-/** 表の見せ方。callout = 囲み(セル 1 つ)、cards = スマホでは 1 件ずつのカード、table = 表のまま。 */
-export function tableKind(table: TableBlock): "callout" | "cards" | "table" {
+/**
+ * 表の見せ方。callout = 囲み(セル 1 つ)、pairs = 「項目名 | 中身」の 2 列の表(1 枚のカード)、
+ * cards = スマホでは 1 件ずつのカード、table = 表のまま。
+ */
+export function tableKind(table: TableBlock): "callout" | "pairs" | "cards" | "table" {
   const cells = table.rows.reduce((n, r) => n + r.length, 0);
   if (cells === 1) return "callout";
+  if (isPairs(table)) return "pairs";
   if (table.rows.length < 2) return "table";
   const width = Math.max(...table.rows.map((r) => r.length));
   // 見出しの行が縦につながっている表は、項目名が決まらないので表のまま。
   if (width < 2 || (table.spans ?? []).some((s) => s.row === 0 && s.rowSpan > 1)) return "table";
   return "cards";
+}
+
+// 表の見出しの行によく使われる言葉(2 列目)。
+const HEADER_WORD = /^(内容|業務内容|説明|詳細|意味|備考|作業者|対応|対策|注意点|注意事項|理由)$/;
+
+function cellPlain(cell: Block[]): string {
+  return cell
+    .map((b) => (b.type === "paragraph" ? b.inlines.map((i) => i.text).join("") : ""))
+    .join("")
+    .replace(/\*\*/g, "")
+    .trim();
+}
+
+/** 1 列目が短い項目名(文字だけ・10 字まで)の 2 列の表(「ダイ名 | ヘミングダイ」「画像 | (写真)」「用途 | …」)。 */
+function isPairs(table: TableBlock): boolean {
+  if (table.rows.length < 2 || (table.spans?.length ?? 0) > 0) return false;
+  // 1 行目が「項目 | 内容」のような見出しの行なら、1 件ずつのカードにする(cards)。
+  if (table.rows[0].length === 2 && HEADER_WORD.test(cellPlain(table.rows[0][1]))) return false;
+  return table.rows.every((row) => {
+    if (row.length !== 2) return false;
+    const label = row[0];
+    if (label.length === 0 || label.some((b) => b.type !== "paragraph")) return false;
+    const text = cellPlain(label);
+    return text.length > 0 && text.length <= 10;
+  });
+}
+
+/** 「項目名 | 中身」の表を 1 枚のカードにする(題はなし。すべての行を項目にする)。 */
+export function tablePairs(table: TableBlock): Card {
+  return { title: [], fields: table.rows.map(([label, value]) => ({ label, value })) };
 }
 
 /** divider: 1 列目が縦につながった表で、次の行の項目が始まるところ(線で区切る)。 */
@@ -128,12 +162,14 @@ function layoutGrid(table: TableBlock): Ref[][] {
  * - 横につながったセルは、項目名をまとめる(「作業者・歩行者」)。
  * - 1 列目が縦につながっているときは、その行をまとめて 1 枚にする(「倉庫」のリーダー・サブリーダー)。
  * - 中身が空のセルも項目として残す(氏名を書き込む欄など。空欄だと分かるように表示する)。
+ * header: false のときは見出しの行がない表として、1 行目からカードにする(項目名なし。写真を並べた表など)。
  */
-export function tableCards(table: TableBlock): Card[] {
+export function tableCards(table: TableBlock, { header = true }: { header?: boolean } = {}): Card[] {
   const grid = layoutGrid(table);
   const headCells = new Map<number, Block[]>();
   for (const ref of grid[0]) if (ref) headCells.set(ref.col, table.rows[0][ref.cell]);
-  const labelOf = (ref: Ref) => {
+  const labelOf = (ref: Ref): Block[] => {
+    if (!header) return [];
     const cells: Block[][] = [];
     for (let c = ref.col; c < ref.col + ref.colSpan; c++) {
       const cell = headCells.get(c);
@@ -143,7 +179,7 @@ export function tableCards(table: TableBlock): Card[] {
   };
 
   const cards: Card[] = [];
-  for (let r = 1; r < table.rows.length; r++) {
+  for (let r = header ? 1 : 0; r < table.rows.length; r++) {
     const first = grid[r][0];
     const continued = first !== undefined && first.row < r && cards.length > 0;
     const card: Card = continued ? cards[cards.length - 1] : { title: [], fields: [] };
@@ -160,7 +196,7 @@ export function tableCards(table: TableBlock): Card[] {
         continue;
       }
       const label = labelOf(ref);
-      if (value.length === 0 && label.length === 0) continue;
+      if (value.length === 0 && (label.length === 0 || !header)) continue;
       card.fields.push(firstOfRow ? { label, value, divider: true } : { label, value });
       firstOfRow = false;
     }
