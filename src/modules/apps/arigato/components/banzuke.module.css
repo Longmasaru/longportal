@@ -65,6 +65,52 @@
 .dots .goal { border-style: dashed; border-color: var(--shu); color: var(--shu); }
 .kachi { font-weight: 800; font-size: 17px; color: var(--shu); }
 
+/* はじめの説明 */
+.intro { border: 2px solid var(--ink); gap: 12px; }
+.introTitle { font-size: 26px; line-height: 1.35; }
+.steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; counter-reset: step; }
+.steps li { counter-increment: step; background: #fffdf7; border: 1px solid rgba(27, 22, 17, .3); padding: 10px 12px 10px 48px; position: relative; display: flex; flex-direction: column; gap: 2px; font-size: 14px; line-height: 1.6; }
+.steps li::before { content: counter(step); position: absolute; left: 12px; top: 10px; width: 26px; height: 26px; border-radius: 50%; background: var(--shu); color: #fff; display: grid; place-items: center; font-weight: 800; font-size: 15px; font-family: var(--mincho); }
+.steps b { font-size: 17px; }
+
+/* あなたのいま */
+.now { border: 2px solid var(--shu); }
+.nowRank { display: flex; align-items: center; gap: 14px; }
+.nowRank > b { font-size: 46px; line-height: 1.1; color: var(--shu); }
+.nowRank span { font-weight: 700; font-size: 16px; line-height: 1.5; }
+.nowRank small { font-weight: 400; font-size: 13px; color: var(--ink-soft); }
+
+/* 送るとどうなる */
+.projection { width: 100%; border-collapse: collapse; font-size: 15px; }
+.projection th { text-align: left; font-size: 12px; color: var(--ink-soft); font-weight: 700; padding: 4px 8px; border-bottom: 2px solid var(--ink); }
+.projection td { padding: 8px; border-bottom: 1px solid rgba(27, 22, 17, .25); vertical-align: middle; }
+.projection td:first-child { white-space: nowrap; width: 38%; }
+.projection td b { font-size: 20px; }
+.projection td small { font-size: 12px; color: var(--ink-soft); margin: 0 8px 0 6px; }
+.projection .nowRow { background: rgba(194, 58, 34, .08); }
+.yushoTag { display: inline-block; margin-left: 6px; font-size: 11px; font-weight: 800; color: #fff; background: var(--shu); padding: 0 6px; vertical-align: middle; }
+.up { font-size: 12px; font-weight: 800; color: #2f6b3f; white-space: nowrap; }
+.down { font-size: 12px; font-weight: 800; color: var(--ink-soft); white-space: nowrap; }
+.keep { font-size: 12px; color: var(--ink-soft); white-space: nowrap; }
+.cta { display: inline-block; background: var(--shu); color: #fff; font-weight: 800; padding: 10px 20px; text-decoration: none; }
+.cta:hover { background: #a32e19; }
+
+/* 番付の一覧(読みやすい形) */
+.list { display: flex; flex-direction: column; }
+.listRow { display: grid; grid-template-columns: 4.2em minmax(0, 1fr); gap: 10px; align-items: start; padding: 8px 0; border-bottom: 1px solid rgba(27, 22, 17, .2); }
+.listRank { font-size: 22px; line-height: 1.3; }
+.listRow ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.listRow li { background: #fffdf7; border: 1px solid rgba(27, 22, 17, .3); padding: 3px 10px; font-size: 15px; font-weight: 700; line-height: 1.5; }
+.listRow li small { font-weight: 400; font-size: 11px; color: var(--ink-soft); margin-left: 6px; }
+.listRow li.meChip { background: var(--shu); border-color: var(--shu); color: #fff; }
+.listRow li.meChip small { color: rgba(255, 255, 255, .85); }
+
+/* 本物の番付表(開いて見る) */
+.real { display: flex; flex-direction: column; gap: 10px; }
+.real summary { cursor: pointer; font-weight: 700; font-size: 15px; padding: 10px 14px; background: var(--paper); border: 1px solid rgba(27, 22, 17, .35); }
+.real[open] summary { margin-bottom: 10px; }
+.real > p { margin-bottom: 10px !important; }
+
 /* 懸賞旗 */
 .kensho { display: flex; gap: 6px; overflow-x: auto; padding: 6px 0 4px; }
 .flag { flex: none; width: 34px; height: 132px; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px 0; color: #fff; font-size: 13px; line-height: 1.05; position: relative; }

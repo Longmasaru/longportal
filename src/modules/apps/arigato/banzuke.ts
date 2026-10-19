@@ -225,3 +225,33 @@ export function computeNextBanzuke(prev: PrevEntry[], newcomers: string[], activ
     return { ...o, position: i + 1, side: k % 2 === 0 ? "east" : "west" };
   });
 }
+
+/**
+ * 見込み: いまの場所の白星が `wins` で終わったら、次の場所で何の位になるか。
+ * ほかの人の白星は、いまの時点のまま(場所の途中なので、あくまで目安)。番付に載っていなければ null。
+ */
+export function projectNextRank(entries: PrevEntry[], userId: string, wins: number): { rank: Rank; position: number; yusho: boolean } | null {
+  const sim = entries.map((e) => (e.userId === userId ? { ...e, wins } : e));
+  const mine = computeNextBanzuke(sim, [], new Set(sim.map((e) => e.userId))).find((e) => e.userId === userId);
+  return mine ? { rank: mine.rank, position: mine.position, yusho: findYusho(sim) === userId } : null;
+}
+
+/**
+ * 見込みの表: いまの白星のときの位と、そこから白星を増やしていくと位が変わるところ(上の位に届く白星の数)。
+ * 先頭がいまの白星。上限まで調べても変わらなければ、それ以上は並べない。
+ */
+export function projectionLadder(
+  entries: PrevEntry[],
+  userId: string,
+  myWins: number,
+  maxRows = 5,
+): { wins: number; rank: Rank; position: number; yusho: boolean }[] {
+  const rows: { wins: number; rank: Rank; position: number; yusho: boolean }[] = [];
+  for (let w = myWins; w <= myWins + 60 && rows.length < maxRows; w++) {
+    const p = projectNextRank(entries, userId, w);
+    if (!p) return rows;
+    const last = rows.at(-1);
+    if (!last || last.rank !== p.rank || last.yusho !== p.yusho) rows.push({ wins: w, ...p });
+  }
+  return rows;
+}

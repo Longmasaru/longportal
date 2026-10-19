@@ -3,13 +3,13 @@ import { db } from "@/db/client";
 import { users } from "@/modules/core/auth/schema";
 import { employees } from "@/modules/core/employees/schema";
 import {
-  KACHIKOSHI,
   bashoFromKey,
   bashoOf,
   bashoWeeks,
   computeNextBanzuke,
   findYusho,
   prevBasho,
+  projectionLadder,
   type Basho,
   type PrevEntry,
   type Rank,
@@ -172,6 +172,10 @@ export type BanzukePageData = {
   me: BanzukeRow | null;
   myWins: number;
   myKensho: KenshoItem[];
+  /** 白星がこの数で終わったら、次の場所はどの位か(いまの時点の見込み)。番付に載っていなければ空。 */
+  projection: { wins: number; rank: Rank; position: number; yusho: boolean }[];
+  /** 次の場所。 */
+  nextBasho: Basho;
   /** 今週の一枚スタンプカード: 場所の週と、送った週か。 */
   stamps: { start: string; end: string; stamped: boolean; current: boolean; future: boolean }[];
   /** 前の場所(番付が残っていれば)。 */
@@ -222,15 +226,49 @@ export async function getBanzukePage(userId: string, today: string): Promise<Ban
     future: w.start > today,
   }));
 
+  const myWins = myWinsRow[0]?.wins ?? 0;
   return {
     basho,
     rows,
     me: rows.find((r) => r.userId === userId) ?? null,
-    myWins: myWinsRow[0]?.wins ?? 0,
+    myWins,
+    projection: await loadProjection(basho, soFar, rows, userId, myWins),
+    nextBasho: bashoFromKey(nextBashoKey(basho.key)),
     myKensho: kensho.map((k) => ({ id: k.id, fromName: names.get(k.fromUserId)?.name ?? "", tag: k.tag })),
     stamps,
     prev: prevKeyRow[0]?.basho ? await loadPrevResults(bashoFromKey(prevKeyRow[0].basho), today) : null,
   };
+}
+
+/** 次の場所の key(2 か月後。11 月の次は翌年 1 月)。 */
+function nextBashoKey(key: string): string {
+  const y = Number(key.slice(0, 4));
+  const m = Number(key.slice(5, 7));
+  return m === 11 ? `${y + 1}-01` : `${y}-${String(m + 2).padStart(2, "0")}`;
+}
+
+/** 自分の白星がいくつで終わったら、次の場所でどの位になるか。ほかの人の白星は、いまの時点のまま数える。 */
+async function loadProjection(basho: Basho, soFar: Range, rows: BanzukeRow[], userId: string, myWins: number) {
+  if (!rows.some((r) => r.userId === userId)) return [];
+  const before = prevBasho(basho.key);
+  const [wins, received, ozekiYusho] = await Promise.all([
+    winsByUser(soFar),
+    receivedByUser(soFar),
+    db
+      .select({ userId: arigatoBanzuke.userId })
+      .from(arigatoBanzuke)
+      .where(and(eq(arigatoBanzuke.basho, before.key), eq(arigatoBanzuke.yusho, true), eq(arigatoBanzuke.rank, "ozeki"))),
+  ]);
+  const ozekiYushoIds = new Set(ozekiYusho.map((r) => r.userId));
+  const entries: PrevEntry[] = rows.map((r) => ({
+    userId: r.userId,
+    position: r.position,
+    rank: r.rank,
+    wins: wins.get(r.userId) ?? 0,
+    received: received.get(r.userId) ?? 0,
+    ozekiYushoBefore: ozekiYushoIds.has(r.userId),
+  }));
+  return projectionLadder(entries, userId, myWins);
 }
 
 /** 四股名(なければ氏名)と部署。 */
@@ -326,7 +364,7 @@ async function loadPrevResults(prev: Basho, today: string): Promise<NonNullable<
 export async function getMyBanzukeSummary(
   userId: string,
   today: string,
-): Promise<{ basho: Basho; rank: Rank | null; place: number | null; total: number; wins: number; kachikoshi: number }> {
+): Promise<{ basho: Basho; rank: Rank | null; place: number | null; total: number; wins: number }> {
   const basho = await ensureBanzuke(today);
   const [[mine], [{ total }], [winsRow]] = await Promise.all([
     db
@@ -345,7 +383,6 @@ export async function getMyBanzukeSummary(
     place: mine?.position ?? null,
     total,
     wins: winsRow?.wins ?? 0,
-    kachikoshi: KACHIKOSHI,
   };
 }
 
