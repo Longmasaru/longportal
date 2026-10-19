@@ -11,6 +11,7 @@ export const AUDIT_ACTION_LABEL: Record<string, string> = {
   "user.disable": "アカウントの無効化",
   "user.password_reset": "パスワードの再設定",
   "user.password_reset_self": "パスワードの再設定(本人・メール)",
+  "user.merge": "アカウントの統合",
   "master.create": "組織マスタの追加",
   "master.update": "組織マスタの更新",
   "role.create": "ロールの作成",
