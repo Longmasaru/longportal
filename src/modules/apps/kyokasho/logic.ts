@@ -37,3 +37,9 @@ export const RESERVED_SLUGS = new Set(["images", "manage", "new"]);
 export function isValidSlug(slug: string): boolean {
   return SLUG_PATTERN.test(slug) && !RESERVED_SLUGS.has(slug);
 }
+
+/** Google ドキュメントの URL から、文書の ID を取り出す(ドキュメントの URL でなければ null)。 */
+export function googleDocId(url: string): string | null {
+  const m = /^https:\/\/docs\.google\.com\/document\/(?:u\/\d+\/)?d\/([A-Za-z0-9_-]{20,})/.exec(url.trim());
+  return m ? m[1] : null;
+}

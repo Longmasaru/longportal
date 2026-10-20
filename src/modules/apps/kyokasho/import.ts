@@ -22,9 +22,26 @@ export type ExtractedImage = {
 
 export type ImportResult = {
   content: BookContent;
+  /** 新しく保存する画像(縮めたもの)。 */
   images: ExtractedImage[];
+  /** 前回の取り込みと同じ画像で、保存済みのものをそのまま使う ID。 */
+  reusedImageIds: string[];
+  /** 元の画像の sha256 → 中身から参照する ID(次の取り込みで、同じ画像を使い回すため)。 */
+  imageShas: Record<string, string>;
+  /** 1px 四方などの空の画像の数(Word の書き出しでは、図形描画がこれになる)。 */
+  blankImages: number;
+  /** 文書に出てくる順の、画像ごとの元の大きさ(読めなければ null)。図形描画を埋めるときの照らし合わせに使う。 */
+  imageSizes: (ImageSize | null)[];
   warnings: string[];
 };
+
+export type ImageSize = { width: number; height: number };
+
+/** ウェブページの書き出しから取り出した、文書に出てくる順の画像(図形描画の図もある)。 */
+export type PageImage = { data: Buffer; contentType: string; size: ImageSize | null };
+
+/** 前回の取り込みで保存済みの画像(元の画像の sha256 → ID)。 */
+export type KnownImages = Readonly<Record<string, string>>;
 
 /** ブラウザで表示できる画像の種類と、保存するときの拡張子。 */
 export const IMAGE_TYPES: Record<string, string> = {
@@ -71,15 +88,26 @@ const STYLE_MAP = [
   "p[style-name='heading 6'] => h6:fresh",
 ];
 
-/** 取り出した画像を、同じものは 1 つにまとめ、縮めて ID を付ける。 */
-function createImageCollector() {
+/** 取り出した画像を、同じものは 1 つにまとめ、縮めて ID を付ける。前回と同じ画像(known)は、縮め直さずに前回の ID を使う。 */
+function createImageCollector(known: KnownImages = {}) {
   const images: ExtractedImage[] = [];
   const bySha = new Map<string, string>();
+  const reused = new Set<string>();
   let skipped = 0;
+  let blank = 0;
   return {
     images,
+    bySha,
+    reused,
     get skipped() {
       return skipped;
+    },
+    get blank() {
+      return blank;
+    },
+    /** 載せられなかった空の画像を数える(図形描画の見分けに使う)。 */
+    countBlank() {
+      blank++;
     },
     /** 画像を登録し、中身から参照する ID を返す(載せない画像は "")。 */
     async add(original: Buffer, contentType: string): Promise<string> {
@@ -91,17 +119,27 @@ function createImageCollector() {
       // 同じ画像が何度も出てくるときは、1 つだけ保存する。
       let id = bySha.get(sha256);
       if (id === undefined) {
-        const optimized = await optimizeImage(original, contentType);
-        id = optimized ? randomUUID() : "";
+        if (known[sha256]) {
+          id = known[sha256];
+          reused.add(id);
+        } else {
+          const optimized = await optimizeImage(original, contentType);
+          id = optimized ? randomUUID() : "";
+          if (optimized) images.push({ id, contentType: optimized.contentType, data: optimized.data, sha256 });
+        }
         bySha.set(sha256, id);
-        if (optimized) images.push({ id, contentType: optimized.contentType, data: optimized.data, sha256 });
       }
       return id;
     },
   };
 }
 
-function finish(html: string, collector: ReturnType<typeof createImageCollector>, warnings: string[]): ImportResult {
+function finish(
+  html: string,
+  collector: ReturnType<typeof createImageCollector>,
+  warnings: string[],
+  imageSizes: (ImageSize | null)[],
+): ImportResult {
   if (collector.skipped > 0) {
     warnings.push(`表示できない形式の画像 ${collector.skipped} 個を飛ばしました(図形描画などは、画像に変えると載ります)。`);
   }
@@ -111,24 +149,71 @@ function finish(html: string, collector: ReturnType<typeof createImageCollector>
   return {
     content: parsed.content,
     images: collector.images.filter((i) => used.has(i.id)),
+    reusedImageIds: [...collector.reused].filter((id) => used.has(id)),
+    imageShas: Object.fromEntries([...collector.bySha].filter(([, id]) => id && used.has(id))),
+    blankImages: collector.blank,
+    imageSizes,
     warnings: [...warnings, ...parsed.warnings],
   };
 }
 
-/** .docx を読み、教科書の中身と画像を返す。 */
-export async function importDocx(buffer: Buffer): Promise<ImportResult> {
-  const collector = createImageCollector();
+async function sizeOf(data: Buffer): Promise<ImageSize | null> {
+  try {
+    const meta = await sharp(data).metadata();
+    return meta.width && meta.height ? { width: meta.width, height: meta.height } : null;
+  } catch {
+    return null;
+  }
+}
+
+const isBlankSize = (size: ImageSize | null) => size !== null && size.width <= 2 && size.height <= 2;
+
+/**
+ * .docx を読み、教科書の中身と画像を返す。
+ * drawings(ウェブページの書き出しの画像。文書に出てくる順)を渡すと、Word で空になった図形描画を、同じ順番の画像で埋める。
+ * 写真は Word の元の大きさのまま、図だけをウェブページから取れる。順番が合っているかは、呼ぶ側が imagesAlign で確かめる。
+ */
+export async function importDocx(buffer: Buffer, known?: KnownImages, drawings?: (PageImage | null)[]): Promise<ImportResult> {
+  const collector = createImageCollector(known);
+  const imageSizes: (ImageSize | null)[] = [];
   const result = await mammoth.convertToHtml(
     { buffer },
     {
       styleMap: STYLE_MAP,
       convertImage: mammoth.images.imgElement(async (image) => {
-        const id = await collector.add(await image.readAsBuffer(), image.contentType.toLowerCase());
+        const index = imageSizes.length;
+        const data = await image.readAsBuffer();
+        const contentType = image.contentType.toLowerCase();
+        const size = IMAGE_TYPES[contentType] ? await sizeOf(data) : null;
+        imageSizes.push(size);
+        let id = await collector.add(data, contentType);
+        const drawing = drawings?.[index];
+        if (!id && isBlankSize(size) && drawing) id = await collector.add(drawing.data, drawing.contentType);
+        if (!id && IMAGE_TYPES[contentType]) collector.countBlank();
         return { src: id ? IMAGE_SRC_PREFIX + id : "" };
       }),
     },
   );
-  return finish(result.value, collector, []);
+  return finish(result.value, collector, [], imageSizes);
+}
+
+/**
+ * Word の画像とウェブページの画像が、同じ順番で並んでいるか(図形描画を埋めてよいか)。
+ * 数が同じで、写真どうし(空でない画像)の縦横の比がおおむね合っていること。
+ * ウェブページの写真は表示の大きさに縮み、切り抜きも反映されるので、比が合わないものが少しあるのは許す。
+ */
+export function imagesAlign(docx: (ImageSize | null)[], page: (ImageSize | null)[]): boolean {
+  if (docx.length === 0 || docx.length !== page.length) return false;
+  let compared = 0;
+  let matched = 0;
+  docx.forEach((d, i) => {
+    const p = page[i];
+    if (!d || !p || isBlankSize(d)) return;
+    compared++;
+    const ratio = d.width / d.height / (p.width / p.height);
+    if (ratio > 0.9 && ratio < 1.1) matched++;
+  });
+  return compared === 0 || matched / compared >= 0.8;
 }
 
 const EXTENSION_TYPES: Record<string, string> = {
@@ -145,26 +230,15 @@ const EXTENSION_TYPES: Record<string, string> = {
  * Word と違い、図形描画で描いた図も画像として入っている。書式は style 属性にあるので、
  * 太字(font-weight 600 以上)を <strong> に、Google の転送 URL を元の URL に戻してから、Word と同じ読み方をする。
  */
-export async function importGoogleZip(buffer: Buffer): Promise<ImportResult> {
-  const files = readZip(buffer);
-  const htmlName = [...files.keys()].find((name) => /\.html?$/i.test(name));
-  if (!htmlName)
-    throw new Error("zip の中に .html がありません。Google ドキュメントの「ウェブページ」で書き出したものを使ってください。");
-  const root = parse(files.get(htmlName)!.toString("utf8"));
-  const body = root.querySelector("body") ?? root;
-  const dir = htmlName.includes("/") ? htmlName.slice(0, htmlName.lastIndexOf("/") + 1) : "";
-
-  // コメント(本文の [a] などの印と、末尾のコメントの本文)は、教科書の中身ではないので除く。
-  for (const a of body.querySelectorAll('a[href^="#cmnt"]')) {
-    const holder = a.closest("div") ?? (a.parentNode?.rawTagName === "sup" ? a.parentNode : a);
-    holder.remove();
-  }
-  const collector = createImageCollector();
+export async function importGoogleZip(buffer: Buffer, known?: KnownImages): Promise<ImportResult> {
+  const { body, imageFile } = readGooglePage(buffer);
+  const collector = createImageCollector(known);
+  const imageSizes: (ImageSize | null)[] = [];
   for (const img of body.querySelectorAll("img")) {
-    const src = decodeURIComponent(img.getAttribute("src") ?? "");
-    const data = files.get(dir + src) ?? files.get(src);
-    const type = EXTENSION_TYPES[src.split(".").pop()?.toLowerCase() ?? ""] ?? "";
-    const id = data ? await collector.add(data, type) : "";
+    const { data, contentType } = imageFile(img);
+    imageSizes.push(data && contentType ? await sizeOf(data) : null);
+    const id = data ? await collector.add(data, contentType) : "";
+    if (!id && data && contentType) collector.countBlank();
     img.setAttribute("src", id ? IMAGE_SRC_PREFIX + id : "");
   }
   for (const span of body.querySelectorAll("span")) {
@@ -185,7 +259,43 @@ export async function importGoogleZip(buffer: Buffer): Promise<ImportResult> {
     const lead = /^[\u00a0 ]+/.exec(text)?.[0] ?? "";
     if (lead.length >= 2 && text.length > lead.length) first.rawText = "\u3000".repeat(lead.length) + text.slice(lead.length);
   }
-  return finish(body.innerHTML, collector, []);
+  return finish(body.innerHTML, collector, [], imageSizes);
+}
+
+/** ウェブページの書き出しの本文(コメントを除いたもの)と、img から画像のファイルを引く関数。 */
+function readGooglePage(buffer: Buffer) {
+  const files = readZip(buffer);
+  const htmlName = [...files.keys()].find((name) => /\.html?$/i.test(name));
+  if (!htmlName)
+    throw new Error("zip の中に .html がありません。Google ドキュメントの「ウェブページ」で書き出したものを使ってください。");
+  const root = parse(files.get(htmlName)!.toString("utf8"));
+  const body = root.querySelector("body") ?? root;
+  const dir = htmlName.includes("/") ? htmlName.slice(0, htmlName.lastIndexOf("/") + 1) : "";
+
+  // コメント(本文の [a] などの印と、末尾のコメントの本文)は、教科書の中身ではないので除く。
+  for (const a of body.querySelectorAll('a[href^="#cmnt"]')) {
+    const holder = a.closest("div") ?? (a.parentNode?.rawTagName === "sup" ? a.parentNode : a);
+    holder.remove();
+  }
+  const imageFile = (img: HTMLElement): { data: Buffer | undefined; contentType: string } => {
+    const src = decodeURIComponent(img.getAttribute("src") ?? "");
+    return {
+      data: files.get(dir + src) ?? files.get(src),
+      contentType: EXTENSION_TYPES[src.split(".").pop()?.toLowerCase() ?? ""] ?? "",
+    };
+  };
+  return { body, imageFile };
+}
+
+/** ウェブページの書き出しの画像を、文書に出てくる順に取り出す(Word で空になった図形描画を埋めるため)。 */
+export async function listGooglePageImages(buffer: Buffer): Promise<(PageImage | null)[]> {
+  const { body, imageFile } = readGooglePage(buffer);
+  const out: (PageImage | null)[] = [];
+  for (const img of body.querySelectorAll("img")) {
+    const { data, contentType } = imageFile(img);
+    out.push(data && contentType ? { data, contentType, size: await sizeOf(data) } : null);
+  }
+  return out;
 }
 
 /** zip を読む(保存と deflate だけ。Google ドキュメントの書き出しはこれで足りる)。 */

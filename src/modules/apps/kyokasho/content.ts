@@ -33,9 +33,26 @@ export type Chapter = {
   blocks: Block[];
 };
 
+/**
+ * 取り込んだ元のファイルの記録(自動の同期で、変わったかどうかを見分け、同じ画像を使い回すため)。docs/DESIGN.md 30 章。
+ * 古い取り込みにはない。
+ */
+export type BookSource = {
+  /**
+   * Google ドキュメントの書き出しの形。docx = Word、zip = ウェブページ、
+   * docx+zip = Word(写真は元の大きさ)の空になった図形描画を、ウェブページの画像で埋めたもの。
+   */
+  format: "docx" | "zip" | "docx+zip";
+  /** 取り込んだファイルの sha256(docx+zip は「Word の sha256+ウェブページの sha256」)。 */
+  sha256: string;
+  /** 元の画像の sha256 → 画像の ID(kyokasho.images.id)。 */
+  images: Record<string, string>;
+};
+
 export type BookContent = {
   version: 1;
   chapters: Chapter[];
+  source?: BookSource;
 };
 
 /** 章の中の見出し(目次用)。 */

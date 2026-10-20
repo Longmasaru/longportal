@@ -40,6 +40,9 @@ export const AUDIT_ACTION_LABEL: Record<string, string> = {
   "hr.item.create": "人事管理: 一覧の行の追加",
   "hr.item.delete": "人事管理: 一覧の行の削除",
   "hr.ability.update": "人事管理: 能力の評価の更新",
+  "kyokasho.book.import": "教科書の取り込み(新規)",
+  "kyokasho.book.reimport": "教科書の取り込み直し",
+  "kyokasho.book.update": "教科書の設定の変更",
 };
 
 export function auditActionLabel(action: string): string {

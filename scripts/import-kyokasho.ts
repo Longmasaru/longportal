@@ -8,19 +8,18 @@
 //     [--department <まとまり>] [--title <題名>] [--source-url <元のドキュメントの URL>] [--sort <並び順>] [--apply]
 // 新しい教科書は --department と --title が必要で、非公開・見られる人「全員」で作る(公開は /apps/kyokasho/manage で)。
 // 同じ --slug の教科書があれば、中身と画像だけを入れ替える(公開・見られる人などの設定は残す。指定した項目だけ変える)。
+// 取り込んだあとは、--source-url(元の Google ドキュメント)があれば毎日自動で同期される(src/modules/apps/kyokasho/sync.ts)。
 // --preview <ファイル.json> で、読み取った中身を JSON に書き出せる(確認用。リポジトリの外に置くこと)。
-import { randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import { eq } from "drizzle-orm";
 import { db, pool } from "../src/db/client";
 import { collectImageIds, countQuizQuestions, type BookContent } from "../src/modules/apps/kyokasho/content";
-import { IMAGE_TYPES, importDocx, importGoogleZip } from "../src/modules/apps/kyokasho/import";
+import { importDocx, importGoogleZip, type ImportResult, type KnownImages } from "../src/modules/apps/kyokasho/import";
 import { isValidSlug } from "../src/modules/apps/kyokasho/logic";
-import { manifest } from "../src/modules/apps/kyokasho/manifest";
-import { kyokashoBooks, kyokashoImages } from "../src/modules/apps/kyokasho/schema";
-import { writeAuditLog } from "../src/modules/core/audit";
+import { kyokashoBooks } from "../src/modules/apps/kyokasho/schema";
+import { saveBookContent } from "../src/modules/apps/kyokasho/store";
 import { users } from "../src/modules/core/auth/schema";
-import { deleteObject, putObject } from "../src/modules/core/storage";
 import { assertTarget } from "./guard";
 
 type Args = {
@@ -89,11 +88,16 @@ function summarize(content: BookContent): void {
   }
 }
 
+function read(file: Buffer, isZip: boolean, known?: KnownImages): Promise<ImportResult> {
+  return isZip ? importGoogleZip(file, known) : importDocx(file, known);
+}
+
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
   // Word(.docx)か、Google ドキュメントの「ウェブページ」書き出し(.zip。図形描画の図も入る)。
   const file = readFileSync(args.file);
-  const result = args.file.toLowerCase().endsWith(".zip") ? await importGoogleZip(file) : await importDocx(file);
+  const isZip = args.file.toLowerCase().endsWith(".zip");
+  const result = await read(file, isZip);
   const { content, images, warnings } = result;
   const totalBytes = images.reduce((n, i) => n + i.data.byteLength, 0);
   console.log(`[import-kyokasho] ${args.file}`);
@@ -123,90 +127,39 @@ async function main(): Promise<void> {
   if (!actor || actor.status !== "active") throw new Error("--actor のアカウントが見つからないか、無効です。");
 
   const [existing] = await db
-    .select({ id: kyokashoBooks.id })
+    .select({ content: kyokashoBooks.content })
     .from(kyokashoBooks)
     .where(eq(kyokashoBooks.slug, args.slug));
   if (!existing && (!args.department || !args.title)) {
     throw new Error("新しい教科書には --department と --title が必要です。");
   }
-  const bookId = existing?.id ?? randomUUID();
-  const oldImages = existing
-    ? await db.select({ storageKey: kyokashoImages.storageKey }).from(kyokashoImages).where(eq(kyokashoImages.bookId, bookId))
-    : [];
+  // 前回の取り込みと同じ画像は、縮め直さず・保存し直さずに使い回す。
+  const known = existing?.content.source?.images;
+  const final = known ? await read(file, isZip, known) : result;
 
-  // 1. 画像を R2 に保存する(失敗したら、保存した分を消して止める)。
-  const uploaded: { id: string; storageKey: string; contentType: string; size: number }[] = [];
-  try {
-    for (const [i, image] of images.entries()) {
-      const storageKey = await putObject({
-        appKey: manifest.appKey,
-        ownerId: bookId,
-        fileName: `image.${IMAGE_TYPES[image.contentType]}`,
-        contentType: image.contentType,
-        body: image.data,
-      });
-      uploaded.push({ id: image.id, storageKey, contentType: image.contentType, size: image.data.byteLength });
-      if ((i + 1) % 20 === 0) console.log(`  画像を保存中… ${i + 1} / ${images.length}`);
-    }
-
-    // 2. 教科書と画像の記録を、1 つのトランザクションで入れ替える。
-    await db.transaction(async (tx) => {
-      const settings = {
-        ...(args.department !== undefined ? { department: args.department } : {}),
-        ...(args.title !== undefined ? { title: args.title } : {}),
-        ...(args.sourceUrl !== undefined ? { sourceUrl: args.sourceUrl } : {}),
-        ...(args.sortOrder !== undefined ? { sortOrder: args.sortOrder } : {}),
-      };
-      if (existing) {
-        await tx
-          .update(kyokashoBooks)
-          .set({ ...settings, content, importedAt: new Date(), importedBy: actor.id })
-          .where(eq(kyokashoBooks.id, bookId));
-        await tx.delete(kyokashoImages).where(eq(kyokashoImages.bookId, bookId));
-      } else {
-        await tx.insert(kyokashoBooks).values({
-          id: bookId,
-          slug: args.slug,
-          department: args.department!,
-          title: args.title!,
-          sourceUrl: args.sourceUrl ?? "",
-          sortOrder: args.sortOrder ?? 0,
-          content,
-          importedBy: actor.id,
-        });
-      }
-      for (let i = 0; i < uploaded.length; i += 200) {
-        await tx.insert(kyokashoImages).values(uploaded.slice(i, i + 200).map((u) => ({ ...u, bookId })));
-      }
-      await writeAuditLog(tx, {
-        actorUserId: actor.id,
-        action: existing ? "kyokasho.book.reimport" : "kyokasho.book.import",
-        targetType: "kyokasho_book",
-        targetId: bookId,
-        after: {
-          slug: args.slug,
-          ...settings,
-          file: args.file.split(/[\\/]/).pop(),
-          chapters: content.chapters.length,
-          images: uploaded.length,
-        },
-      });
-    });
-  } catch (err) {
-    for (const u of uploaded) await deleteObject(u.storageKey).catch(() => undefined);
-    throw err;
-  }
-
-  // 3. 入れ替える前の画像を R2 から消す(失敗しても、教科書の表示には影響しない)。
-  let leftover = 0;
-  for (const old of oldImages) {
-    await deleteObject(old.storageKey).catch(() => {
-      leftover++;
-    });
-  }
+  const settings = {
+    ...(args.department !== undefined ? { department: args.department } : {}),
+    ...(args.title !== undefined ? { title: args.title } : {}),
+    ...(args.sourceUrl !== undefined ? { sourceUrl: args.sourceUrl } : {}),
+    ...(args.sortOrder !== undefined ? { sortOrder: args.sortOrder } : {}),
+  };
+  const saved = await saveBookContent({
+    slug: args.slug,
+    result: final,
+    source: { format: isZip ? "zip" : "docx", sha256: createHash("sha256").update(file).digest("hex") },
+    actorUserId: actor.id,
+    settings,
+    origin: { file: args.file.split(/[\\/]/).pop() },
+    onProgress: (done, total) => {
+      if (done % 20 === 0) console.log(`  画像を保存中… ${done} / ${total}`);
+    },
+  });
   console.log(
-    `${existing ? "入れ替えました" : "新しく作りました(非公開。/apps/kyokasho/manage で公開してください)"}: ${args.slug}` +
-      (leftover ? `(古い画像 ${leftover} 個を R2 から消せませんでした)` : ""),
+    `${saved.created ? "新しく作りました(非公開。/apps/kyokasho/manage で公開してください)" : "入れ替えました"}: ${args.slug}` +
+      `(新しい画像 ${saved.uploaded}・使い回し ${saved.reused}・消した画像 ${saved.removed}` +
+      (saved.movedComments ? `・位置を付け直したツッコミ ${saved.movedComments}` : "") +
+      ")" +
+      (saved.leftover ? `(古い画像 ${saved.leftover} 個を R2 から消せませんでした)` : ""),
   );
 }
 
