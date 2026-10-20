@@ -1,6 +1,16 @@
 "use client";
 
-import { startTransition, useActionState, useEffect, useRef, useState, useTransition, type FormEvent } from "react";
+import {
+  startTransition,
+  useActionState,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useTransition,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 import { DictationButton } from "@/modules/core/shared/ui/dictation";
 import { BUTTON_PRIMARY, BUTTON_SECONDARY, FIELD_CLASS, FormNotice } from "@/modules/core/shared/ui/form";
 import {
@@ -22,14 +32,18 @@ import {
   type TsukkomiFormState,
 } from "../tsukkomi-actions";
 
-// ツッコミの入力まわり(docs/DESIGN.md 32 章)。見出しの横の「ツッコむ」から、その節を選んだ状態でフォームへ移る。
+// ツッコミの入力まわり(docs/DESIGN.md 32 章)。見出しの横の「ツッコむ」・右下の「ツッコむ」・文を選んで「選んだ文にツッコむ」から、
+// 画面の横(スマホは下)に書く欄を出す(Google スプレッドシートのコメントのように)。ページは動かさず、ツッコむところに印を付けたまま書ける。
 
 const EVENT = "kyokasho:tsukkomi";
-export const FORM_ID = "tsukkomi";
 /** 章の本文を囲む要素の id(選んだ文と、読んでいる節を探す範囲)。 */
 export const BODY_ID = "kyokasho-body";
+/** 書く欄の幅(PC)。本文がこの下に隠れないよう、開いている間は本文の右に余白を足す。 */
+const PANEL_WIDTH = 400;
+const MD_QUERY = "(min-width: 768px)";
+const HIGHLIGHT = "tsukkomi";
 
-type Pick = { sectionId: string; quote?: string };
+type Pick = { sectionId: string; quote?: string; range?: Range | null };
 
 function openForm(pick: Pick) {
   window.dispatchEvent(new CustomEvent<Pick>(EVENT, { detail: pick }));
@@ -60,7 +74,7 @@ function currentSection(): string {
 }
 
 /** 本文の中で選ばれている文(なければ null)。 */
-function selectedInBody(): { text: string; node: Node } | null {
+function selectedInBody(): { text: string; node: Node; range: Range } | null {
   const sel = window.getSelection();
   if (!sel || sel.isCollapsed || sel.rangeCount === 0) return null;
   const body = document.getElementById(BODY_ID);
@@ -68,61 +82,56 @@ function selectedInBody(): { text: string; node: Node } | null {
   if (!body || !node || !body.contains(node)) return null;
   const text = sel.toString().replace(/\s+/g, " ").trim();
   if (text.length < 2) return null;
-  return { text: text.length > QUOTE_MAX ? `${text.slice(0, QUOTE_MAX - 1)}…` : text, node };
+  return {
+    text: text.length > QUOTE_MAX ? `${text.slice(0, QUOTE_MAX - 1)}…` : text,
+    node,
+    range: sel.getRangeAt(0).cloneRange(),
+  };
 }
 
-/**
- * 画面の右下にいつも出る「ツッコむ」。押すと、読んでいる節を選んだ状態で書く欄へ移る。
- * 本文の文を指(マウス)でなぞって選ぶと「選んだ文にツッコむ」に変わり、その文を引用して書き始められる。
- * 書く欄が見えている間は隠す。
- */
-export function FloatingTsukkomi() {
-  const [selected, setSelected] = useState<{ text: string; sectionId: string } | null>(null);
-  const [formVisible, setFormVisible] = useState(false);
-  const clearTimer = useRef<number | null>(null);
+/** ツッコむところ(選んだ文、なければ節の見出し)の画面上の上端。 */
+function anchorTop(pick: Pick | null): number | null {
+  if (!pick) return null;
+  if (pick.range) return pick.range.getBoundingClientRect().top;
+  const h = pick.sectionId ? document.getElementById(pick.sectionId) : null;
+  return h ? h.getBoundingClientRect().top : null;
+}
 
-  useEffect(() => {
-    const onChange = () => {
-      const s = selectedInBody();
-      if (clearTimer.current) window.clearTimeout(clearTimer.current);
-      if (s) setSelected({ text: s.text, sectionId: sectionBefore(s.node) });
-      // ボタンを押した瞬間に選択が外れても使えるよう、消すのは少し待つ
-      else clearTimer.current = window.setTimeout(() => setSelected(null), 400);
-    };
-    document.addEventListener("selectionchange", onChange);
-    return () => document.removeEventListener("selectionchange", onChange);
-  }, []);
+/** 選んだ文と見出しに印を付ける(書いている間、どこへのツッコミかが見えるように)。 */
+function mark(pick: Pick | null) {
+  const highlights = (globalThis.CSS as { highlights?: Map<string, unknown> } | undefined)?.highlights;
+  const HighlightCtor = (globalThis as { Highlight?: new (r: Range) => unknown }).Highlight;
+  highlights?.delete(HIGHLIGHT);
+  document.querySelectorAll("[data-tsukkomi-target]").forEach((el) => el.removeAttribute("data-tsukkomi-target"));
+  if (!pick) return;
+  if (pick.range && highlights && HighlightCtor) highlights.set(HIGHLIGHT, new HighlightCtor(pick.range));
+  const h = pick.sectionId ? document.getElementById(pick.sectionId) : null;
+  h?.setAttribute("data-tsukkomi-target", "");
+}
 
-  useEffect(() => {
-    const form = document.getElementById(FORM_ID);
-    if (!form) return;
-    const io = new IntersectionObserver(([e]) => setFormVisible(e.isIntersecting), { threshold: 0.15 });
-    io.observe(form);
-    return () => io.disconnect();
-  }, []);
+/** PC で書く欄が本文に重なる分だけ、本文の右に余白を足す(足したぶん本文が動くので、ツッコむところの位置は戻す)。 */
+function makeRoom(open: boolean, pick: Pick | null) {
+  const shell = document.getElementById(BODY_ID)?.parentElement;
+  if (!shell) return;
+  const before = anchorTop(pick);
+  shell.style.paddingRight = "";
+  if (open && window.matchMedia(MD_QUERY).matches) {
+    const overlap = shell.getBoundingClientRect().right - (window.innerWidth - PANEL_WIDTH - 24);
+    if (overlap > 0) shell.style.paddingRight = `${parseFloat(getComputedStyle(shell).paddingRight) + overlap}px`;
+  }
+  const after = anchorTop(pick);
+  if (before !== null && after !== null && Math.abs(after - before) > 1) window.scrollBy(0, after - before);
+}
 
-  if (formVisible && !selected) return null;
+export function BubbleIcon({ className = "size-3.5" }: { className?: string }) {
   return (
-    <button
-      type="button"
-      onClick={() => {
-        if (selected) {
-          openForm({ sectionId: selected.sectionId, quote: selected.text });
-          window.getSelection()?.removeAllRanges();
-          setSelected(null);
-        } else openForm({ sectionId: currentSection() });
-      }}
-      className={`fixed right-4 bottom-[calc(1rem+env(safe-area-inset-bottom))] z-40 inline-flex items-center gap-2 px-4 py-3 text-sm font-bold text-white shadow-[0_4px_16px_rgba(0,0,0,0.18)] transition-colors md:right-8 md:bottom-8 ${
-        selected ? "bg-brand03" : "bg-brand01 hover:bg-brand03"
-      }`}
-    >
-      <BubbleIcon className="size-5" />
-      {selected ? "選んだ文にツッコむ" : "ツッコむ"}
-    </button>
+    <svg viewBox="0 0 16 16" aria-hidden className={className} fill="none" stroke="currentColor" strokeWidth="1.6">
+      <path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z" strokeLinejoin="round" />
+    </svg>
   );
 }
 
-/** 見出しの横の小さなボタン。押すと、その節を選んだ状態でページ下のフォームへ移る。 */
+/** 見出しの横の小さなボタン。押すと、その節を選んだ状態で書く欄が開く。 */
 export function SectionTsukkomiButton({ sectionId, count }: { sectionId: string; count: number }) {
   return (
     <button
@@ -138,25 +147,47 @@ export function SectionTsukkomiButton({ sectionId, count }: { sectionId: string;
   );
 }
 
-export function BubbleIcon({ className = "size-3.5" }: { className?: string }) {
+/** 章の終わりの「この章にツッコむ」。 */
+export function ChapterTsukkomiButton() {
   return (
-    <svg viewBox="0 0 16 16" aria-hidden className={className} fill="none" stroke="currentColor" strokeWidth="1.6">
-      <path d="M2.5 3.5h11v7h-6l-3 2.5v-2.5h-2z" strokeLinejoin="round" />
-    </svg>
+    <div>
+      <button type="button" onClick={() => openForm({ sectionId: "" })} className={`${BUTTON_PRIMARY} inline-flex items-center gap-2`}>
+        <BubbleIcon className="size-4" />
+        この章にツッコむ
+      </button>
+    </div>
   );
 }
 
-/** ツッコミを書くフォーム。 */
-export function TsukkomiForm({
+const PLACEHOLDERS: Record<CommentKind, string> = {
+  question: "例: 「○○を確認する」とありますが、何を見ればよいですか?",
+  addition: "例: 写真があるとわかりやすいです。今は△△のやり方もしています。",
+  mistake: "例: 治具の番号が今と違います(今は B-12)。",
+  comment: "例: この章のおかげで、段取りが早くなりました。",
+};
+
+/**
+ * ツッコミの書く欄(PC は画面の右、スマホは画面の下に出る)と、右下の「ツッコむ」。
+ * 開いてもページは動かさない(PC は本文の右に余白を足し、ツッコむところの位置を保つ。スマホは、ツッコむところが
+ * 書く欄の下に隠れるときだけ、上に見えるところまで送る)。選んだ文と見出しには印を付け、その節のツッコミも並べる。
+ * threads は、節の id(章全体は "")ごとのツッコミの一覧(サーバーで描いたもの)。
+ */
+export function TsukkomiPanel({
   bookId,
   chapterNo,
   sections,
+  threads,
+  counts,
 }: {
   bookId: string;
   chapterNo: number;
   sections: { id: string; level: number; text: string }[];
+  threads: Record<string, ReactNode>;
+  counts: Record<string, number>;
 }) {
   const [state, action, pending] = useActionState<TsukkomiFormState, FormData>(postCommentAction, undefined);
+  const [open, setOpen] = useState(false);
+  const [pick, setPick] = useState<Pick | null>(null);
   const [kind, setKind] = useState<CommentKind>("question");
   const [sectionId, setSectionId] = useState("");
   const [body, setBody] = useState("");
@@ -165,28 +196,74 @@ export function TsukkomiForm({
   const [previous, setPrevious] = useState<string | null>(null);
   const [polishError, setPolishError] = useState<string | null>(null);
   const [polishing, startPolish] = useTransition();
-  const wrap = useRef<HTMLDivElement>(null);
+  const [selected, setSelected] = useState<{ text: string; sectionId: string; range: Range } | null>(null);
+  const panel = useRef<HTMLDivElement>(null);
   const area = useRef<HTMLTextAreaElement>(null);
+  const clearTimer = useRef<number | null>(null);
 
+  const close = useCallback(() => {
+    setOpen(false);
+    mark(null);
+    makeRoom(false, pick);
+  }, [pick]);
+
+  // 開く(見出し・右下・章の終わりのボタンから)。
   useEffect(() => {
     const onPick = (e: Event) => {
-      const { sectionId: id, quote: q } = (e as CustomEvent<Pick>).detail;
-      setSectionId(sections.some((s) => s.id === id) ? id : "");
-      setQuote(q ?? "");
-      wrap.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-      // スクロールが終わってから入力欄へ(すぐに focus すると、スマホで画面が飛ぶため)。
-      window.setTimeout(() => area.current?.focus({ preventScroll: true }), 450);
+      const p = (e as CustomEvent<Pick>).detail;
+      const id = sections.some((s) => s.id === p.sectionId) ? p.sectionId : "";
+      const next = { ...p, sectionId: id };
+      setPick(next);
+      setSectionId(id);
+      setQuote(p.quote ?? "");
+      setOpen(true);
+      mark(next);
+      // 書く欄が描かれてから、場所を空ける・見えるところへ送る。
+      requestAnimationFrame(() => {
+        makeRoom(true, next);
+        if (window.matchMedia(MD_QUERY).matches) {
+          area.current?.focus({ preventScroll: true });
+        } else {
+          const top = anchorTop(next);
+          const sheet = panel.current?.getBoundingClientRect().top ?? window.innerHeight;
+          if (top !== null && (top < 64 || top > sheet - 48)) window.scrollBy({ top: top - 72, behavior: "smooth" });
+        }
+      });
     };
     window.addEventListener(EVENT, onPick);
     return () => window.removeEventListener(EVENT, onPick);
   }, [sections]);
+
+  // 本文の文を選ぶと、右下が「選んだ文にツッコむ」に変わる。
+  useEffect(() => {
+    const onChange = () => {
+      const s = selectedInBody();
+      if (clearTimer.current) window.clearTimeout(clearTimer.current);
+      if (s) setSelected({ text: s.text, sectionId: sectionBefore(s.node), range: s.range });
+      // ボタンを押した瞬間に選択が外れても使えるよう、消すのは少し待つ
+      else clearTimer.current = window.setTimeout(() => setSelected(null), 400);
+    };
+    document.addEventListener("selectionchange", onChange);
+    return () => document.removeEventListener("selectionchange", onChange);
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") close();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, close]);
+
+  // ページを離れるときは、印と余白を消す。
+  useEffect(() => () => mark(null), []);
 
   // 送れたら中身を空にする(送った時刻が変わるたび。描画の中で一度だけ行う)。
   const [seenAt, setSeenAt] = useState<number | undefined>(undefined);
   if (state?.success && state.at !== seenAt) {
     setSeenAt(state.at);
     setBody("");
-    setQuote("");
     setPrevious(null);
     setSuggestion(null);
   }
@@ -207,174 +284,243 @@ export function TsukkomiForm({
     startTransition(() => action(formData));
   };
 
+  const sectionTitle = sections.find((s) => s.id === sectionId)?.text ?? "この章全体";
+  const threadCount = counts[sectionId] ?? 0;
+
   return (
-    <div ref={wrap} id={FORM_ID} className="scroll-mt-20">
-      <form onSubmit={submit} className="border-brand01 flex flex-col gap-4 border-t-4 bg-white p-4 md:p-6">
-        <input type="hidden" name="bookId" value={bookId} />
-        <input type="hidden" name="chapterNo" value={chapterNo} />
-        <input type="hidden" name="kind" value={kind} />
-        <input type="hidden" name="quote" value={quote} />
+    <>
+      <style>{`::highlight(${HIGHLIGHT}){background-color:rgb(255 213 79 / 0.6)}[data-tsukkomi-target]{background-color:rgb(255 213 79 / 0.35);box-shadow:-0.5rem 0 0 rgb(255 213 79 / 0.35),0.5rem 0 0 rgb(255 213 79 / 0.35)}`}</style>
 
-        <fieldset>
-          <legend className="text-brand01 mb-2 text-sm font-bold">どんなツッコミ?</legend>
-          <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-            {COMMENT_KINDS.map((k) => {
-              const on = kind === k;
-              return (
-                <button
-                  key={k}
-                  type="button"
-                  aria-pressed={on}
-                  onClick={() => setKind(k)}
-                  className={`flex flex-col items-start gap-0.5 border px-3 py-2 text-left transition-colors ${
-                    on ? "border-brand01 bg-brand01 text-white" : "border-brand01/20 text-brand01 hover:border-brand01 bg-white"
-                  }`}
-                >
-                  <span className="text-sm font-bold">{KIND_LABELS[k].label}</span>
-                  <span className={`text-[11px] leading-snug ${on ? "text-white/85" : "text-brand04"}`}>{KIND_LABELS[k].hint}</span>
-                </button>
-              );
-            })}
-          </div>
-        </fieldset>
+      {open ? null : (
+        <button
+          type="button"
+          onClick={() => {
+            if (selected) {
+              openForm({ sectionId: selected.sectionId, quote: selected.text, range: selected.range });
+              window.getSelection()?.removeAllRanges();
+              setSelected(null);
+            } else openForm({ sectionId: currentSection() });
+          }}
+          className={`fixed right-4 bottom-[calc(1rem+env(safe-area-inset-bottom))] z-40 inline-flex items-center gap-2 px-4 py-3 text-sm font-bold text-white shadow-[0_4px_16px_rgba(0,0,0,0.18)] transition-colors md:right-8 md:bottom-8 ${
+            selected ? "bg-brand03" : "bg-brand01 hover:bg-brand03"
+          }`}
+        >
+          <BubbleIcon className="size-5" />
+          {selected ? "選んだ文にツッコむ" : "ツッコむ"}
+        </button>
+      )}
 
-        <div>
-          <label htmlFor="tsukkomi-section" className="text-brand01 mb-1.5 block text-sm font-bold">
-            どこへのツッコミ?
-          </label>
-          <select
-            id="tsukkomi-section"
-            name="sectionId"
-            value={sectionId}
-            onChange={(e) => setSectionId(e.target.value)}
-            className={FIELD_CLASS}
-          >
-            <option value="">この章全体</option>
-            {sections.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.level === 3 ? "　" : ""}
-                {s.text}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {quote ? (
-          <div className="border-brand01/25 bg-bg01 flex items-start gap-3 border-l-4 px-3 py-2">
-            <p className="font-prose text-ink min-w-0 flex-1 text-sm leading-relaxed">
-              <span className="text-brand01 mr-1 text-xs font-bold">引用</span>「{quote}」
-            </p>
+      {open ? (
+        <div
+          ref={panel}
+          role="dialog"
+          aria-modal="false"
+          aria-labelledby="tsukkomi-panel-title"
+          className="border-brand01 fixed inset-x-0 bottom-0 z-40 flex max-h-[62dvh] flex-col border-t-4 bg-white shadow-[0_-6px_24px_rgba(0,0,0,0.18)] md:top-14 md:right-0 md:left-auto md:max-h-none md:w-[400px] md:border-t-0 md:border-l md:border-l-brand01/20 md:shadow-[-6px_0_24px_rgba(0,0,0,0.12)]"
+        >
+          <div className="border-brand01/15 flex items-start gap-3 border-b px-4 py-3">
+            <div className="min-w-0 flex-1">
+              <p id="tsukkomi-panel-title" className="text-brand01 flex items-center gap-1.5 text-sm font-bold">
+                <BubbleIcon className="size-4" />
+                ツッコむ
+              </p>
+              <p className="text-brand04 mt-0.5 truncate text-xs">{sectionTitle}</p>
+            </div>
             <button
               type="button"
-              onClick={() => setQuote("")}
-              className="text-brand04 hover:text-brand03 shrink-0 text-xs underline underline-offset-2"
+              onClick={close}
+              aria-label="閉じる"
+              className="text-brand04 hover:text-brand03 -mr-1 shrink-0 px-2 text-2xl leading-none"
             >
-              外す
+              ×
             </button>
           </div>
-        ) : null}
 
-        <div>
-          <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
-            <label htmlFor="tsukkomi-body" className="text-brand01 text-sm font-bold">
-              ツッコミ
-            </label>
-            <DictationButton onText={(t) => setBody((b) => `${b}${t}`.slice(0, BODY_MAX))} />
-          </div>
-          <textarea
-            ref={area}
-            id="tsukkomi-body"
-            name="body"
-            rows={4}
-            required
-            maxLength={BODY_MAX}
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            placeholder={
-              kind === "question"
-                ? "例: 「○○を確認する」とありますが、何を見ればよいですか?"
-                : kind === "addition"
-                  ? "例: 写真があるとわかりやすいです。今は△△のやり方もしています。"
-                  : kind === "mistake"
-                    ? "例: 治具の番号が今と違います(今は B-12)。"
-                    : "例: この章のおかげで、段取りが早くなりました。"
-            }
-            className={`${FIELD_CLASS} min-h-28 resize-y leading-relaxed`}
-          />
-          <p className="text-brand04 mt-1 flex justify-between gap-3 text-xs">
-            <span>名前つきで、この教科書を見られる人に表示されます。</span>
-            <span className="shrink-0 tabular-nums">
-              {body.length} / {BODY_MAX}
-            </span>
-          </p>
-        </div>
+          <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-4">
+            <form onSubmit={submit} className="flex flex-col gap-4">
+              <input type="hidden" name="bookId" value={bookId} />
+              <input type="hidden" name="chapterNo" value={chapterNo} />
+              <input type="hidden" name="kind" value={kind} />
+              <input type="hidden" name="quote" value={quote} />
 
-        <div className="-mt-1 flex flex-col gap-2">
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <button
-              type="button"
-              onClick={polish}
-              disabled={polishing || body.trim().length < POLISH_MIN}
-              className="border-brand01/30 text-brand01 hover:border-brand03 hover:text-brand03 inline-flex items-center gap-1.5 border bg-white px-3 py-1.5 text-sm font-bold transition-colors disabled:opacity-50"
-            >
-              <span aria-hidden>✨</span>
-              {polishing ? "整えています…" : "AIで整える"}
-            </button>
-            {previous !== null && suggestion === null ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setBody(previous);
-                  setPrevious(null);
-                }}
-                className="text-brand04 hover:text-brand03 text-sm font-bold transition-colors"
-              >
-                元に戻す
-              </button>
-            ) : (
-              <span className="text-brand04 text-xs">話した言葉や走り書きを、伝わる文にします(保存はされません)。</span>
-            )}
-          </div>
-          {polishError ? (
-            <p role="alert" className="text-brand03 text-sm font-bold">
-              {polishError}
-            </p>
-          ) : null}
-          {suggestion !== null ? (
-            <div className="border-brand01/20 bg-bg01 flex flex-col gap-3 border p-3" aria-live="polite">
-              <p className="text-brand01 text-xs font-bold tracking-widest">AI の案(まだ入っていません)</p>
-              <p className="font-prose text-ink text-sm leading-relaxed whitespace-pre-wrap">{suggestion}</p>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPrevious(body);
-                    setBody(suggestion.slice(0, BODY_MAX));
-                    setSuggestion(null);
+              {quote ? (
+                <div className="border-brand01/25 bg-bg01 flex items-start gap-3 border-l-4 px-3 py-2">
+                  <p className="font-prose text-ink min-w-0 flex-1 text-sm leading-relaxed">
+                    <span className="text-brand01 mr-1 text-xs font-bold">引用</span>「{quote}」
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setQuote("");
+                      const next = pick ? { ...pick, range: null } : null;
+                      setPick(next);
+                      mark(next);
+                    }}
+                    className="text-brand04 hover:text-brand03 shrink-0 text-xs underline underline-offset-2"
+                  >
+                    外す
+                  </button>
+                </div>
+              ) : null}
+
+              <fieldset>
+                <legend className="sr-only">どんなツッコミ?</legend>
+                <div className="grid grid-cols-4 gap-1.5">
+                  {COMMENT_KINDS.map((k) => {
+                    const on = kind === k;
+                    return (
+                      <button
+                        key={k}
+                        type="button"
+                        aria-pressed={on}
+                        title={KIND_LABELS[k].hint}
+                        onClick={() => setKind(k)}
+                        className={`border px-1 py-1.5 text-xs font-bold transition-colors ${
+                          on ? "border-brand01 bg-brand01 text-white" : "border-brand01/20 text-brand01 hover:border-brand01 bg-white"
+                        }`}
+                      >
+                        {KIND_LABELS[k].label.replace("付け足し・改善", "付け足し")}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-brand04 mt-1 text-[11px]">{KIND_LABELS[kind].hint}</p>
+              </fieldset>
+
+              <div>
+                <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
+                  <label htmlFor="tsukkomi-body" className="text-brand01 text-sm font-bold">
+                    ツッコミ
+                  </label>
+                  <DictationButton onText={(t) => setBody((b) => `${b}${t}`.slice(0, BODY_MAX))} />
+                </div>
+                <textarea
+                  ref={area}
+                  id="tsukkomi-body"
+                  name="body"
+                  rows={4}
+                  required
+                  maxLength={BODY_MAX}
+                  value={body}
+                  onChange={(e) => setBody(e.target.value)}
+                  placeholder={PLACEHOLDERS[kind]}
+                  className={`${FIELD_CLASS} min-h-24 resize-y leading-relaxed`}
+                />
+                <p className="text-brand04 mt-1 flex justify-between gap-3 text-xs">
+                  <span>名前つきで、この教科書を見られる人に表示されます。</span>
+                  <span className="shrink-0 tabular-nums">
+                    {body.length} / {BODY_MAX}
+                  </span>
+                </p>
+              </div>
+
+              <div className="-mt-1 flex flex-col gap-2">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <button
+                    type="button"
+                    onClick={polish}
+                    disabled={polishing || body.trim().length < POLISH_MIN}
+                    className="border-brand01/30 text-brand01 hover:border-brand03 hover:text-brand03 inline-flex items-center gap-1.5 border bg-white px-3 py-1.5 text-sm font-bold transition-colors disabled:opacity-50"
+                  >
+                    <span aria-hidden>✨</span>
+                    {polishing ? "整えています…" : "AIで整える"}
+                  </button>
+                  {previous !== null && suggestion === null ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBody(previous);
+                        setPrevious(null);
+                      }}
+                      className="text-brand04 hover:text-brand03 text-sm font-bold transition-colors"
+                    >
+                      元に戻す
+                    </button>
+                  ) : null}
+                </div>
+                {polishError ? (
+                  <p role="alert" className="text-brand03 text-sm font-bold">
+                    {polishError}
+                  </p>
+                ) : null}
+                {suggestion !== null ? (
+                  <div className="border-brand01/20 bg-bg01 flex flex-col gap-3 border p-3" aria-live="polite">
+                    <p className="text-brand01 text-xs font-bold tracking-widest">AI の案(まだ入っていません)</p>
+                    <p className="font-prose text-ink text-sm leading-relaxed whitespace-pre-wrap">{suggestion}</p>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPrevious(body);
+                          setBody(suggestion.slice(0, BODY_MAX));
+                          setSuggestion(null);
+                        }}
+                        className={BUTTON_PRIMARY}
+                      >
+                        この案を使う
+                      </button>
+                      <button type="button" onClick={() => setSuggestion(null)} className={BUTTON_SECONDARY}>
+                        使わない
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+
+              <details className="text-sm">
+                <summary className="text-brand04 hover:text-brand03 cursor-pointer text-xs select-none">
+                  ツッコむところを変える
+                </summary>
+                <select
+                  aria-label="どこへのツッコミ?"
+                  name="sectionId"
+                  value={sectionId}
+                  onChange={(e) => {
+                    const next = { sectionId: e.target.value, range: null };
+                    setSectionId(e.target.value);
+                    setQuote("");
+                    setPick(next);
+                    mark(next);
                   }}
-                  className={BUTTON_PRIMARY}
+                  className={`${FIELD_CLASS} mt-2`}
                 >
-                  この案を使う
-                </button>
-                <button type="button" onClick={() => setSuggestion(null)} className={BUTTON_SECONDARY}>
-                  使わない
+                  <option value="">この章全体</option>
+                  {sections.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.level === 3 ? "　" : ""}
+                      {s.text}
+                    </option>
+                  ))}
+                </select>
+              </details>
+
+              {state?.error ? <FormNotice tone="error">{state.error}</FormNotice> : null}
+              {state?.success ? <FormNotice tone="success">{state.success}</FormNotice> : null}
+
+              <div>
+                <button
+                  type="submit"
+                  disabled={pending || body.trim() === ""}
+                  className={`${BUTTON_PRIMARY} inline-flex w-full items-center justify-center gap-2`}
+                >
+                  <BubbleIcon className="size-4" />
+                  {pending ? "送っています…" : "ツッコむ"}
                 </button>
               </div>
-            </div>
-          ) : null}
-        </div>
+            </form>
 
-        {state?.error ? <FormNotice tone="error">{state.error}</FormNotice> : null}
-        {state?.success ? <FormNotice tone="success">{state.success}</FormNotice> : null}
-
-        <div>
-          <button type="submit" disabled={pending || body.trim() === ""} className={`${BUTTON_PRIMARY} inline-flex items-center gap-2`}>
-            <BubbleIcon className="size-4" />
-            {pending ? "送っています…" : "ツッコむ"}
-          </button>
+            {threadCount > 0 ? (
+              <section className="border-brand01/15 mt-6 flex flex-col gap-3 border-t pt-4">
+                <h2 className="text-brand01 text-sm font-bold">
+                  {sectionId ? "この節" : "この章全体"}へのツッコミ <span className="text-brand04 font-medium">{threadCount} 件</span>
+                </h2>
+                {threads[sectionId]}
+              </section>
+            ) : null}
+          </div>
         </div>
-      </form>
-    </div>
+      ) : null}
+    </>
   );
 }
 

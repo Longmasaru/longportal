@@ -10,7 +10,7 @@ import {
   type Contributor,
 } from "../tsukkomi";
 import type { CommentView, MyComment } from "../tsukkomi-queries";
-import { BubbleIcon, DeleteCommentButton, FloatingTsukkomi, HandleCommentForm, TsukkomiForm } from "./tsukkomi-client";
+import { BubbleIcon, ChapterTsukkomiButton, DeleteCommentButton, HandleCommentForm, TsukkomiPanel } from "./tsukkomi-client";
 
 // ツッコミの表示(docs/DESIGN.md 32 章): 章の終わりの「この章へのツッコミ」、一覧のページの「あなたのツッコミ」「教科書をよくしてくれた人」。
 
@@ -178,6 +178,12 @@ export function ChapterTsukkomi({
   userId: string;
   canHandle: boolean;
 }) {
+  // 書く欄の横に出す、節ごとのツッコミ(節がもう無いものは章全体へ)。
+  const threads = new Map<string, CommentView[]>();
+  for (const c of comments) {
+    const id = c.sectionId && sections.some((s) => s.id === c.sectionId) ? c.sectionId : "";
+    threads.set(id, [...(threads.get(id) ?? []), c]);
+  }
   return (
     <section aria-labelledby="tsukkomi-heading" className="border-brand01/15 flex flex-col gap-5 border-t pt-8">
       <div className="flex flex-col gap-2">
@@ -191,12 +197,29 @@ export function ChapterTsukkomi({
           {comments.length > 0 ? <span className="text-brand04 text-base font-medium">{comments.length} 件</span> : null}
         </h2>
         <p className="text-brand04 text-sm leading-relaxed">
-          「あれ?」「ここはこうでは?」と思ったら、気軽にツッコんでください。右下の「ツッコむ」や見出しの横のボタンから書けます。気になった文を指でなぞって選ぶと、その文を引用できます。教科書チームが読んで返事をし、採用したら教科書を直します。
+          「あれ?」「ここはこうでは?」と思ったら、気軽にツッコんでください。右下の「ツッコむ」や見出しの横のボタンを押すと、読んでいるところはそのままで、横に書く欄が出ます。気になった文を指でなぞって選ぶと、その文に印を付けて引用できます。教科書チームが読んで返事をし、採用したら教科書を直します。
         </p>
       </div>
 
-      <TsukkomiForm bookId={bookId} chapterNo={chapterNo} sections={sections} />
-      <FloatingTsukkomi />
+      <ChapterTsukkomiButton />
+      <TsukkomiPanel
+        bookId={bookId}
+        chapterNo={chapterNo}
+        sections={sections}
+        threads={Object.fromEntries(
+          [...threads].map(([id, list]) => [
+            id,
+            <ul key={id} className="flex flex-col gap-3">
+              {list.map((c) => (
+                <li key={c.id}>
+                  <CommentCard comment={c} userId={userId} canHandle={false} where={c.sectionTitle || "この章全体"} />
+                </li>
+              ))}
+            </ul>,
+          ]),
+        )}
+        counts={Object.fromEntries([...threads].map(([id, list]) => [id, list.length]))}
+      />
 
       {comments.length === 0 ? (
         <p className="text-brand04 bg-white p-5 text-center text-sm">まだツッコミはありません。最初のひとりになってください。</p>
