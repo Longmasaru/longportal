@@ -145,3 +145,54 @@ export async function listLineWorksUsers(): Promise<LineWorksUser[]> {
   } while (cursor);
   return users;
 }
+
+const PHOTO_MAX_BYTES = 5 * 1024 * 1024;
+
+/** 転送先にもトークを付けてよい住所か(LINE WORKS の住所だけ)。 */
+export function isLineWorksHost(url: string): boolean {
+  try {
+    const u = new URL(url);
+    return u.protocol === "https:" && /(^|\.)(worksmobile\.com|worksapis\.com)$/.test(u.hostname);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 利用者のプロフィール写真(LINE WORKS のアイコン。scope user.read)。設定がない・写真がない・取れないときは null。
+ * API は 302 で写真の住所を返すので、その住所から中身を取る(LINE WORKS の住所にだけトークンを付ける)。
+ */
+export async function fetchLineWorksUserPhoto(
+  userId: string,
+): Promise<{ data: ArrayBuffer; contentType: string } | null> {
+  const config = lineWorksConfig();
+  if (!config) return null;
+  try {
+    const token = await accessToken(config, "user.read");
+    const auth = { Authorization: `Bearer ${token}` };
+    const first = await fetch(`${API_BASE}/users/${encodeURIComponent(userId)}/photo`, {
+      headers: auth,
+      redirect: "manual",
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+    let res = first;
+    if (first.status >= 300 && first.status < 400) {
+      const location = first.headers.get("location");
+      if (!location) return null;
+      const target = new URL(location, API_BASE).toString();
+      res = await fetch(target, {
+        headers: isLineWorksHost(target) ? auth : {},
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      });
+    }
+    if (!res.ok) return null;
+    const contentType = res.headers.get("content-type") ?? "";
+    if (!contentType.startsWith("image/")) return null;
+    const data = await res.arrayBuffer();
+    if (data.byteLength === 0 || data.byteLength > PHOTO_MAX_BYTES) return null;
+    return { data, contentType };
+  } catch (err) {
+    console.error(`[lineworks] 写真を取れませんでした: ${err instanceof Error ? err.message : "不明"}`);
+    return null;
+  }
+}
