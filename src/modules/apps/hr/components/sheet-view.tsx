@@ -127,6 +127,22 @@ export function SheetSection({
       maxLength: TEXT_MAX,
       value: p ? String(p[f.key as keyof typeof p] ?? "") : "",
     }));
+  // 社員マスタの項目(ここでは変えない)。編集中もフォームの上に出す。
+  const masterItems = (
+    <>
+      <Item label="社員番号">
+        <span className="font-heading">{profile.employeeNumber}</span>
+      </Item>
+      <Item label="氏名">{profile.name}</Item>
+      <Item label="フリガナ">{profile.nameKana ?? EMPTY}</Item>
+      <Item label="所属部署">{primary?.departmentName ?? "所属なし"}</Item>
+      <Item label="役職">{profile.positionName ?? "役職なし"}</Item>
+      <Item label="雇用形態">{profile.employmentTypeName ?? EMPTY}</Item>
+      <Item label="勤務地">{primary?.locationName ?? EMPTY}</Item>
+      <Item label="入社年月日">{formatDateDot(profile.hiredOn)}</Item>
+    </>
+  );
+  const directReports = sheet.directReports.length > 0 ? sheet.directReports.map((r) => r.name).join("、") : EMPTY;
   const latest = sheet.conditions[0];
   const previous = sheet.conditions[1];
   const stateOptions = CONDITION_STATES.map((s) => ({ value: s, label: CONDITION_STATE_LABEL[s] }));
@@ -164,6 +180,14 @@ export function SheetSection({
               ]
             : undefined
         }
+        editHeader={
+          <dl className="grid gap-4 sm:grid-cols-4">
+            {masterItems}
+            <Item label="直属の部下" wide>
+              {directReports}
+            </Item>
+          </dl>
+        }
         view={
           <dl className="grid gap-4 sm:grid-cols-4">
             <Item label="社員番号">
@@ -184,7 +208,7 @@ export function SheetSection({
             <Item label="勤続年数">{tenure ? `${tenure.years}年${tenure.months}ヶ月` : "入社前"}</Item>
             <Item label="上司">{sheet.supervisor?.name ?? EMPTY}</Item>
             <Item label="直属の部下" wide>
-              {sheet.directReports.length > 0 ? sheet.directReports.map((r) => r.name).join("、") : EMPTY}
+              {directReports}
             </Item>
           </dl>
         }
