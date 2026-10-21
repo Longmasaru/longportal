@@ -31,7 +31,7 @@ export default defineConfig({
   },
   // 拡張(btree_gist 等)や他スキーマに影響しないよう、管理対象スキーマを明示する。
   // 新しい module の pgSchema を追加したらここにも追記する。
-  schemaFilter: ["core", "todo", "calendar", "haisou", "kyokasho", "hr", "arigato"],
+  schemaFilter: ["core", "todo", "calendar", "haisou", "kyokasho", "hr", "arigato", "nippo", "bots"],
   strict: true,
   verbose: true,
 });

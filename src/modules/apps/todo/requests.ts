@@ -1,4 +1,4 @@
-// TODO の依頼の決まり(docs/DESIGN.md 39 章)。DB にも画面にも依存しない純粋関数。
+// TODO の依頼の決まり(docs/DESIGN.md 41 章)。DB にも画面にも依存しない純粋関数。
 // 依頼は「頼まれた人(user_id)の TODO の 1 行」で、requested_at が空でない行。
 
 export const REQUEST_STATES = ["open", "done", "returned"] as const;

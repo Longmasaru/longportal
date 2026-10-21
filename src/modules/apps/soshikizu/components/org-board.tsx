@@ -26,16 +26,19 @@ function MemberCard({
   opts,
   departments,
   onMove,
+  executive = false,
 }: {
   m: OrgMember;
   fromName: string;
   opts: BoardOptions;
   departments: OrgUnit[];
   onMove: (move: Move) => void;
+  /** 経営の札(一番上に並べる)。部署の箱に入らないので、ドラッグでは動かさず、開いた中に部署を出す。 */
+  executive?: boolean;
 }) {
   const isMe = m.employeeId === opts.myId;
-  // 主所属のない人は、部署だけを変えられない(拠点が決まらない)ので動かさない。
-  const movable = opts.canEdit && m.departmentId !== null;
+  // 主所属のない人は、部署だけを変えられない(拠点が決まらない)ので動かさない。経営の人もドラッグはしない(所属の画面で変える)。
+  const movable = opts.canEdit && m.departmentId !== null && !executive;
   return (
     <details
       draggable={movable}
@@ -60,6 +63,12 @@ function MemberCard({
       <dl className="border-brand01/10 text-brand04 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 border-t px-3 py-2 text-xs">
         <dt className="font-bold">役職</dt>
         <dd>{m.positionName ?? "なし"}</dd>
+        {executive && (
+          <>
+            <dt className="font-bold">部署</dt>
+            <dd>{fromName}</dd>
+          </>
+        )}
         <dt className="font-bold">拠点</dt>
         <dd>{m.locationName ?? "未設定"}</dd>
         <dt className="font-bold">入社</dt>
@@ -144,7 +153,6 @@ function DepartmentBox({
         {box.leaders.length > 0 && <ul className="flex flex-col gap-2">{box.leaders.map(card)}</ul>}
         {box.leaders.length > 0 && box.members.length > 0 && <hr className="border-brand01/10" />}
         {box.members.length > 0 && <ul className="flex flex-col gap-2">{box.members.map(card)}</ul>}
-        {box.count === 0 && <p className="text-brand04 py-4 text-center text-xs">ここへドラッグすると、この部署へ異動できます</p>}
       </div>
     </section>
   );
@@ -217,7 +225,17 @@ function MoveDialog({ move, today, onClose }: { move: Move; today: string; onClo
   );
 }
 
-export function OrgBoard({ boxes, opts, departments }: { boxes: OrgBox[]; opts: BoardOptions; departments: OrgUnit[] }) {
+export function OrgBoard({
+  executives,
+  boxes,
+  opts,
+  departments,
+}: {
+  executives: OrgMember[];
+  boxes: OrgBox[];
+  opts: BoardOptions;
+  departments: OrgUnit[];
+}) {
   const [move, setMove] = useState<Move | null>(null);
   const members = new Map(
     boxes.flatMap((b) =>
@@ -228,8 +246,30 @@ export function OrgBoard({ boxes, opts, departments }: { boxes: OrgBox[]; opts: 
     <>
       {opts.canEdit && (
         <p className="text-brand04 -mt-4 text-xs">
-          管理者の方は、札を別の部署の箱へドラッグすると異動できます(スマホは名前を押して「部署を変える」)。
+          管理者の方は、札を別の部署の箱へドラッグすると異動できます(スマホや、人のいない部署へは、名前を押して「部署を変える」)。
         </p>
+      )}
+      {executives.length > 0 && (
+        <section className="border-brand01/15 flex flex-col border bg-white">
+          <header className="bg-brand03 flex items-baseline justify-between px-4 py-2 text-white">
+            <h2 className="font-bold">経営</h2>
+            <span className="text-xs">{executives.length}人</span>
+          </header>
+          <ul className="grid grid-cols-1 gap-2 p-3 sm:grid-cols-2 lg:grid-cols-3">
+            {executives.map((m) => (
+              <li key={m.employeeId}>
+                <MemberCard
+                  m={m}
+                  fromName={departments.find((d) => d.id === m.departmentId)?.name ?? "所属なし"}
+                  opts={opts}
+                  departments={departments}
+                  onMove={setMove}
+                  executive
+                />
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
       <div className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {boxes.map((box) => (

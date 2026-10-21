@@ -7,7 +7,7 @@ import type { AssigneeOption, SentRequestRow } from "../queries";
 import { REQUEST_STATE_LABEL, personLabel, type RequestState } from "../requests";
 import { DUE_TONE_CLASS, describeDueDate } from "./format";
 
-// 「頼んだこと」: ほかの社員に TODO を頼む・頼んだものの状態を見る(docs/DESIGN.md 39 章)。
+// 「頼んだこと」: ほかの社員に TODO を頼む・頼んだものの状態を見る(docs/DESIGN.md 41 章)。
 
 const STATE_TONE: Record<RequestState, "info" | "neutral" | "attention"> = {
   open: "info",

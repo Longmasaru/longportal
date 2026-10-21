@@ -2,7 +2,7 @@ import Link from "next/link";
 import { canGlobally } from "@/modules/core/access";
 import { requireAppAccess } from "@/modules/core/apps";
 import { lineWorksConfig } from "@/modules/core/lineworks";
-import { buildOrgBoxes } from "../logic";
+import { buildOrgChart } from "../logic";
 import { manifest } from "../manifest";
 import { listDepartments, listLocations, listOrgMembers } from "../queries";
 import { OrgBoard, type BoardOptions } from "./org-board";
@@ -25,10 +25,10 @@ export async function OrgChartPage({ location }: { location: string | null }) {
     listLocations(),
   ]);
   const selected = locations.find((l) => l.code === location) ?? null;
-  // 所属を変えられる人(社員管理の権限を全社で持つ人)には、ドラッグで異動できる形で出す。空の部署も落とし先として出す。
+  // 所属を変えられる人(社員管理の権限を全社で持つ人)には、ドラッグで異動できる形で出す。
   const canEdit = canGlobally(actor, "core.employees.manage");
-  const boxes = buildOrgBoxes(members, departments, selected?.id ?? null, { includeEmpty: canEdit });
-  const total = boxes.reduce((n, b) => n + b.count, 0);
+  const { executives, boxes } = buildOrgChart(members, departments, selected?.id ?? null);
+  const total = executives.length + boxes.reduce((n, b) => n + b.count, 0);
   const opts: BoardOptions = {
     myId: actor.employee?.id ?? null,
     showLocation: !selected,
@@ -46,7 +46,7 @@ export async function OrgChartPage({ location }: { location: string | null }) {
         </p>
         <h1 className="text-brand01 mt-2 text-2xl font-bold">組織図</h1>
         <p className="text-brand04 mt-1 text-sm">
-          部署ごとに、今日の所属の人を役職の順に並べています。名前を押すと、くわしく見られます。
+          一番上が経営、その下は部署ごとに、今日の所属の人を役職の順に並べています。名前を押すと、くわしく見られます。
         </p>
       </div>
 
@@ -70,10 +70,10 @@ export async function OrgChartPage({ location }: { location: string | null }) {
         </span>
       </div>
 
-      {total === 0 && !canEdit ? (
+      {total === 0 ? (
         <p className="text-brand04 border-brand01/15 border bg-white p-6 text-sm">この拠点には、まだだれもいません。</p>
       ) : (
-        <OrgBoard boxes={boxes} opts={opts} departments={departments} />
+        <OrgBoard executives={executives} boxes={boxes} opts={opts} departments={departments} />
       )}
     </div>
   );

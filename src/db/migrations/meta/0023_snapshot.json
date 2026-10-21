@@ -1,5 +1,5 @@
 {
-  "id": "4b5068d1-ca47-4053-8cec-40de8175dae8",
+  "id": "1d2da0f6-524e-40ff-b5c6-6a2b6c208edb",
   "prevId": "b56e6a26-f19b-4e99-b9e9-67380e4173f7",
   "version": "7",
   "dialect": "postgresql",
@@ -198,6 +198,18 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "reply": {
+          "name": "reply",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "replied_at": {
+          "name": "replied_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
@@ -322,6 +334,10 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {
+        "cards_reply_check": {
+          "name": "cards_reply_check",
+          "value": "\"arigato\".\"cards\".\"reply\" is null or \"arigato\".\"cards\".\"reply\" in ('glad', 'likewise', 'welcome', 'anytime')"
+        },
         "cards_tag_check": {
           "name": "cards_tag_check",
           "value": "\"arigato\".\"cards\".\"tag\" in ('taught', 'helped', 'challenged', 'systemized')"
@@ -3336,36 +3352,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "requested_at": {
-          "name": "requested_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "requested_by_user_id": {
-          "name": "requested_by_user_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "acknowledged_at": {
-          "name": "acknowledged_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "returned_at": {
-          "name": "returned_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "returned_reason": {
-          "name": "returned_reason",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -3393,27 +3379,6 @@
             },
             {
               "expression": "created_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "todos_requested_by_idx": {
-          "name": "todos_requested_by_idx",
-          "columns": [
-            {
-              "expression": "requested_by_user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "requested_at",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -3453,20 +3418,6 @@
           ],
           "onDelete": "restrict",
           "onUpdate": "no action"
-        },
-        "todos_requested_by_user_id_users_id_fk": {
-          "name": "todos_requested_by_user_id_users_id_fk",
-          "tableFrom": "todos",
-          "tableTo": "users",
-          "schemaTo": "core",
-          "columnsFrom": [
-            "requested_by_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -3480,22 +3431,6 @@
         "todos_text_length_check": {
           "name": "todos_text_length_check",
           "value": "char_length(\"todo\".\"todos\".\"text\") between 1 and 200"
-        },
-        "todos_request_columns_check": {
-          "name": "todos_request_columns_check",
-          "value": "\"todo\".\"todos\".\"requested_at\" is not null or (\"todo\".\"todos\".\"requested_by_user_id\" is null and \"todo\".\"todos\".\"acknowledged_at\" is null and \"todo\".\"todos\".\"returned_at\" is null and \"todo\".\"todos\".\"returned_reason\" is null)"
-        },
-        "todos_request_not_self_check": {
-          "name": "todos_request_not_self_check",
-          "value": "\"todo\".\"todos\".\"requested_by_user_id\" is null or \"todo\".\"todos\".\"requested_by_user_id\" <> \"todo\".\"todos\".\"user_id\""
-        },
-        "todos_returned_not_done_check": {
-          "name": "todos_returned_not_done_check",
-          "value": "not (\"todo\".\"todos\".\"done\" and \"todo\".\"todos\".\"returned_at\" is not null)"
-        },
-        "todos_returned_reason_check": {
-          "name": "todos_returned_reason_check",
-          "value": "\"todo\".\"todos\".\"returned_reason\" is null or (\"todo\".\"todos\".\"returned_at\" is not null and char_length(\"todo\".\"todos\".\"returned_reason\") <= 200)"
         }
       },
       "isRLSEnabled": false

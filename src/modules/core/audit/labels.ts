@@ -46,6 +46,9 @@ export const AUDIT_ACTION_LABEL: Record<string, string> = {
   "kyokasho.book.import": "教科書の取り込み(新規)",
   "kyokasho.book.reimport": "教科書の取り込み直し",
   "kyokasho.book.update": "教科書の設定の変更",
+  "nippo.report.delete": "日報: 下書きの削除",
+  "nippo.comment.delete": "日報: コメントの削除",
+  "nippo.report.import": "日報: 過去の日報の取り込み",
 };
 
 export function auditActionLabel(action: string): string {

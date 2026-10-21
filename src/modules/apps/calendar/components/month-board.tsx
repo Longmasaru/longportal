@@ -14,7 +14,7 @@ type Props = {
   entries: CalendarEntry[];
   /** 全社の予定・呼びかけ(見える条件を通ったもの) */
   events: ViewerEvent[];
-  /** ほかのアプリの本人の項目(TODO の期限など。docs/DESIGN.md 39.4) */
+  /** ほかのアプリの本人の項目(TODO の期限など。docs/DESIGN.md 41.4) */
   extras: ExtraDayItem[];
   /** 日付ごとの印(給料日・入社記念日・誕生日など) */
   marks: Record<string, string[]>;

@@ -35,7 +35,7 @@ export const todos = todo.table(
       .references(() => todoCategories.id, { onDelete: "restrict" }),
     /** 期限(JST の暦日)。 */
     dueDate: date("due_date", { mode: "string" }),
-    // ---- 依頼(docs/DESIGN.md 39 章)。requested_at が空でない行が依頼で、user_id は頼まれた人。
+    // ---- 依頼(docs/DESIGN.md 41 章)。requested_at が空でない行が依頼で、user_id は頼まれた人。
     /** 頼んだ日時(空 = 本人の TODO)。 */
     requestedAt: timestamp("requested_at", { withTimezone: true }),
     /** 頼んだ人。アカウントが消えても、頼まれた人の TODO は残す。 */

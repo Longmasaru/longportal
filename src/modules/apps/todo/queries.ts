@@ -8,7 +8,7 @@ import { requestState, type RequestFacts, type RequestState } from "./requests";
 import { todoCategories, todos, type TodoPriority } from "./schema";
 
 // TODO の読み取り。必ず user_id(本人)で絞り込む(docs/DESIGN.md 25 章)。
-// 依頼(39 章)は、頼まれた人(user_id)と頼んだ人(requested_by_user_id)の 2 人だけが読める。
+// 依頼(41 章)は、頼まれた人(user_id)と頼んだ人(requested_by_user_id)の 2 人だけが読める。
 
 export type CategoryRow = { code: string; label: string; icon: string };
 

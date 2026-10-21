@@ -8,7 +8,7 @@ import { AcknowledgeButton } from "./acknowledge-button";
 import { formatDue } from "./format";
 
 /**
- * ホームの一番上に出す「○○さんから依頼が届きました」(docs/DESIGN.md 39.3)。
+ * ホームの一番上に出す「○○さんから依頼が届きました」(docs/DESIGN.md 41.3)。
  * 確認するか、完了するか、お返しするまで出す。TODO アプリを使えない人・依頼がない人には何も描画しない。
  */
 export async function TodoHomeNotice() {

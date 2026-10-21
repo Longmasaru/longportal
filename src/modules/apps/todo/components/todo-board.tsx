@@ -49,7 +49,7 @@ export function TodoBoard({
   initialTodos: TodoRow[];
   categories: CategoryRow[];
   today: string;
-  /** 本人が頼んだ依頼(docs/DESIGN.md 39 章) */
+  /** 本人が頼んだ依頼(docs/DESIGN.md 41 章) */
   initialSent: SentRequestRow[];
   /** 依頼の相手の候補 */
   assignees: AssigneeOption[];

@@ -5,7 +5,7 @@ import { manifest } from "./manifest";
 import { listDueSources } from "./queries";
 
 /**
- * 本人の会社カレンダーに出す「TODO の期限」(docs/DESIGN.md 39.4)。本人の TODO と、頼まれた依頼だけ。
+ * 本人の会社カレンダーに出す「TODO の期限」(docs/DESIGN.md 41.4)。本人の TODO と、頼まれた依頼だけ。
  * src/app のカレンダーのルートが読み、ただのデータとしてカレンダーに渡す(アプリどうしは参照しない)。
  * TODO アプリを使えない人には空の一覧を返す。
  */

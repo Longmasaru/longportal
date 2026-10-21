@@ -1,6 +1,6 @@
 import { personLabel } from "./requests";
 
-// 本人の会社カレンダーに出す「TODO の期限」(docs/DESIGN.md 39.4)。DB に依存しない純粋関数。
+// 本人の会社カレンダーに出す「TODO の期限」(docs/DESIGN.md 41.4)。DB に依存しない純粋関数。
 // apps/calendar は参照しない。ここで作るのはただのデータで、src/app がカレンダーの extraDayItems に渡す。
 
 export type TodoCalendarItem = {

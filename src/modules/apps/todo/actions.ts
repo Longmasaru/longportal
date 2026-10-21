@@ -59,7 +59,7 @@ async function mustGet(userId: string, id: string): Promise<TodoRow> {
   return row;
 }
 
-/** 本人だけの TODO(依頼でないもの)を 1 件。添付ファイルはこれに限る(docs/DESIGN.md 39.2)。 */
+/** 本人だけの TODO(依頼でないもの)を 1 件。添付ファイルはこれに限る(docs/DESIGN.md 41.2)。 */
 async function mustGetPlain(userId: string, id: string): Promise<TodoRow> {
   const row = await mustGet(userId, id);
   if (row.request) throw new Error("依頼には添付ファイルを付けられません。");
@@ -95,7 +95,7 @@ export async function createTodoAction(input: string): Promise<TodoRow> {
 type TodoFieldsInput = Partial<Omit<TodoRow, "id" | "request">>;
 
 /**
- * 持ち主として TODO を変える。依頼(39 章)のときは、完了・カテゴリ・優先度だけ(タスク名・詳細・期限は頼んだ人のもの)。
+ * 持ち主として TODO を変える。依頼(41 章)のときは、完了・カテゴリ・優先度だけ(タスク名・詳細・期限は頼んだ人のもの)。
  * 頼まれた人が何か操作したら、「確認しました」も付ける。
  */
 export async function updateTodoAction(idInput: string, fieldsInput: TodoFieldsInput): Promise<TodoRow> {
@@ -255,7 +255,7 @@ export async function deleteAttachmentAction(idInput: string): Promise<void> {
   if (row) await deleteObject(row.key).catch((err) => console.error("[todo] 添付の削除に失敗しました", err));
 }
 
-// ---- 依頼(docs/DESIGN.md 39 章)--------------------------------------------------
+// ---- 依頼(docs/DESIGN.md 41 章)--------------------------------------------------
 // 頼んだ人(requested_by_user_id)と頼まれた人(user_id)の 2 人だけが扱う。判定は requests.ts の abilitiesFor。
 // 本番では、Server Action で投げた例外の文言は画面に届かないため、利用者に見せる誤りは { error } で返す。
 

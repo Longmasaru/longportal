@@ -3,7 +3,7 @@
 import { useActionState } from "react";
 import { acknowledgeRequestAction } from "../actions";
 
-/** 届いた依頼の「確認しました」(ホームのお知らせ)。docs/DESIGN.md 39.3。 */
+/** 届いた依頼の「確認しました」(ホームのお知らせ)。docs/DESIGN.md 41.3。 */
 export function AcknowledgeButton({ id, label }: { id: string; label: string }) {
   const [state, action, pending] = useActionState<{ error?: string } | undefined, FormData>(async () => {
     try {

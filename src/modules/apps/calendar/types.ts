@@ -51,7 +51,7 @@ export type InviteeOption = { id: string; employeeNumber: string; name: string; 
 
 /**
  * ほかのアプリの、日付つきの項目(例: TODO の期限)。カレンダーはほかのアプリを参照しないので、
- * src/app のルートが読んで、ただのデータとして渡す(docs/DESIGN.md 39.4)。本人に見せてよいものだけを渡すこと。
+ * src/app のルートが読んで、ただのデータとして渡す(docs/DESIGN.md 41.4)。本人に見せてよいものだけを渡すこと。
  */
 export type ExtraDayItem = {
   id: string;

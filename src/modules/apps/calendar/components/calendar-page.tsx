@@ -41,7 +41,7 @@ const NAV_LINK =
 
 /**
  * 会社カレンダー。会社の休日(全社員共通)と、本人だけのメモ・予定を月の表で見る。アプリ管理で有効にし、表示する相手に当てはまる人だけ(それ以外は 404)。
- * extraDayItems は、ほかのアプリの本人の項目(TODO の期限など)。src/app のルートが渡す(docs/DESIGN.md 39.4)。
+ * extraDayItems は、ほかのアプリの本人の項目(TODO の期限など)。src/app のルートが渡す(docs/DESIGN.md 41.4)。
  */
 export async function CalendarPage({
   month,
