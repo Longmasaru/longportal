@@ -8,6 +8,8 @@ import {
   kanjiNumber,
   poolRanks,
   prevBasho,
+  projectNextRank,
+  projectionLadder,
   shikonaCandidates,
   type PrevEntry,
 } from "./banzuke";
@@ -189,5 +191,41 @@ describe("番付の編成", () => {
       "b",
     );
     assert.equal(findYusho([{ userId: "a", position: 1, wins: 0, received: 9 }]), null);
+  });
+});
+
+describe("次の場所の見込み", () => {
+  const now = [
+    entry("a", 1, "sekiwake", 3),
+    entry("b", 2, "sekiwake", 5),
+    entry("c", 3, "komusubi", 2),
+    entry("d", 4, "komusubi", 1),
+    entry("me", 5, "maegashira", 2),
+    entry("f", 6, "maegashira", 0),
+    entry("g", 7, "juryo", 0),
+  ];
+  it("白星が多いほど、見込みの位は上がる(下がることはない)", () => {
+    const order = ["maezumo", "jonokuchi", "makushita", "juryo", "maegashira", "komusubi", "sekiwake", "ozeki", "yokozuna"];
+    let last = -1;
+    for (const w of [0, 2, 4, 8, 12]) {
+      const p = projectNextRank(now, "me", w);
+      assert.ok(p);
+      const i = order.indexOf(p.rank);
+      assert.ok(i >= last, `${w} で ${p.rank}`);
+      last = i;
+    }
+  });
+  it("いちばん多くなれば優勝で大関", () => {
+    assert.deepEqual(projectNextRank(now, "me", 6), { rank: "ozeki", position: 1, yusho: true });
+  });
+  it("番付に載っていなければ見込みはない", () => {
+    assert.equal(projectNextRank(now, "zz", 3), null);
+  });
+  it("見込みの表は、いまの位と、上の位に届く白星の数を並べる", () => {
+    const ladder = projectNextRank(now, "me", 2) ? projectionLadder(now, "me", 2) : [];
+    assert.equal(ladder[0].wins, 2);
+    for (let k = 1; k < ladder.length; k++) assert.ok(ladder[k].wins > ladder[k - 1].wins);
+    assert.equal(ladder.at(-1)?.rank, "ozeki");
+    assert.equal(ladder.at(-1)?.yusho, true);
   });
 });

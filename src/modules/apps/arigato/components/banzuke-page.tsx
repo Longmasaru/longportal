@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireAppAccess } from "@/modules/core/apps";
-import { KACHIKOSHI, RANKS, RANK_LABEL, kanjiNumber, kojoText, shikonaCandidates, type Rank } from "../banzuke";
+import { RANKS, RANK_LABEL, kanjiNumber, kojoText, shikonaCandidates, type Rank } from "../banzuke";
 import { getBanzukePage, getFamilyName, takenShikona, type BanzukeRow } from "../banzuke-queries";
 import { ARIGATO_TAG_LABEL, type ArigatoTag } from "../constants";
 import { manifest } from "../manifest";
@@ -48,6 +48,16 @@ function SideTier({ rows, cls, meId }: { rows: BanzukeRow[]; cls: string; meId: 
   );
 }
 
+const RANK_ORDER = (rank: Rank) => RANKS.length - RANKS.indexOf(rank);
+
+/** いまの位からの上がり下がり。 */
+function Move({ from, to }: { from: Rank; to: Rank }) {
+  const d = RANK_ORDER(to) - RANK_ORDER(from);
+  if (d > 0) return <span className={styles.up}>↑ 上がる</span>;
+  if (d < 0) return <span className={styles.down}>↓ 下がる</span>;
+  return <span className={styles.keep}>同じ位</span>;
+}
+
 /** ありがとう番付の画面(`/apps/arigato/banzuke`)。 */
 export async function ArigatoBanzukePage() {
   const actor = await requireAppAccess(manifest.appKey);
@@ -67,10 +77,13 @@ export async function ArigatoBanzukePage() {
   const counts = RANKS.map((rank) => ({ rank, n: rows.filter((r) => r.rank === rank).length })).filter(
     (c) => c.n > 0 || c.rank !== "maezumo",
   );
-  const rest = Math.max(KACHIKOSHI - myWins, 0);
+  const [nowP, nextP] = data.projection;
+  const goal = nextP?.wins ?? myWins;
+  const dotCount = Math.min(Math.max(goal, myWins, 1), 16);
   const stamped = data.stamps.filter((s) => s.stamped).length;
   const allMaezumo = rows.length > 0 && rows.every((r) => r.rank === "maezumo");
   const promoted = rows.filter((r) => r.promoted);
+  const groups = RANKS.map((rank) => ({ rank, rows: rows.filter((r) => r.rank === rank) })).filter((g) => g.rows.length > 0);
 
   return (
     <div className={styles.root}>
@@ -81,93 +94,158 @@ export async function ArigatoBanzukePage() {
           </Link>
         </p>
 
-        <div className={styles.grid2}>
-          <section className={styles.panel}>
-            <p className={styles.eyebrow}>あなたの四股名</p>
-            <p className={cx(styles.shikona, styles.brush)}>
-              {me?.name ?? "―"}
-              {me?.departmentName ? <small>{me.departmentName}部屋</small> : null}
-            </p>
-            {me ? (
-              <p className={styles.plain}>
-                いまの位は <em>{RANK_LABEL[me.rank]}</em>。{rows.length} 人中 {me.position} 番目です。
-              </p>
-            ) : (
-              <p className={styles.plain}>次の場所から番付に載ります。</p>
-            )}
-            {candidates.length > 0 ? (
-              <ShikonaChooser candidates={candidates} current={me?.name ?? null} taken={taken} />
-            ) : null}
-            <p className={styles.muted}>
-              {me && !me.hasShikona ? "四股名を選ぶまでは、氏名で載ります。" : "四股名は、名字から作った候補の中から選べます。"}
-            </p>
-          </section>
+        <section className={cx(styles.panel, styles.intro)}>
+          <p className={styles.eyebrow}>ありがとう番付とは</p>
+          <h1 className={cx(styles.introTitle, styles.solid)}>ありがとうを送るほど、位が上がる</h1>
+          <p>ありがとうカードを送った数で、大相撲の番付(順位表)のように位が決まります。2 か月ごとに番付が組み直されます。</p>
+          <p>番付は、ありがとうを伝えるきっかけです。競い合うためではなく、ありがとうが社内に増えて「育てて、育つ。」が進むことをめざしています。</p>
+          <ol className={styles.steps}>
+            <li>
+              <b>送る</b>
+              <span>ありがとうカードを送る</span>
+            </li>
+            <li>
+              <b>白星がつく</b>
+              <span>1 枚で白星(○)が 1 つ。同じ相手には 1 日 1 つまで</span>
+            </li>
+            <li>
+              <b>位が上がる</b>
+              <span>
+                2 か月ごとに番付が組み直され、白星が多い人ほど上の位へ
+              </span>
+            </li>
+          </ol>
+          <p className={styles.muted}>もらったカードは位には関係しません(「懸賞」として飾られます)。</p>
+        </section>
 
-          <section className={styles.panel}>
-            <p className={styles.eyebrow}>あなたの位(上ほど強い)</p>
-            <div className={styles.pyramid}>
-              {counts.map((c, i) => (
-                <div
-                  key={c.rank}
-                  className={cx(me?.rank === c.rank && styles.here)}
-                  style={{ width: `${34 + i * 8}%`, background: `rgba(194, 58, 34, ${Math.max(0.32 - i * 0.035, 0.03)})` }}
-                >
-                  <b className={styles.brush}>{RANK_LABEL[c.rank]}</b>
-                  <span>{c.n}人</span>
-                </div>
-              ))}
-            </div>
-            <p className={styles.muted}>上の位ほど、ありがとうをたくさん送っている人です。</p>
-          </section>
-        </div>
-
-        <section className={styles.panel}>
+        <section className={cx(styles.panel, styles.now)}>
           <p className={styles.eyebrow}>
-            今場所({md(basho.start)}〜{md(basho.end)})の白星
+            あなたのいま({basho.name} {md(basho.start)}〜{md(basho.end)})
           </p>
+          {me ? (
+            <div className={styles.nowRank}>
+              <b className={styles.brush}>{RANK_LABEL[me.rank]}</b>
+              <span>
+                {rows.length} 人中 {me.position} 番目
+                <br />
+                <small>
+                  {me.name}
+                  {me.departmentName ? `(${me.departmentName})` : ""}
+                </small>
+              </span>
+            </div>
+          ) : (
+            <p className={styles.plain}>次の場所から番付に載ります。</p>
+          )}
           <p className={cx(styles.bigCount, styles.solid)}>
             <span>
               白星 <em>{myWins}</em> つ
             </span>
-            <small>= ありがとうを {myWins} 回送った</small>
+            <small>= 今場所ありがとうを送った数</small>
           </p>
-          <div className={styles.dots} aria-label={`白星 ${KACHIKOSHI} つのうち ${Math.min(myWins, KACHIKOSHI)} つ`}>
-            {Array.from({ length: KACHIKOSHI }, (_, i) => (
-              <span key={i} className={cx(i < myWins && styles.on, i === KACHIKOSHI - 1 && i >= myWins && styles.goal)}>
-                {i === KACHIKOSHI - 1 && i >= myWins ? "昇" : ""}
-              </span>
-            ))}
-          </div>
-          <p className={styles.kachi}>
-            {rest > 0 ? `あと ${rest} つで、次の場所は位が上がる目安です` : "勝ち越し。次の場所は位が上がる見込みです"}
-          </p>
-          <p className={styles.muted}>
-            {md(basho.end)} までに白星が {KACHIKOSHI} つ以上なら位が上がり、{KACHIKOSHI - 1} つ以下なら下がります。いちばん多い人が優勝です。
-          </p>
-        </section>
-
-        <section className={styles.panel}>
-          <p className={styles.eyebrow}>今場所もらったありがとう(懸賞)</p>
-          {data.myKensho.length > 0 ? (
-            <div className={styles.kensho}>
-              {data.myKensho.map((k, i) => (
-                <div key={k.id} className={styles.flag} style={{ background: FLAG_COLORS[i % FLAG_COLORS.length] }} title={ARIGATO_TAG_LABEL[k.tag]}>
-                  <span className={cx(styles.k, styles.v)}>{TAG_SHORT[k.tag]}</span>
-                  <span className={cx(styles.v, styles.brush)}>{k.fromName}</span>
-                </div>
+          {nextP ? (
+            <div className={styles.dots} aria-label={`白星 ${goal} つのうち ${myWins} つ`}>
+              {Array.from({ length: dotCount }, (_, i) => (
+                <span key={i} className={cx(i < myWins && styles.on, i === dotCount - 1 && i >= myWins && styles.goal)}>
+                  {i === dotCount - 1 && i >= myWins ? "昇" : ""}
+                </span>
               ))}
             </div>
-          ) : (
-            <p className={styles.muted}>まだありません。</p>
-          )}
-          <p className={styles.muted}>もらったありがとうは、相撲の懸賞旗のように並びます。位は変わりませんが、三賞を決めるときに使います。</p>
+          ) : null}
+          {nowP && me ? (
+            <p className={styles.kachi}>
+              {nextP
+                ? `あと ${nextP.wins - myWins} つで、${data.nextBasho.name}は${RANK_LABEL[nextP.rank]}${nextP.yusho ? "(優勝)" : ""}の見込みです`
+                : nowP.yusho
+                  ? `このままなら優勝の見込みです`
+                  : `このままなら、${data.nextBasho.name}は${RANK_LABEL[nowP.rank]}の見込みです`}
+            </p>
+          ) : null}
         </section>
 
-        <h2 className={cx(styles.sectionTitle, styles.solid)}>番付表(全員)</h2>
-        <p className={styles.muted}>
-          右半分が東、左半分が西です。外側ほど位が上で、いちばん外が横綱です。まん中の字は本物の番付表の決まり文句で、飾りです。
-          {allMaezumo ? "最初の場所は、全員が前相撲(同じところ)からはじまります。" : null}
-        </p>
+        {data.projection.length > 0 ? (
+          <section className={styles.panel}>
+            <p className={styles.eyebrow}>送るとどうなる?</p>
+            <h2 className={cx(styles.panelTitle, styles.solid)}>
+              {md(basho.end)} までの白星で、{data.nextBasho.name}の位が決まります
+            </h2>
+            <table className={styles.projection}>
+              <thead>
+                <tr>
+                  <th scope="col">今場所の白星</th>
+                  <th scope="col">{data.nextBasho.name}の位(見込み)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.projection.map((p) => (
+                  <tr key={p.wins} className={cx(p.wins === myWins && styles.nowRow)}>
+                    <td>
+                      {p.wins === myWins ? "いまの " : ""}
+                      <b>{p.wins}</b> つ
+                    </td>
+                    <td>
+                      <b className={styles.brush}>{RANK_LABEL[p.rank]}</b>
+                      {p.yusho ? <span className={styles.yushoTag}>優勝</span> : null}
+                      <small>{p.position} 番目</small>
+                      {me ? <Move from={me.rank} to={p.rank} /> : null}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className={styles.muted}>
+              ほかの人の白星を、いまの時点の数で計算した目安です。ほかの人も送るので、早めに、こつこつ送るのがおすすめです。
+            </p>
+            <p>
+              <Link href="/apps/arigato" className={styles.cta}>
+                ありがとうを送る
+              </Link>
+            </p>
+          </section>
+        ) : null}
+
+        <section className={styles.panel}>
+          <p className={styles.eyebrow}>位の並び(上ほど強い)</p>
+          <div className={styles.pyramid}>
+            {counts.map((c, i) => (
+              <div
+                key={c.rank}
+                className={cx(me?.rank === c.rank && styles.here)}
+                style={{ width: `${34 + i * 8}%`, background: `rgba(194, 58, 34, ${Math.max(0.32 - i * 0.035, 0.03)})` }}
+              >
+                <b className={styles.brush}>{RANK_LABEL[c.rank]}</b>
+                <span>{c.n}人</span>
+              </div>
+            ))}
+          </div>
+          <p className={styles.muted}>いちばん上が横綱です。最初は全員が前相撲からはじまります。</p>
+        </section>
+
+        <section className={styles.panel} aria-label={`${basho.fullName}の番付`}>
+          <p className={styles.eyebrow}>{basho.fullName}の番付(全員)</p>
+          {allMaezumo ? <p className={styles.muted}>最初の場所なので、全員が前相撲(同じところ)です。</p> : null}
+          <div className={styles.list}>
+            {groups.map((g) => (
+              <div key={g.rank} className={styles.listRow}>
+                <b className={cx(styles.listRank, styles.brush)}>{RANK_LABEL[g.rank]}</b>
+                <ul>
+                  {g.rows.map((r) => (
+                    <li key={r.userId} className={cx(r.userId === actor.userId && styles.meChip)}>
+                      {r.name}
+                      {r.departmentName ? <small>{r.departmentName}</small> : null}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <details className={styles.real}>
+          <summary>本物の番付表の形で見る</summary>
+          <p className={styles.muted}>
+            右半分が東、左半分が西です。外側ほど位が上で、いちばん外が横綱です。まん中の字は本物の番付表の決まり文句で、飾りです。
+          </p>
         <section className={styles.banzuke} aria-label={`${basho.fullName}の番付表`}>
           <div className={cx(styles.half, styles.west)}>
             <div className={cx(styles.sideHead, styles.brush)}>西</div>
@@ -189,6 +267,7 @@ export async function ArigatoBanzukePage() {
             ))}
           </div>
         </section>
+        </details>
 
         {promoted.length > 0 ? (
           <section className={styles.dentatsu} aria-label="伝達式">
@@ -288,21 +367,51 @@ export async function ArigatoBanzukePage() {
           </p>
         </section>
 
+        <section className={styles.panel}>
+          <p className={styles.eyebrow}>今場所もらったありがとう(懸賞)</p>
+          {data.myKensho.length > 0 ? (
+            <div className={styles.kensho}>
+              {data.myKensho.map((k, i) => (
+                <div key={k.id} className={styles.flag} style={{ background: FLAG_COLORS[i % FLAG_COLORS.length] }} title={ARIGATO_TAG_LABEL[k.tag]}>
+                  <span className={cx(styles.k, styles.v)}>{TAG_SHORT[k.tag]}</span>
+                  <span className={cx(styles.v, styles.brush)}>{k.fromName}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className={styles.muted}>まだありません。</p>
+          )}
+          <p className={styles.muted}>もらったありがとうは、相撲の懸賞旗のように並びます。位には関係しませんが、三賞を決めるときに使います。</p>
+        </section>
+
+        <section className={styles.panel}>
+          <p className={styles.eyebrow}>あなたの四股名(番付に載る名前)</p>
+          <p className={cx(styles.shikona, styles.brush)}>
+            {me?.name ?? "―"}
+            {me?.departmentName ? <small>{me.departmentName}部屋</small> : null}
+          </p>
+          {candidates.length > 0 ? (
+            <ShikonaChooser candidates={candidates} current={me?.name ?? null} taken={taken} />
+          ) : null}
+          <p className={styles.muted}>
+            {me && !me.hasShikona ? "四股名を選ぶまでは、氏名で載ります。" : "四股名は、名字から作った候補の中から選べます。"}
+          </p>
+        </section>
+
         <section className={cx(styles.panel, styles.rules)}>
-          <h2 className={cx(styles.panelTitle, styles.solid)}>決まりは 4 つだけ</h2>
+          <h2 className={cx(styles.panelTitle, styles.solid)}>くわしい決まり</h2>
           <ol>
             <li>
               <b>ありがとうを 1 回送ると、白星が 1 つ。</b>同じ相手には 1 日 1 つまでです。
             </li>
             <li>
-              <b>2 か月がひと場所。</b>白星が {KACHIKOSHI} つ以上なら次の場所で位が上がり、{KACHIKOSHI - 1}{" "}
-              つ以下なら下がります。多いほど大きく上がります。
+              <b>2 か月がひと場所。</b>1・3・5・7・9・11 月のはじめに、前の場所の白星で番付が組み直されます。ほかの人より白星が多いほど上がり、少ないと下がります。
             </li>
             <li>
-              <b>白星がいちばん多い人が優勝。</b>優勝すると大関に、大関で 2 回続けて優勝すると横綱になります。横綱は下がりません。
+              <b>白星がいちばん多い人が優勝。</b>優勝すると大関に、大関で 2 回続けて優勝すると横綱になります。大関は白星 8 つ未満だと関脇に下がります。横綱は下がりません。
             </li>
             <li>
-              <b>もらったありがとうは「懸賞」。</b>位は変わりませんが、三賞を決めるときに使います。
+              <b>もらったありがとうは「懸賞」。</b>位には関係しませんが、三賞(殊勲賞・敢闘賞・技能賞)を決めるときに使います。
             </li>
           </ol>
         </section>

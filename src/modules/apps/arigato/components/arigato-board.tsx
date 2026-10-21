@@ -274,6 +274,7 @@ export function ArigatoBoard({
   initialReceived,
   initialWeek,
   initialMyPoints,
+  receivedRaw,
 }: {
   viewerId: string;
   canManage: boolean;
@@ -282,6 +283,8 @@ export function ArigatoBoard({
   initialReceived: CardRow[];
   initialWeek: WeekStatus;
   initialMyPoints: number;
+  /** もらった点(同じ人から月 4 点まで)。画面では、伝えた点と同じ数までを出す。 */
+  receivedRaw: number;
 }) {
   const [tab, setTab] = useState<Tab>("feed");
   const [feed, setFeed] = useState(initialFeed);
@@ -313,12 +316,28 @@ export function ArigatoBoard({
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="bg-bg01 text-brand01 px-4 py-3 text-sm">
-        <p>
-          今月あなたが伝えたありがとう
-          <span className="font-heading mx-1.5 text-2xl font-bold tabular-nums">{myPoints}</span>点
+      <div className="bg-bg01 text-brand01 flex flex-col gap-2 px-4 py-3 text-sm">
+        <p className="font-bold">今月のあなた</p>
+        <div className="grid grid-cols-2 gap-3">
+          <p className="flex flex-col">
+            <span className="text-xs">伝えたありがとう</span>
+            <span>
+              <span className="font-heading mr-1 text-3xl font-bold tabular-nums">{myPoints}</span>点
+            </span>
+          </p>
+          <p className="flex flex-col">
+            <span className="text-xs">もらったありがとう</span>
+            <span>
+              <span className="font-heading mr-1 text-3xl font-bold tabular-nums">
+                {Math.min(receivedRaw, myPoints)}
+              </span>
+              点
+            </span>
+          </p>
+        </div>
+        <p className="text-brand04 text-xs">
+          もらった点は、自分が伝えた点と同じ数まで数えます。ありがとうを伝える人が増えるほど、育てて、育つ会社になるからです。
         </p>
-        <p className="text-brand04 text-xs">1 枚 1 点。同じ相手には 1 日 1 点までです。</p>
       </div>
 
       {!week.sentThisWeek && tab !== "send" ? <WeeklyPrompt week={week} onSend={() => setTab("send")} /> : null}
