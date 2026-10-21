@@ -14,10 +14,10 @@ import {
   BODY_MAX,
   RECORD_KINDS,
   RECORD_KIND_LABEL,
-  RECORD_VISIBILITIES,
   RECORD_VISIBILITY_LABEL,
   TITLE_MAX,
   type RecordKind,
+  type RecordVisibility,
 } from "../labels";
 import type { HrRecord, RecordFormState } from "../types";
 import { BodyAssist } from "./body-assist";
@@ -33,16 +33,18 @@ export function KindTag({ kind }: { kind: RecordKind }) {
   return <StatusTag tone={KIND_TONE[kind]}>{RECORD_KIND_LABEL[kind]}</StatusTag>;
 }
 
-/** 記録の追加・編集フォーム(管理する人だけに出す)。 */
+/** 記録の追加・編集フォーム(管理する人と上司に出す。31.4)。visibilities は選べる公開範囲。 */
 export function RecordForm({
   employeeId,
   record,
   today,
+  visibilities,
   onDone,
 }: {
   employeeId: string;
   record?: HrRecord;
   today: string;
+  visibilities: readonly RecordVisibility[];
   onDone?: () => void;
 }) {
   const empty = { kind: "talk", occurredOn: today, title: "", body: "", visibility: "employee" };
@@ -132,7 +134,7 @@ export function RecordForm({
       <fieldset>
         <legend className={LABEL_CLASS}>公開範囲</legend>
         <div className="flex flex-wrap gap-x-4 gap-y-2">
-          {RECORD_VISIBILITIES.map((v) => (
+          {visibilities.map((v) => (
             <label key={v} className="text-brand01 flex items-center gap-1.5 text-sm">
               <input
                 type="radio"
@@ -146,7 +148,12 @@ export function RecordForm({
             </label>
           ))}
         </div>
-        <p className="text-brand04 mt-1 text-xs">「管理者だけのメモ」は、本人のページには出ません。</p>
+        <p className="text-brand04 mt-1 text-xs">
+          管理者には、どれも見えます。
+          {visibilities.includes("personal")
+            ? "管理者との 1on1 など、上司に見せたくない内容は「本人と管理者だけ」か「管理者だけ」にします。"
+            : "上司にも言えない内容は、管理者に伝えてください。"}
+        </p>
       </fieldset>
       {state?.error ? (
         <p role="alert" className="text-brand03 text-sm font-bold">
@@ -168,7 +175,15 @@ export function RecordForm({
 }
 
 /** 「＋ 記録を追加」を押したときだけ、追加のフォームを開く(31.2)。 */
-export function NewRecordPanel({ employeeId, today }: { employeeId: string; today: string }) {
+export function NewRecordPanel({
+  employeeId,
+  today,
+  visibilities,
+}: {
+  employeeId: string;
+  today: string;
+  visibilities: readonly RecordVisibility[];
+}) {
   const [open, setOpen] = useState(false);
   if (!open) {
     return (
@@ -187,7 +202,7 @@ export function NewRecordPanel({ employeeId, today }: { employeeId: string; toda
           閉じる
         </button>
       </div>
-      <RecordForm employeeId={employeeId} today={today} onDone={() => setOpen(false)} />
+      <RecordForm employeeId={employeeId} today={today} visibilities={visibilities} onDone={() => setOpen(false)} />
     </section>
   );
 }
@@ -213,11 +228,15 @@ function DeleteButton({ id }: { id: string }) {
 function RecordItem({
   record,
   editable,
+  showVisibility,
+  visibilities,
   employeeId,
   today,
 }: {
   record: HrRecord;
   editable: boolean;
+  showVisibility: boolean;
+  visibilities: readonly RecordVisibility[];
   employeeId: string;
   today: string;
 }) {
@@ -225,7 +244,7 @@ function RecordItem({
   if (editing) {
     return (
       <li className="border-brand01/15 border bg-white p-4">
-        <RecordForm employeeId={employeeId} record={record} today={today} onDone={() => setEditing(false)} />
+        <RecordForm employeeId={employeeId} record={record} today={today} visibilities={visibilities} onDone={() => setEditing(false)} />
       </li>
     );
   }
@@ -234,7 +253,9 @@ function RecordItem({
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <span className="font-heading text-brand01 font-bold tabular-nums">{formatDateDot(record.occurredOn)}</span>
         <KindTag kind={record.kind} />
-        {editable && record.visibility === "managers" ? <StatusTag tone="muted">管理者だけのメモ</StatusTag> : null}
+        {showVisibility && record.visibility !== "employee" ? (
+          <StatusTag tone="muted">{RECORD_VISIBILITY_LABEL[record.visibility]}</StatusTag>
+        ) : null}
       </div>
       <p className="text-brand01 font-bold">{record.title}</p>
       {record.body ? <p className="text-brand01 text-sm leading-relaxed whitespace-pre-wrap">{record.body}</p> : null}
@@ -253,15 +274,22 @@ function RecordItem({
   );
 }
 
-/** 記録の一覧(新しい順)。editable は管理する人の見え方のときだけ。 */
+/**
+ * 記録の一覧(新しい順)。edit = all(管理する人: すべて直せる)/ mine(上司: viewerUserId が書いた記録だけ)/ none(本人)。
+ * visibilities は直すときに選べる公開範囲。
+ */
 export function RecordList({
   records,
-  editable,
+  edit,
+  viewerUserId,
+  visibilities,
   employeeId,
   today,
 }: {
   records: HrRecord[];
-  editable: boolean;
+  edit: "all" | "mine" | "none";
+  viewerUserId: string;
+  visibilities: readonly RecordVisibility[];
   employeeId: string;
   today: string;
 }) {
@@ -271,7 +299,15 @@ export function RecordList({
   return (
     <ul className="flex flex-col gap-3">
       {records.map((r) => (
-        <RecordItem key={`${r.id}-${r.updatedAt.valueOf()}`} record={r} editable={editable} employeeId={employeeId} today={today} />
+        <RecordItem
+          key={`${r.id}-${r.updatedAt.valueOf()}`}
+          record={r}
+          editable={edit === "all" || (edit === "mine" && r.authorUserId === viewerUserId && visibilities.includes(r.visibility))}
+          showVisibility={edit !== "none"}
+          visibilities={visibilities}
+          employeeId={employeeId}
+          today={today}
+        />
       ))}
     </ul>
   );

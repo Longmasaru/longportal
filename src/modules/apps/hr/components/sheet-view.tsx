@@ -94,13 +94,17 @@ export function SheetSection({
   editable,
   isSelf,
   today,
+  supervisorCandidates = [],
 }: {
   section: Section;
   profile: EmployeeProfile;
   sheet: HrSheet;
   editable: boolean;
+  /** 本人に見せる範囲だけを出す(本人・上司の見え方) */
   isSelf: boolean;
   today: string;
+  /** 上司を選ぶ欄の候補(編集できるときだけ。31.4) */
+  supervisorCandidates?: { id: string; name: string; employeeNumber: string }[];
 }) {
   if (isSelf && !SECTION_VISIBLE_TO_SELF[section]) return null;
   const p = sheet.profile;
@@ -149,6 +153,14 @@ export function SheetSection({
                   options: GENDERS.map((g) => ({ value: g, label: GENDER_LABEL[g] })),
                 },
                 { name: "remoteRatio", label: "在宅勤務比率", type: "number", value: p?.remoteRatio?.toString() ?? "", suffix: "%" },
+                {
+                  name: "supervisorEmployeeId",
+                  label: "上司(部下のページを、本人と同じ範囲で見られます)",
+                  type: "select",
+                  value: p?.supervisorEmployeeId ?? "",
+                  options: supervisorCandidates.map((c) => ({ value: c.id, label: `${c.name}(${c.employeeNumber})` })),
+                  wide: true,
+                },
               ]
             : undefined
         }
@@ -170,6 +182,10 @@ export function SheetSection({
             <Item label="在宅勤務比率">{p?.remoteRatio !== null && p?.remoteRatio !== undefined ? `${p.remoteRatio}%` : EMPTY}</Item>
             <Item label="入社年月日">{formatDateDot(profile.hiredOn)}</Item>
             <Item label="勤続年数">{tenure ? `${tenure.years}年${tenure.months}ヶ月` : "入社前"}</Item>
+            <Item label="上司">{sheet.supervisor?.name ?? EMPTY}</Item>
+            <Item label="直属の部下" wide>
+              {sheet.directReports.length > 0 ? sheet.directReports.map((r) => r.name).join("、") : EMPTY}
+            </Item>
           </dl>
         }
       />
