@@ -141,6 +141,20 @@
       "when": 1792266119858,
       "tag": "0019_arigato_cards",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1792560956016,
+      "tag": "0020_core_employee_birth_date",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1792562555361,
+      "tag": "0021_calendar_company_events",
+      "breakpoints": true
     }
   ]
 }

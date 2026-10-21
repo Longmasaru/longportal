@@ -2,5 +2,6 @@
 export { CalendarPage } from "./components/calendar-page";
 export { CalendarHomeNotice } from "./components/calendar-home-notice";
 export { getHomeWeek } from "./home-week";
+export { CalendarEventsPage, CalendarEventPage } from "./components/events-pages";
 export { manifest } from "./manifest";
 export { parseMonth } from "./logic";

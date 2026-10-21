@@ -1,15 +1,20 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useState } from "react";
 import { BUTTON_PRIMARY, BUTTON_SECONDARY, FIELD_CLASS, LABEL_CLASS } from "@/modules/core/shared/ui/form";
 import { createEntryAction, deleteEntryAction, updateEntryAction } from "../actions";
 import { WEEKDAY_LABELS, shortDate, type CalendarDay } from "../logic";
-import type { CalendarEntry, EntryFormState } from "../types";
+import { EVENT_KIND_LABEL, EVENT_RESPONSE_LABEL, OFF_EVENT_MARK } from "../constants";
+import type { CalendarEntry, EntryFormState, ViewerEvent } from "../types";
+import { RespondButtons } from "./respond-buttons";
 
 type Props = {
   weeks: (CalendarDay | null)[][];
   entries: CalendarEntry[];
-  /** 日付ごとの印(給料日・入社記念日など) */
+  /** 全社の予定・呼びかけ(見える条件を通ったもの) */
+  events: ViewerEvent[];
+  /** 日付ごとの印(給料日・入社記念日・誕生日など) */
   marks: Record<string, string[]>;
   today: string;
   initialDate: string;
@@ -22,10 +27,12 @@ function dateTone(day: CalendarDay): string {
 }
 
 /** 月の表と、選んだ日のメモ・予定。 */
-export function MonthBoard({ weeks, entries, marks, today, initialDate }: Props) {
+export function MonthBoard({ weeks, entries, events, marks, today, initialDate }: Props) {
   const [selected, setSelected] = useState(initialDate);
   const byDate = new Map<string, CalendarEntry[]>();
   for (const e of entries) byDate.set(e.date, [...(byDate.get(e.date) ?? []), e]);
+  const eventsByDate = new Map<string, ViewerEvent[]>();
+  for (const e of events) eventsByDate.set(e.date, [...(eventsByDate.get(e.date) ?? []), e]);
   const selectedDay = weeks.flat().find((d) => d?.date === selected) ?? null;
 
   return (
@@ -49,7 +56,14 @@ export function MonthBoard({ weeks, entries, marks, today, initialDate }: Props)
             <tr key={wi}>
               {week.map((day, di) => {
                 if (!day) return <td key={di} className="border-brand01/10 border" />;
-                const items = byDate.get(day.date) ?? [];
+                const entryItems = byDate.get(day.date) ?? [];
+                // 月の表の中では、行事・予定(休みでないもの)を先に、自分のメモ・予定をあとに並べる
+                const chips = [
+                  ...(eventsByDate.get(day.date) ?? [])
+                    .filter((e) => e.kind === "event")
+                    .map((e) => ({ id: e.id, time: e.time, title: e.title, company: true, pending: e.canRespond && e.myResponse === null })),
+                  ...entryItems.map((e) => ({ id: e.id, time: e.time, title: e.title, company: false, pending: false })),
+                ];
                 const isSelected = day.date === selected;
                 const isToday = day.date === today;
                 return (
@@ -58,7 +72,7 @@ export function MonthBoard({ weeks, entries, marks, today, initialDate }: Props)
                       type="button"
                       onClick={() => setSelected(day.date)}
                       aria-pressed={isSelected}
-                      aria-label={`${shortDate(day.date)} ${day.kind === "off" ? "休み" : day.kind === "work" ? "出勤日" : ""} ${day.label ?? ""} ${(marks[day.date] ?? []).join(" ")} 予定${items.length}件`}
+                      aria-label={`${shortDate(day.date)} ${day.kind === "off" ? "休み" : day.kind === "work" ? "出勤日" : ""} ${day.label ?? ""} ${day.offEvent ? OFF_EVENT_MARK[day.offEvent] : ""} ${(marks[day.date] ?? []).join(" ")} 予定${chips.length}件`}
                       className={`hover:bg-bg01 flex h-full w-full flex-col items-stretch gap-0.5 p-1 text-left transition-colors md:p-1.5 ${
                         isSelected ? "outline-brand01 outline-2 -outline-offset-2" : ""
                       } ${day.kind === "off" ? "bg-brand03/5" : ""}`}
@@ -76,10 +90,15 @@ export function MonthBoard({ weeks, entries, marks, today, initialDate }: Props)
                             出勤
                           </span>
                         ) : null}
+                        {day.offEvent ? (
+                          <span className="bg-brand03 px-0.5 text-[0.625rem] leading-tight font-bold whitespace-nowrap text-white">
+                            {OFF_EVENT_MARK[day.offEvent]}
+                          </span>
+                        ) : null}
                         {(marks[day.date] ?? []).map((m) => (
-                          <span key={m} aria-hidden>
+                          <span key={m} aria-hidden className="max-w-full min-w-0">
                             <span className="bg-link inline-block size-2 rounded-full md:hidden" />
-                            <span className="bg-link hidden px-0.5 text-[0.625rem] leading-tight font-bold whitespace-nowrap text-white md:inline">
+                            <span className="bg-link hidden max-w-full truncate px-0.5 align-bottom text-[0.625rem] leading-tight font-bold whitespace-nowrap text-white md:inline-block">
                               {m}
                             </span>
                           </span>
@@ -90,22 +109,27 @@ export function MonthBoard({ weeks, entries, marks, today, initialDate }: Props)
                           {day.label}
                         </span>
                       ) : null}
-                      {items.length > 0 ? (
+                      {chips.length > 0 ? (
                         <>
                           <span className="flex gap-0.5 md:hidden" aria-hidden>
-                            {items.slice(0, 3).map((e) => (
-                              <span key={e.id} className="bg-link size-1.5 rounded-full" />
+                            {chips.slice(0, 3).map((e) => (
+                              <span key={e.id} className={`size-1.5 rounded-full ${e.company ? "bg-brand03" : "bg-link"}`} />
                             ))}
                           </span>
                           <span className="hidden flex-col gap-0.5 md:flex">
-                            {items.slice(0, 2).map((e) => (
-                              <span key={e.id} className="bg-bg01 text-brand01 truncate px-1 text-[0.6875rem] leading-snug">
+                            {chips.slice(0, 2).map((e) => (
+                              <span
+                                key={e.id}
+                                className={`text-brand01 truncate px-1 text-[0.6875rem] leading-snug ${
+                                  e.company ? "border-brand03 border-l-2 bg-white" : "bg-bg01"
+                                } ${e.pending ? "font-bold" : ""}`}
+                              >
                                 {e.time ? `${e.time} ` : ""}
                                 {e.title}
                               </span>
                             ))}
-                            {items.length > 2 ? (
-                              <span className="text-brand04 text-[0.6875rem] leading-tight">ほか{items.length - 2}件</span>
+                            {chips.length > 2 ? (
+                              <span className="text-brand04 text-[0.6875rem] leading-tight">ほか{chips.length - 2}件</span>
                             ) : null}
                           </span>
                         </>
@@ -125,13 +149,24 @@ export function MonthBoard({ weeks, entries, marks, today, initialDate }: Props)
           day={selectedDay}
           marks={marks[selectedDay.date] ?? []}
           items={byDate.get(selectedDay.date) ?? []}
+          events={eventsByDate.get(selectedDay.date) ?? []}
         />
       ) : null}
     </div>
   );
 }
 
-function DayPanel({ day, marks, items }: { day: CalendarDay; marks: string[]; items: CalendarEntry[] }) {
+function DayPanel({
+  day,
+  marks,
+  items,
+  events,
+}: {
+  day: CalendarDay;
+  marks: string[];
+  items: CalendarEntry[];
+  events: ViewerEvent[];
+}) {
   const [editingId, setEditingId] = useState<string | null>(null);
 
   return (
@@ -144,6 +179,17 @@ function DayPanel({ day, marks, items }: { day: CalendarDay; marks: string[]; it
         </p>
         {marks.length > 0 ? <p className="text-link text-sm font-bold">{marks.join(" ・ ")}</p> : null}
       </div>
+
+      {events.length > 0 ? (
+        <div className="flex flex-col gap-2">
+          <p className="text-brand01 text-sm font-bold">会社の予定</p>
+          <ul className="border-brand01/15 flex flex-col border-t">
+            {events.map((e) => (
+              <CompanyEventItem key={e.id} event={e} />
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       {items.length > 0 ? (
         <ul className="border-brand01/15 flex flex-col border-t">
@@ -185,6 +231,46 @@ function DayPanel({ day, marks, items }: { day: CalendarDay; marks: string[]; it
       ) : null}
       <p className="text-brand04 text-xs">書き込んだ内容は、自分にしか見えません。</p>
     </aside>
+  );
+}
+
+function CompanyEventItem({ event: e }: { event: ViewerEvent }) {
+  const label = `${shortDate(e.date)}${e.time ? ` ${e.time}` : ""} ${e.title}`;
+  return (
+    <li className="border-brand01/15 flex flex-col gap-1.5 border-b py-3">
+      <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <span
+          className={`px-1 text-[0.6875rem] leading-5 font-bold whitespace-nowrap ${
+            e.kind === "event" ? "border-brand03 text-brand03 border" : "bg-brand03 text-white"
+          }`}
+        >
+          {e.kind === "event" ? (e.visibility === "company" ? "全社" : "呼びかけ") : EVENT_KIND_LABEL[e.kind]}
+        </span>
+        <span className="text-brand01 font-bold [overflow-wrap:anywhere]">
+          {e.time ? <span className="text-brand03 mr-2 tabular-nums">{e.time}</span> : null}
+          {e.title}
+        </span>
+      </p>
+      {e.note ? <p className="text-brand04 text-sm whitespace-pre-wrap [overflow-wrap:anywhere]">{e.note}</p> : null}
+      {e.invited ? (
+        <div className="flex flex-col gap-1.5">
+          <p className="text-brand01 text-sm">
+            あなたの返事:{" "}
+            <span className={e.myResponse ? "font-bold" : "text-brand03 font-bold"}>
+              {e.myResponse ? EVENT_RESPONSE_LABEL[e.myResponse] : "まだです"}
+            </span>
+          </p>
+          {e.canRespond ? <RespondButtons eventId={e.id} current={e.myResponse} label={label} /> : null}
+        </div>
+      ) : null}
+      {e.canEdit ? (
+        <p className="text-sm">
+          <Link href={`/apps/calendar/events/${e.id}`} className="text-brand01 hover:text-brand03 font-bold transition-colors">
+            {e.kind === "event" && e.hasInvitees ? "編集・返事の一覧 ›" : "編集 ›"}
+          </Link>
+        </p>
+      ) : null}
+    </li>
   );
 }
 

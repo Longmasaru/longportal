@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, lte, sql } from "drizzle-orm";
+import { and, asc, eq, gte, inArray, isNotNull, isNull, lte, or, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { employees } from "@/modules/core/employees/schema";
 import { calendarEntries } from "./schema";
@@ -25,13 +25,35 @@ export async function listEntries(userId: string, from: string, to: string): Pro
     );
 }
 
-/** 本人の入社日(入社の周年の表示用)。社員でない user は null。 */
-export async function getHiredOn(employeeId: string | null | undefined): Promise<string | null> {
-  if (!employeeId) return null;
+/** 本人の入社日と生年月日(入社の周年・誕生日の表示用)。社員でない user は両方 null。 */
+export async function getPersonalDates(
+  employeeId: string | null | undefined,
+): Promise<{ hiredOn: string | null; birthDate: string | null }> {
+  if (!employeeId) return { hiredOn: null, birthDate: null };
   const [row] = await db
-    .select({ hiredOn: employees.hiredOn })
+    .select({ hiredOn: employees.hiredOn, birthDate: employees.birthDate })
     .from(employees)
     .where(eq(employees.id, employeeId))
     .limit(1);
-  return row?.hiredOn ?? null;
+  return { hiredOn: row?.hiredOn ?? null, birthDate: row?.birthDate ?? null };
+}
+
+/**
+ * 在籍中(今日の時点で active / leave、入社済み、退職日が今日以降か未定)で、生年月日の入っている社員。
+ * 全社員の誕生日を見る権限(calendar.birthdays.view)のある人の画面だけで使う。docs/DESIGN.md 37 章。
+ */
+export async function listBirthdays(today: string): Promise<{ employeeId: string; name: string; birthDate: string }[]> {
+  const rows = await db
+    .select({ employeeId: employees.id, name: employees.name, birthDate: employees.birthDate })
+    .from(employees)
+    .where(
+      and(
+        isNotNull(employees.birthDate),
+        inArray(employees.status, ["active", "leave"]),
+        lte(employees.hiredOn, today),
+        or(isNull(employees.leftOn), gte(employees.leftOn, today)),
+      ),
+    )
+    .orderBy(asc(employees.employeeNumber));
+  return rows.flatMap((r) => (r.birthDate ? [{ employeeId: r.employeeId, name: r.name, birthDate: r.birthDate }] : []));
 }

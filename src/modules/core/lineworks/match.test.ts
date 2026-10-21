@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { resolveRoom } from "./match";
+import { matchDirectoryUser, resolveRoom } from "./match";
 
 const roster = [
   { familyName: "稲荷", givenName: "一郎", department: "ブレーキ部" },
@@ -48,4 +48,24 @@ test("括弧書き・中黒・空白・英字の大小は無視し、名簿の�
   const r = resolveRoom({ key: "*", title: "t", all: true, lineWorksIds: ["bui@x"] }, roster2, directory2);
   assert.deepEqual(r.memberIds.sort(), ["bui@x", "mai@x", "nagai@x"]);
   assert.deepEqual(r.notInLineWorks, ["BUI THANH PHOUNG"]);
+});
+
+test("matchDirectoryUser: メールが先、なければ氏名・フリガナ、1 人に決まらなければ null", () => {
+  const dir = [
+    { userId: "u1", lastName: "山田", firstName: "太郎", email: "Yamada@example.com" },
+    { userId: "u2", lastName: "ヤマダ", firstName: "ハナコ", email: "hanako@example.com" },
+    { userId: "u3", lastName: "佐藤", firstName: "一郎", email: "" },
+    { userId: "u4", lastName: "佐藤", firstName: "一郎", email: "" },
+  ];
+  const base = { familyName: "山田", givenName: "太郎", department: null };
+  assert.equal(matchDirectoryUser({ ...base, email: "yamada@example.com" }, dir), "u1");
+  // 名前が違っても、メールが合えばその人
+  assert.equal(matchDirectoryUser({ ...base, givenName: "花子", email: "hanako@example.com" }, dir), "u2");
+  assert.equal(matchDirectoryUser({ ...base, email: null }, dir), "u1");
+  assert.equal(
+    matchDirectoryUser({ familyName: "山田", givenName: "花子", familyNameKana: "やまだ", givenNameKana: "はなこ", department: null }, dir),
+    "u2",
+  );
+  assert.equal(matchDirectoryUser({ familyName: "佐藤", givenName: "一郎", department: null }, dir), null);
+  assert.equal(matchDirectoryUser({ familyName: "鈴木", givenName: "次郎", department: null }, dir), null);
 });

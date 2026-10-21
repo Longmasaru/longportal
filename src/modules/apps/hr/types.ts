@@ -42,6 +42,8 @@ export type RecordFormState = { error?: string; ok?: number } | undefined;
 /** 人事管理シートの 1〜5 章のデータ。 */
 export type HrSheet = {
   profile: HrProfileRow | null;
+  /** 生年月日(社員マスタの値) */
+  birthDate: string | null;
   qualifications: { id: string; name: string; acquiredOn: string | null; expiresOn: string | null }[];
   skills: { id: string; name: string; level: number }[];
   /** 能力の 5 項目(付いていない軸はない) */

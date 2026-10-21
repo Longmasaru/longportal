@@ -22,6 +22,7 @@ export type EmployeeFormValues = {
   positionId: string | null;
   hiredOn: string;
   leftOn: string | null;
+  birthDate: string | null;
   status: string;
 };
 
@@ -144,6 +145,13 @@ export function EmployeeForm({
           hint="この日までは利用でき、翌日から利用できなくなります。退職予定日を先に入れても構いません。"
         >
           <input id="leftOn" name="leftOn" type="date" defaultValue={employee?.leftOn ?? ""} className={FIELD_CLASS} />
+        </Field>
+        <Field
+          label="生年月日"
+          htmlFor="birthDate"
+          hint="任意。会社カレンダーの誕生日(本人と、全員の誕生日を見る権限のある人だけに表示)と、人事管理の年齢に使います。"
+        >
+          <input id="birthDate" name="birthDate" type="date" defaultValue={employee?.birthDate ?? ""} className={FIELD_CLASS} />
         </Field>
       </div>
 

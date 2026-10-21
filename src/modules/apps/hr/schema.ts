@@ -56,8 +56,7 @@ export const hrProfiles = hr.table(
     employeeId: uuid("employee_id")
       .primaryKey()
       .references(() => employees.id, { onDelete: "restrict" }),
-    // 1. 基本情報
-    birthDate: date("birth_date", { mode: "string" }),
+    // 1. 基本情報(生年月日は社員マスタ core.employees.birth_date に持つ。docs/DESIGN.md 37 章)
     gender: text("gender").$type<Gender>(),
     /** 在宅勤務比率(%) */
     remoteRatio: smallint("remote_ratio"),

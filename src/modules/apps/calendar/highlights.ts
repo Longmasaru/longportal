@@ -88,13 +88,24 @@ export type Highlight =
   | { kind: "work_saturday_next"; date: string; daysUntil: number }
   | { kind: "holiday_tomorrow"; holiday: LongHoliday }
   | { kind: "anniversary"; years: number }
+  | { kind: "birthday" }
+  | { kind: "birthdays"; names: string[] }
   | { kind: "payday"; date: string };
+
+/** 誕生日のある人(全社員の誕生日を見る権限のある人の画面だけで渡す)。 */
+export type BirthdayPerson = { employeeId: string; name: string; birthDate: string };
 
 /** 入社記念日(その年の)。2/29 入社の人は、平年は 2/28。 */
 export function anniversaryDate(hiredOn: string, year: number): string {
   const md = hiredOn.slice(5);
   if (md === "02-29" && daysInMonth(`${year}-02`) === 28) return `${year}-02-28`;
   return `${year}-${md}`;
+}
+
+/** その日(`YYYY-MM-DD`)が誕生日の人。2/29 生まれの人は、平年は 2/28。 */
+export function birthdaysOn<T extends { birthDate: string }>(people: readonly T[], date: string): T[] {
+  const year = Number(date.slice(0, 4));
+  return people.filter((p) => anniversaryDate(p.birthDate, year) === date);
 }
 
 /** 今日が入社の周年なら年数(1 年目の記念日 = 1)。それ以外は null。 */
@@ -121,14 +132,25 @@ export function paydayOf(month: string, payday: number | null = PAYDAY, calendar
  * 今日、知らせたいこと(大事な順)。
  * - 出勤土曜: 当日と、次の出勤日が出勤土曜になる日(ふつうは金曜)
  * - 明日から連休
- * - 入社の周年(hiredOn がある人だけ)
+ * - 本人の誕生日(birthDate がある人だけ)・入社の周年(hiredOn がある人だけ)
+ * - ほかの人の誕生日(others を渡したときだけ。本人は除いて渡す)
  * - 給料日(PAYDAY が設定されているときだけ)
  */
 export function todaysHighlights(
   today: string,
-  options: { hiredOn?: string | null; payday?: number | null; calendar?: Record<number, CompanyYear> } = {},
+  options: {
+    hiredOn?: string | null;
+    birthDate?: string | null;
+    others?: readonly BirthdayPerson[];
+    payday?: number | null;
+    /** 全社の休みを重ねた会社カレンダー(events.ts の withCompanyOffDays) */
+    calendar?: Record<number, CompanyYear>;
+    /** 給料日のずらしに使う会社カレンダー。一斉有給取得日などでは振り込み日は変わらないため、既定は紙の会社カレンダー(38.1) */
+    paydayCalendar?: Record<number, CompanyYear>;
+  } = {},
 ): Highlight[] {
   const calendar = options.calendar ?? COMPANY_CALENDAR;
+  const paydayCalendar = options.paydayCalendar ?? COMPANY_CALENDAR;
   const payday = options.payday === undefined ? PAYDAY : options.payday;
   const result: Highlight[] = [];
 
@@ -148,12 +170,21 @@ export function todaysHighlights(
     if (run && run.start === tomorrow) result.push({ kind: "holiday_tomorrow", holiday: run });
   }
 
+  if (options.birthDate && birthdaysOn([{ birthDate: options.birthDate }], today).length > 0) {
+    result.push({ kind: "birthday" });
+  }
+
   if (options.hiredOn) {
     const years = anniversaryYears(options.hiredOn, today);
     if (years !== null) result.push({ kind: "anniversary", years });
   }
 
-  if (paydayOf(today.slice(0, 7), payday, calendar) === today) result.push({ kind: "payday", date: today });
+  if (options.others) {
+    const names = birthdaysOn(options.others, today).map((p) => p.name);
+    if (names.length > 0) result.push({ kind: "birthdays", names });
+  }
+
+  if (paydayOf(today.slice(0, 7), payday, paydayCalendar) === today) result.push({ kind: "payday", date: today });
 
   return result;
 }

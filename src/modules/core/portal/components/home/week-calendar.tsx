@@ -71,7 +71,7 @@ export function WeekCalendar({ week }: { week: HomeWeek }) {
         })}
       </ol>
       <p className="text-brand04 mt-2 text-xs">
-        予定は、本人だけに見えるカレンダーのメモです。日付を押すと、その月のカレンダーが開きます。
+        全社の予定と、自分だけのメモ・予定が出ます。日付を押すと、その月のカレンダーが開きます。
       </p>
     </section>
   );
