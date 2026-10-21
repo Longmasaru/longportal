@@ -6,8 +6,9 @@ import { manifest as calendar } from "./calendar/manifest";
 import { manifest as haisou } from "./haisou/manifest";
 import { manifest as hr } from "./hr/manifest";
 import { manifest as kyokasho } from "./kyokasho/manifest";
+import { manifest as nippo } from "./nippo/manifest";
 import { manifest as sodatsu } from "./sodatsu/manifest";
 import { manifest as soshikizu } from "./soshikizu/manifest";
 import { manifest as todo } from "./todo/manifest";
 
-export const APP_MANIFESTS: readonly AppManifest[] = [sodatsu, arigato, todo, calendar, haisou, kyokasho, hr, soshikizu];
+export const APP_MANIFESTS: readonly AppManifest[] = [sodatsu, arigato, todo, calendar, haisou, kyokasho, hr, soshikizu, nippo];
