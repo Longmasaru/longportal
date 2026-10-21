@@ -15,7 +15,7 @@ import { nippoComments, nippoReports } from "./schema";
 import { sortMemo, type SortResult } from "./sort";
 import type { FormState } from "./types";
 
-// 日報の Server Action(docs/DESIGN.md 38 章)。画面以外からも呼べるため、毎回
+// 日報の Server Action(docs/DESIGN.md 39 章)。画面以外からも呼べるため、毎回
 // requireAppAccess(アプリを使えるか)と、日報の見え方(本人 / スコープ内の指導者)を判定する。
 // 日報を書けるのは本人だけ(自分の社員に紐づく日報)。コメントは本人と指導者。
 

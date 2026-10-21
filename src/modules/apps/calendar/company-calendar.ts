@@ -2,6 +2,8 @@
 // 土日は休み。それ以外は、下の「平日の休み」と「出勤する土曜」で表す。
 // 翌年分は、紙のカレンダーが出たらここへ年ごとに追加する(将来は管理画面から登録できるようにする)。
 
+import type { OffEventKind } from "./constants";
+
 export type CompanyYear = {
   /** 平日(月〜金)の休み。`MM-DD` → 名称 */
   weekdayHolidays: Record<string, string>;
@@ -9,6 +11,11 @@ export type CompanyYear = {
   workSaturdays: string[];
   /** 休みの日・出勤日の名称(土日に重なる祝日や、出勤になる祝日など)。`MM-DD` → 名称 */
   notes: Record<string, string>;
+  /**
+   * DB に登録された全社の休み(一斉有給取得日・臨時休業)。`MM-DD` → 種類と名称。
+   * 紙のカレンダーには書かず、events.ts の withCompanyOffDays で重ねる(docs/DESIGN.md 38.1)。
+   */
+  extraOffDays?: Record<string, { kind: OffEventKind; title: string }>;
 };
 
 /**

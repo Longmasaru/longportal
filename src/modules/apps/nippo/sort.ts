@@ -2,7 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { FIELD_DEF, SCORE_MAX, SCORE_MIN, TEXT_FIELDS } from "./labels";
 import { sanitizeSorted, type ReportFields } from "./logic";
 
-// 録音の文字起こしや走り書きのメモを、日報の項目に振り分けた案を作る(Claude。docs/DESIGN.md 38 章)。
+// 録音の文字起こしや走り書きのメモを、日報の項目に振り分けた案を作る(Claude。docs/DESIGN.md 39 章)。
 // 送るのは、本人が貼ったメモだけ。保存はしない(案を画面に返すだけ)。
 
 const MODEL = "claude-haiku-5-5";

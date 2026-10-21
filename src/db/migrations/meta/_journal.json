@@ -152,8 +152,22 @@
     {
       "idx": 21,
       "version": "7",
-      "when": 1792564332175,
-      "tag": "0021_nippo_app",
+      "when": 1792562555361,
+      "tag": "0021_calendar_company_events",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1792565862890,
+      "tag": "0022_hr_supervisor",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1792570319361,
+      "tag": "0023_nippo_app",
       "breakpoints": true
     }
   ]

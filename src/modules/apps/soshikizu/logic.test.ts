@@ -88,3 +88,15 @@ test("isOnRoster: 在籍判定", () => {
   assert.equal(isOnRoster({ status: "planned", hiredOn: "2020-04-01", leftOn: null }, today), false);
   assert.equal(isOnRoster({ status: "retired", hiredOn: "2020-04-01", leftOn: "2026-01-01" }, today), false);
 });
+
+test("buildOrgBoxes: includeEmpty なら人のいない部署も出す(ドラッグの落とし先)", () => {
+  const boxes = buildOrgBoxes([member({ employeeId: "a" })], DEPTS, null, { includeEmpty: true });
+  assert.deepEqual(
+    boxes.map((b) => [b.department?.name, b.count]),
+    [
+      ["総務部", 1],
+      ["技術部", 0],
+      ["人のいない部", 0],
+    ],
+  );
+});

@@ -7,7 +7,7 @@ import { manifest, NIPPO_REPORTS_REVIEW } from "./manifest";
 import { countAwaitingComment, getOwnStatus } from "./queries";
 
 /**
- * ホームの「要対応」(docs/DESIGN.md 38 章)。
+ * ホームの「要対応」(docs/DESIGN.md 39 章)。
  * 日報を書く人には「今日の日報」、指導者には「コメント待ちの日報」を出す。
  */
 export async function getNippoPendingItems(): Promise<PendingItem[]> {

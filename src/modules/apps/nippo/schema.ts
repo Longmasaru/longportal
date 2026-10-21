@@ -4,7 +4,7 @@ import { users } from "@/modules/core/auth/schema";
 import { employees } from "@/modules/core/employees/schema";
 import type { ReportStatus } from "./labels";
 
-/** 日報アプリの Postgres スキーマ(docs/DESIGN.md 4.1・38 章)。 */
+/** 日報アプリの Postgres スキーマ(docs/DESIGN.md 4.1・39 章)。 */
 export const nippo = pgSchema("nippo");
 
 const timestamps = () => ({

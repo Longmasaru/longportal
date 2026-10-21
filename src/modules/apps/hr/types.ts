@@ -32,6 +32,7 @@ export type HrRecord = {
   title: string;
   body: string;
   visibility: RecordVisibility;
+  authorUserId: string | null;
   authorName: string | null;
   authorLoginId: string | null;
   updatedAt: Date;
@@ -49,6 +50,10 @@ export type HrSheet = {
   /** 能力の 5 項目(付いていない軸はない) */
   abilities: Partial<Record<AbilityAxis, number>>;
   trainings: { id: string; kind: TrainingKind; title: string; takenOn: string | null }[];
+  /** 直属の上司(31.4) */
+  supervisor: { id: string; name: string } | null;
+  /** 直属の部下(退職者を除く) */
+  directReports: { id: string; name: string }[];
   /** 新しい順 */
   conditions: {
     id: string;

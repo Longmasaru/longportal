@@ -1,7 +1,21 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import type { Grant } from "@/modules/core/access/grants";
-import { ageOn, canManageEmployee, leaveSummary, maskName, pageMode, radarPoint, recordVisibleTo, tenureOn, trend } from "./logic";
+import {
+  ageOn,
+  canEditRecord,
+  canManageEmployee,
+  leaveSummary,
+  maskName,
+  pageMode,
+  radarPoint,
+  recordVisibleTo,
+  reportsOf,
+  tenureOn,
+  trend,
+  wouldCreateCycle,
+  writableVisibilities,
+} from "./logic";
 
 const CODE = "hr.records.manage";
 const LOC_A = "loc-a";
@@ -62,6 +76,67 @@ describe("pageMode / recordVisibleTo", () => {
     assert.equal(recordVisibleTo("self", "managers"), false);
     assert.equal(recordVisibleTo("manager", "managers"), true);
     assert.equal(recordVisibleTo("none", "employee"), false);
+  });
+
+  it("上司は、権限がなくても部下のページを本人と同じ範囲で見られる。権限があれば管理が優先", () => {
+    assert.equal(pageMode("lead", "e2", false, true), "supervisor");
+    assert.equal(pageMode("lead", "e2", true, true), "manager");
+    assert.equal(pageMode("lead", "lead", false, true), "self");
+    assert.equal(recordVisibleTo("supervisor", "employee"), true);
+    assert.equal(recordVisibleTo("supervisor", "supervisors"), true);
+    assert.equal(recordVisibleTo("supervisor", "managers"), false);
+    assert.equal(recordVisibleTo("self", "supervisors"), false);
+    // 管理者との 1on1: 本人には見えて、上司には見えない
+    assert.equal(recordVisibleTo("self", "personal"), true);
+    assert.equal(recordVisibleTo("supervisor", "personal"), false);
+    assert.equal(recordVisibleTo("manager", "personal"), true);
+    assert.equal(recordVisibleTo("self", "managers"), false);
+    assert.equal(recordVisibleTo("manager", "supervisors"), true);
+  });
+
+  it("上司は「本人に公開」「上司まで」だけ書け、直せるのは自分が書いた記録だけ。本人は書けない", () => {
+    assert.deepEqual(writableVisibilities("supervisor"), ["employee", "supervisors"]);
+    assert.deepEqual(writableVisibilities("self"), []);
+    assert.equal(writableVisibilities("manager").includes("managers"), true);
+    assert.equal(canEditRecord("supervisor", { authorUserId: "u-lead", visibility: "supervisors" }, "u-lead"), true);
+    assert.equal(canEditRecord("supervisor", { authorUserId: "u-boss", visibility: "employee" }, "u-lead"), false);
+    assert.equal(canEditRecord("supervisor", { authorUserId: "u-lead", visibility: "managers" }, "u-lead"), false);
+    assert.equal(canEditRecord("manager", { authorUserId: "u-lead", visibility: "employee" }, "u-boss"), true);
+    assert.equal(canEditRecord("self", { authorUserId: "u-me", visibility: "employee" }, "u-me"), false);
+  });
+});
+
+describe("reportsOf / wouldCreateCycle", () => {
+  // リーダー → サブリーダー → 一般社員 2 人。別の系列に、もう 1 人のリーダーと部下。
+  const supervisors = new Map([
+    ["sub", "lead"],
+    ["w1", "sub"],
+    ["w2", "sub"],
+    ["other-w", "other-lead"],
+  ]);
+
+  it("上司は、直属とその下にたどれる部下全員を見られる。上や横は見られない", () => {
+    assert.deepEqual([...reportsOf("lead", supervisors)].sort(), ["sub", "w1", "w2"]);
+    assert.deepEqual([...reportsOf("sub", supervisors)].sort(), ["w1", "w2"]);
+    assert.deepEqual([...reportsOf("w1", supervisors)], []);
+    assert.equal(reportsOf("sub", supervisors).has("lead"), false);
+    assert.equal(reportsOf("lead", supervisors).has("other-w"), false);
+  });
+
+  it("データに輪があっても止まり、本人は含めない", () => {
+    const loop = new Map([
+      ["a", "b"],
+      ["b", "a"],
+    ]);
+    assert.deepEqual([...reportsOf("a", loop)], ["b"]);
+  });
+
+  it("自分自身や、自分の部下は上司に選べない", () => {
+    assert.equal(wouldCreateCycle("lead", "lead", supervisors), true);
+    assert.equal(wouldCreateCycle("lead", "w1", supervisors), true);
+    assert.equal(wouldCreateCycle("sub", "w2", supervisors), true);
+    assert.equal(wouldCreateCycle("w1", "other-lead", supervisors), false);
+    assert.equal(wouldCreateCycle("lead", "other-w", supervisors), false);
   });
 });
 
