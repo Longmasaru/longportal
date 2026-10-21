@@ -882,3 +882,19 @@ TODOSample の TODO を、ポータルの中のアプリ(`modules/apps/todo`、`
   - それ以外の人には、ほかの人の誕生日は出さない。
   - 2/29 生まれの人は、平年は 2/28。
 - **本番に出すとき**: migration 0020 を本番に適用 → `sync:manifests`(権限の追加) → コードを main に入れる → 生年月日を入れる(画面か一括登録)。
+
+## 38. 実装メモ(LINE WORKS の Bot: 雨予報・定時のお知らせ)
+
+2026-10-21 のユーザーの判断: LINE WORKS の Bot をポータルの中でいろいろ作れるようにする。作れる人は限る(全権管理者と、Bot 管理者のロール。及川さん・南さん・永井勤社長)。いま LINE WORKS 側にある雨予報の Bot も、この中の 1 つとして作り直す(元のコードは取り出せないため)。計画の経緯は `docs/plans/lineworks-bots.md`。
+
+- **module**: `apps/bots`(`/apps/bots`)。権限 `bots.manage`(全社)を持つ人だけが画面を開ける(ない人は 404)。system_admin には sync で自動で付く。Bot 管理者のロールは管理画面で作り、この権限を付けて 3 人に割り当てる。
+- **種類はコード、中身は画面**: Bot の「種類」(`apps/bots/kinds.ts`)は、設定の形(zod)と「その日に何を送るか」をコードで持つ。画面で決めるのは、名前・種類・送り先のトークルーム(channelId)・種類ごとの設定・有効/無効。画面だけで何でも作れる形にはしない(壊れやすく、外部 API や権限の扱いが危ない)。新しい種類は、`kinds.ts` に 1 つ足す。
+- **種類(第 1 弾)**:
+  - **雨予報**(`rain`): 気象庁の天気予報(`https://www.jma.go.jp/bosai/forecast/data/forecast/<府県>.json`。鍵なし。出典「気象庁」を本文に入れる)から、選んだ地域(石川県の加賀・能登)の今日の降水確率(6 時間ごと)と天気を読み、いちばん高い降水確率がしきい値(既定 50%)以上なら知らせる。しきい値未満の日は送らない(「雨が降らない日も送る」にすると毎日送る)。読み取りは純粋関数 `rainReport`(`rain.ts`)で、テストあり。
+  - **定時のお知らせ**(`notice`): 選んだ曜日に、決めた文を送る。
+- **送り方**: LINE WORKS の Bot は、今ある「LONG PORTAL」(35 章の `core/lineworks`、鍵は `LINEWORKS_*`)を共用する。送り先は Bot ごとの channelId(`npm run lineworks:setup` で部屋を作って表示された値を、画面に入れる)。画面の「試しに送る」で、その場で 1 通送って確かめられる(本文の頭に【試し】。記録には残さない)。
+- **定時の実行**: `vercel.json` の cron が毎朝 6 時(JST。`0 21 * * *` UTC)に `/api/cron/bots` を呼ぶ(`CRON_SECRET` で保護。30 章と同じ)。有効な Bot を 1 つずつ実行し、`bots.runs` に結果(sent / skipped / failed)を残す。`(bot_id, run_date)` は一意で、同じ日に 2 回送らない(先に行を入れて、入れられたときだけ送る)。Vercel の Hobby プランの cron は 1 日 1 回・時刻は 1 時間の幅があるので、送る時刻は Bot ごとに選べない(Pro にしたら、時刻の設定を足す)。
+- **テーブル**(`pgSchema("bots")`、migration `0021_bots_app`): `bots.bots`(名前・種類・channelId・設定(jsonb)・有効・作った人・作成/更新日時)、`bots.runs`(Bot・実行日(JST)・結果・送った本文かエラー・日時)。
+- **監査ログ**: Bot の作成・変更・削除を、同じトランザクションで記録する(`bots.bot.create` / `update` / `delete`)。
+- **まだしないこと**: 話しかけると答える Bot(LINE WORKS からの受け取り口 `callback`。`X-WORKS-Signature` の確認が要る)、Bot ごとの別の LINE WORKS Bot(名前・アイコンを分ける)、送る時刻の設定。
+- **本番に出すとき**: migration `0021_bots_app` を本番に適用 → `sync:manifests`(アプリと権限 `bots.manage`) → コードを main に入れる → `/admin/apps` で「Bot」を有効にし、見せる相手を Bot 管理者に限る → ロール「Bot 管理者」を作って 3 人に割り当てる → 雨予報の部屋の channelId を入れて「試しに送る」。
