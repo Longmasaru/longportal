@@ -1,5 +1,5 @@
 {
-  "id": "df625217-3ceb-440c-b840-daffc0b6b2af",
+  "id": "b56e6a26-f19b-4e99-b9e9-67380e4173f7",
   "prevId": "60c78d5b-8cc8-4c2f-8c5a-d4348f609a4d",
   "version": "7",
   "dialect": "postgresql",
@@ -1923,6 +1923,12 @@
           "primaryKey": true,
           "notNull": true
         },
+        "supervisor_employee_id": {
+          "name": "supervisor_employee_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
         "gender": {
           "name": "gender",
           "type": "text",
@@ -2064,7 +2070,23 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "profiles_supervisor_employee_id_idx": {
+          "name": "profiles_supervisor_employee_id_idx",
+          "columns": [
+            {
+              "expression": "supervisor_employee_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "profiles_employee_id_employees_id_fk": {
           "name": "profiles_employee_id_employees_id_fk",
@@ -2073,6 +2095,20 @@
           "schemaTo": "core",
           "columnsFrom": [
             "employee_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "profiles_supervisor_employee_id_employees_id_fk": {
+          "name": "profiles_supervisor_employee_id_employees_id_fk",
+          "tableFrom": "profiles",
+          "tableTo": "employees",
+          "schemaTo": "core",
+          "columnsFrom": [
+            "supervisor_employee_id"
           ],
           "columnsTo": [
             "id"
@@ -2099,6 +2135,10 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {
+        "profiles_supervisor_not_self": {
+          "name": "profiles_supervisor_not_self",
+          "value": "\"hr\".\"profiles\".\"supervisor_employee_id\" is null or \"hr\".\"profiles\".\"supervisor_employee_id\" <> \"hr\".\"profiles\".\"employee_id\""
+        },
         "profiles_gender_check": {
           "name": "profiles_gender_check",
           "value": "\"hr\".\"profiles\".\"gender\" is null or \"hr\".\"profiles\".\"gender\" in ('male', 'female', 'other')"
@@ -2340,7 +2380,7 @@
         },
         "records_visibility_check": {
           "name": "records_visibility_check",
-          "value": "\"hr\".\"records\".\"visibility\" in ('employee', 'managers')"
+          "value": "\"hr\".\"records\".\"visibility\" in ('employee', 'supervisors', 'personal', 'managers')"
         }
       },
       "isRLSEnabled": false
@@ -3296,36 +3336,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "requested_at": {
-          "name": "requested_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "requested_by_user_id": {
-          "name": "requested_by_user_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "acknowledged_at": {
-          "name": "acknowledged_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "returned_at": {
-          "name": "returned_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "returned_reason": {
-          "name": "returned_reason",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -3353,27 +3363,6 @@
             },
             {
               "expression": "created_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "todos_requested_by_idx": {
-          "name": "todos_requested_by_idx",
-          "columns": [
-            {
-              "expression": "requested_by_user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "requested_at",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -3413,20 +3402,6 @@
           ],
           "onDelete": "restrict",
           "onUpdate": "no action"
-        },
-        "todos_requested_by_user_id_users_id_fk": {
-          "name": "todos_requested_by_user_id_users_id_fk",
-          "tableFrom": "todos",
-          "tableTo": "users",
-          "schemaTo": "core",
-          "columnsFrom": [
-            "requested_by_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -3440,22 +3415,6 @@
         "todos_text_length_check": {
           "name": "todos_text_length_check",
           "value": "char_length(\"todo\".\"todos\".\"text\") between 1 and 200"
-        },
-        "todos_request_columns_check": {
-          "name": "todos_request_columns_check",
-          "value": "\"todo\".\"todos\".\"requested_at\" is not null or (\"todo\".\"todos\".\"requested_by_user_id\" is null and \"todo\".\"todos\".\"acknowledged_at\" is null and \"todo\".\"todos\".\"returned_at\" is null and \"todo\".\"todos\".\"returned_reason\" is null)"
-        },
-        "todos_request_not_self_check": {
-          "name": "todos_request_not_self_check",
-          "value": "\"todo\".\"todos\".\"requested_by_user_id\" is null or \"todo\".\"todos\".\"requested_by_user_id\" <> \"todo\".\"todos\".\"user_id\""
-        },
-        "todos_returned_not_done_check": {
-          "name": "todos_returned_not_done_check",
-          "value": "not (\"todo\".\"todos\".\"done\" and \"todo\".\"todos\".\"returned_at\" is not null)"
-        },
-        "todos_returned_reason_check": {
-          "name": "todos_returned_reason_check",
-          "value": "\"todo\".\"todos\".\"returned_reason\" is null or (\"todo\".\"todos\".\"returned_at\" is not null and char_length(\"todo\".\"todos\".\"returned_reason\") <= 200)"
         }
       },
       "isRLSEnabled": false

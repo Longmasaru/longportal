@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, gte, inArray, isNull, lte, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -324,6 +324,65 @@ export async function endAssignmentAction(
 
 // ---- 所属の割り当て(一覧で部署・拠点をまとめて変更) --------------------------------
 
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/**
+ * 1 人の主所属を、変更日から指定の部署・拠点にする(所属の割り当て画面と組織図のドラッグで共通)。
+ * 変更日に始まった所属は付け直し、それより前からの所属は異動として扱う(planAssignmentChange)。監査ログも同じ tx で残す。
+ * 部署も拠点も変わらなければ何もしない(changed: false)。
+ */
+async function applyPrimaryChange(
+  tx: Tx,
+  actorUserId: string,
+  change: { employeeId: string; departmentId: string; locationId: string; effectiveDate: string },
+): Promise<{ ok: true; changed: boolean } | { ok: false; error: string }> {
+  const { employeeId, departmentId, locationId, effectiveDate } = change;
+  const primaries = await tx
+    .select()
+    .from(employeeAssignments)
+    .where(and(eq(employeeAssignments.employeeId, employeeId), eq(employeeAssignments.isPrimary, true)));
+  const covering = primaries.find(
+    (p) => p.startDate <= effectiveDate && (p.endDate === null || p.endDate >= effectiveDate),
+  );
+  if (covering?.departmentId === departmentId && covering.locationId === locationId) return { ok: true, changed: false };
+
+  const plan = planAssignmentChange(primaries, effectiveDate);
+  if (!plan.ok) return plan;
+  if (plan.kind === "correct") {
+    const [after] = await tx
+      .update(employeeAssignments)
+      .set({ departmentId, locationId })
+      .where(eq(employeeAssignments.id, plan.assignmentId))
+      .returning();
+    await writeAuditLog(tx, {
+      actorUserId,
+      action: "employee.assignment.update",
+      targetType: "employee",
+      targetId: employeeId,
+      before: covering,
+      after,
+    });
+  } else {
+    await tx
+      .update(employeeAssignments)
+      .set({ endDate: plan.endCurrent.endDate })
+      .where(eq(employeeAssignments.id, plan.endCurrent.id));
+    const [created] = await tx
+      .insert(employeeAssignments)
+      .values({ employeeId, departmentId, locationId, startDate: effectiveDate, isPrimary: true })
+      .returning();
+    await writeAuditLog(tx, {
+      actorUserId,
+      action: "employee.transfer",
+      targetType: "employee",
+      targetId: employeeId,
+      before: covering,
+      after: { endedPrevious: plan.endCurrent, created },
+    });
+  }
+  return { ok: true, changed: true };
+}
+
 export type AssignmentsFormState =
   | { error?: string; success?: string; failures?: { employeeId: string; message: string }[] }
   | undefined;
@@ -389,52 +448,12 @@ export async function changeAssignmentsAction(
   try {
     await db.transaction(async (tx) => {
       for (const { employeeId, departmentId, locationId } of selections) {
-        const primaries = await tx
-          .select()
-          .from(employeeAssignments)
-          .where(and(eq(employeeAssignments.employeeId, employeeId), eq(employeeAssignments.isPrimary, true)));
-        const covering = primaries.find(
-          (p) => p.startDate <= effectiveDate && (p.endDate === null || p.endDate >= effectiveDate),
-        );
-        if (covering?.departmentId === departmentId && covering.locationId === locationId) continue;
-
-        const plan = planAssignmentChange(primaries, effectiveDate);
-        if (!plan.ok) {
-          failures.push({ employeeId, message: plan.error });
+        const result = await applyPrimaryChange(tx, actor.userId, { employeeId, departmentId, locationId, effectiveDate });
+        if (!result.ok) {
+          failures.push({ employeeId, message: result.error });
           continue;
         }
-        if (plan.kind === "correct") {
-          const [after] = await tx
-            .update(employeeAssignments)
-            .set({ departmentId, locationId })
-            .where(eq(employeeAssignments.id, plan.assignmentId))
-            .returning();
-          await writeAuditLog(tx, {
-            actorUserId: actor.userId,
-            action: "employee.assignment.update",
-            targetType: "employee",
-            targetId: employeeId,
-            before: covering,
-            after,
-          });
-        } else {
-          await tx
-            .update(employeeAssignments)
-            .set({ endDate: plan.endCurrent.endDate })
-            .where(eq(employeeAssignments.id, plan.endCurrent.id));
-          const [created] = await tx
-            .insert(employeeAssignments)
-            .values({ employeeId, departmentId, locationId, startDate: effectiveDate, isPrimary: true })
-            .returning();
-          await writeAuditLog(tx, {
-            actorUserId: actor.userId,
-            action: "employee.transfer",
-            targetType: "employee",
-            targetId: employeeId,
-            before: covering,
-            after: { endedPrevious: plan.endCurrent, created },
-          });
-        }
+        if (!result.changed) continue;
         changed++;
       }
       // 1 人でも失敗したら、全員分を取り消す(一部だけ変わった状態を残さない)。
@@ -455,6 +474,73 @@ export async function changeAssignmentsAction(
   return {
     success: changed === 0 ? "変更はありませんでした。" : `${changed}名の所属を変更しました。`,
   };
+}
+
+// ---- 組織図のドラッグ(1 人の部署だけを変える) ------------------------------------
+
+export type MoveDepartmentResult = { error?: string; success?: string };
+
+const moveDepartmentSchema = z.object({
+  employeeId: uuid,
+  departmentId: uuid,
+  effectiveDate: isoDate("異動日"),
+});
+
+/**
+ * 組織図で札を別の部署の箱へ落としたときの保存。拠点は今の主所属のまま、部署だけを変更日から変える。
+ * 所属の割り当て画面と同じ規則(applyPrimaryChange)で、権限も同じ core.employees.manage(全社)。
+ */
+export async function moveEmployeeDepartmentAction(input: {
+  employeeId: string;
+  departmentId: string;
+  effectiveDate: string;
+}): Promise<MoveDepartmentResult> {
+  const actor = await requireGlobalPermission("core.employees.manage");
+  const parsed = moveDepartmentSchema.safeParse(input);
+  if (!parsed.success) return { error: firstIssue(parsed.error) };
+  const { employeeId, departmentId, effectiveDate } = parsed.data;
+
+  const [dept] = await db
+    .select({ id: departments.id })
+    .from(departments)
+    .where(and(eq(departments.id, departmentId), eq(departments.isActive, true)));
+  if (!dept) return { error: "選べない部署です。画面を読み込み直してください。" };
+
+  try {
+    const error = await db.transaction(async (tx) => {
+      const [current] = await tx
+        .select({ locationId: employeeAssignments.locationId })
+        .from(employeeAssignments)
+        .where(
+          and(
+            eq(employeeAssignments.employeeId, employeeId),
+            eq(employeeAssignments.isPrimary, true),
+            lte(employeeAssignments.startDate, effectiveDate),
+            or(isNull(employeeAssignments.endDate), gte(employeeAssignments.endDate, effectiveDate)),
+          ),
+        );
+      if (!current) return "異動日に有効な所属がありません。社員の画面で所属を設定してください。";
+      const result = await applyPrimaryChange(tx, actor.userId, {
+        employeeId,
+        departmentId,
+        locationId: current.locationId,
+        effectiveDate,
+      });
+      return result.ok ? null : result.error;
+    });
+    if (error) return { error };
+  } catch (err) {
+    if (pgErrorCode(err) === PG_EXCLUSION_VIOLATION) {
+      return { error: "主所属の期間が他の所属と重複しています。日付を確認してください。" };
+    }
+    throw err;
+  }
+
+  revalidatePath("/admin/employees");
+  revalidatePath(`/admin/employees/${employeeId}`);
+  revalidatePath("/admin/employees/assignments");
+  revalidatePath("/apps/soshikizu");
+  return { success: "所属を変更しました。" };
 }
 
 // ---- ログインアカウント --------------------------------------------------------
