@@ -174,8 +174,9 @@ export async function getRecord(id: string) {
 
 /** 人事管理シートの 1〜5 章(31.1)。章の出し分けは画面側(SECTION_VISIBLE_TO_SELF)で行う。 */
 export async function getSheet(employeeId: string): Promise<HrSheet> {
-  const [[profile], qualifications, skills, trainings, conditions, abilityRows] = await Promise.all([
+  const [[profile], [master], qualifications, skills, trainings, conditions, abilityRows] = await Promise.all([
     db.select().from(hrProfiles).where(eq(hrProfiles.employeeId, employeeId)).limit(1),
+    db.select({ birthDate: employees.birthDate }).from(employees).where(eq(employees.id, employeeId)).limit(1),
     db
       .select({ id: hrQualifications.id, name: hrQualifications.name, acquiredOn: hrQualifications.acquiredOn, expiresOn: hrQualifications.expiresOn })
       .from(hrQualifications)
@@ -207,5 +208,5 @@ export async function getSheet(employeeId: string): Promise<HrSheet> {
   ]);
   const abilities: HrSheet["abilities"] = {};
   for (const a of abilityRows) abilities[a.axis] = a.level;
-  return { profile: profile ?? null, qualifications, skills, trainings, conditions, abilities };
+  return { profile: profile ?? null, birthDate: master?.birthDate ?? null, qualifications, skills, trainings, conditions, abilities };
 }

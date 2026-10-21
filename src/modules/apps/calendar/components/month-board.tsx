@@ -77,9 +77,9 @@ export function MonthBoard({ weeks, entries, marks, today, initialDate }: Props)
                           </span>
                         ) : null}
                         {(marks[day.date] ?? []).map((m) => (
-                          <span key={m} aria-hidden>
+                          <span key={m} aria-hidden className="max-w-full min-w-0">
                             <span className="bg-link inline-block size-2 rounded-full md:hidden" />
-                            <span className="bg-link hidden px-0.5 text-[0.625rem] leading-tight font-bold whitespace-nowrap text-white md:inline">
+                            <span className="bg-link hidden max-w-full truncate px-0.5 align-bottom text-[0.625rem] leading-tight font-bold whitespace-nowrap text-white md:inline-block">
                               {m}
                             </span>
                           </span>

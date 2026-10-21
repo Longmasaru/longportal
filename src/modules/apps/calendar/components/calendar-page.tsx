@@ -1,7 +1,8 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { canGlobally } from "@/modules/core/access";
 import { requireAppAccess } from "@/modules/core/apps";
-import { diffDays } from "@/modules/core/shared/date";
+import { addDays, diffDays } from "@/modules/core/shared/date";
 import { todayJst } from "@/modules/core/shared/jst";
 import {
   addMonths,
@@ -15,9 +16,9 @@ import {
   yearSummary,
 } from "../logic";
 import { dailyNote } from "../daily-notes";
-import { anniversaryDate, nextLongHoliday, paydayOf, todaysHighlights } from "../highlights";
-import { manifest } from "../manifest";
-import { getHiredOn, listEntries } from "../queries";
+import { anniversaryDate, birthdaysOn, nextLongHoliday, paydayOf, todaysHighlights } from "../highlights";
+import { CALENDAR_BIRTHDAYS_VIEW, manifest } from "../manifest";
+import { getPersonalDates, listBirthdays, listEntries } from "../queries";
 import { HighlightList } from "./highlight-list";
 import { MonthBoard } from "./month-board";
 
@@ -41,17 +42,21 @@ export async function CalendarPage({ month }: { month: string | null }) {
   const current = month ?? today.slice(0, 7);
   const first = `${current}-01`;
   const last = `${current}-${String(daysInMonth(current)).padStart(2, "0")}`;
-  const [entries, hiredOn] = await Promise.all([
+  const [entries, mine, everyone] = await Promise.all([
     listEntries(actor.userId, first, last),
-    getHiredOn(actor.employee?.id),
+    getPersonalDates(actor.employee?.id),
+    canGlobally(actor, CALENDAR_BIRTHDAYS_VIEW) ? listBirthdays(today) : Promise.resolve(null),
   ]);
+  const { hiredOn, birthDate } = mine;
+  // ほかの人の誕生日(権限のある人だけ)。本人の誕生日は「誕生日」の印で別に出す。
+  const others = everyone?.filter((p) => p.employeeId !== actor.employee?.id);
 
   const todayInfo = dayInfo(today);
   const nextOff = nextOffDay(today);
   const remaining = remainingWorkdays(today);
   const year = Number(current.slice(0, 4));
   const summary = yearSummary(year);
-  const highlights = todaysHighlights(today, { hiredOn });
+  const highlights = todaysHighlights(today, { hiredOn, birthDate, others });
   const longHoliday = nextLongHoliday(today);
 
   // 月の表に付ける印(給料日・本人の入社記念日)
@@ -62,6 +67,12 @@ export async function CalendarPage({ month }: { month: string | null }) {
   const payday = paydayOf(current);
   if (payday) addMark(payday, "給料日");
   if (hiredOn && year > Number(hiredOn.slice(0, 4))) addMark(anniversaryDate(hiredOn, year), "入社記念日");
+  if (birthDate) addMark(anniversaryDate(birthDate, year), "誕生日");
+  if (others) {
+    for (let d = first; d <= last; d = addDays(d, 1)) {
+      for (const p of birthdaysOn(others, d)) addMark(d, `${p.name}さん誕生日`);
+    }
+  }
   const href = (m: string) => `/apps/calendar?month=${m}`;
 
   return (
