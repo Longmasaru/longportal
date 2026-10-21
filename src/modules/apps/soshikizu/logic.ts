@@ -22,9 +22,19 @@ export function compareMembers(a: OrgMember, b: OrgMember): number {
  */
 export const EXECUTIVE_TITLE_WORDS = ["社長", "専務", "常務", "工場長"] as const;
 
-export function isExecutive(m: Pick<OrgMember, "positionName">): boolean {
-  const name = m.positionName ?? "";
-  return EXECUTIVE_TITLE_WORDS.some((w) => name.includes(w));
+/**
+ * 役職名では決まらないが、経営に並べる人(氏名。空白は無視して比べる)。
+ * 2026-10-21 のユーザーの判断: 長井 将さん。
+ */
+export const EXECUTIVE_NAMES = ["長井将"] as const;
+
+const squash = (s: string) => s.replace(/\s/g, "");
+
+export function isExecutive(m: Pick<OrgMember, "positionName" | "name">): boolean {
+  const title = m.positionName ?? "";
+  if (EXECUTIVE_TITLE_WORDS.some((w) => title.includes(w))) return true;
+  const name = squash(m.name);
+  return EXECUTIVE_NAMES.some((n) => n === name);
 }
 
 /** 組織図: 一番上の経営の人と、部署ごとの箱(経営の人は箱に入れない)。 */
