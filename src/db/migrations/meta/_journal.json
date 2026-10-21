@@ -190,6 +190,13 @@
       "when": 1792579280074,
       "tag": "0026_todo_requests",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1792579688182,
+      "tag": "0027_meyasubako_app",
+      "breakpoints": true
     }
   ]
 }
