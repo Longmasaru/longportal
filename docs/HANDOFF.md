@@ -81,7 +81,7 @@
 - **教科書の自動の同期(2026-10-20)**: 元の Google ドキュメントが変わっていれば、毎朝 3 時ごろに自動で取り込み直す。管理画面に「今すぐ取り込む」。DESIGN.md 30 章。動かすには Vercel Production に `CRON_SECRET`(Sensitive、長いランダムな文字列)が要る。元の URL が未登録の教科書は同期しない。
 - **教科書の「ツッコミ」(2026-10-17 本番公開)**: DESIGN.md 32 章。読んだ人の疑問・付け足し・まちがい(右下のボタン、文を選んで引用、音声入力、「AIで整える」)、教科書チームの返事と採用、ありがとう、教科書をよくしてくれた人。migration `0018_kyokasho_comments`(本番に適用済み)、権限 `kyokasho.comments.manage`(本番に sync 済み。今は system_admin と `kyokasho.books.manage` の人が返事できる)。新しいツッコミの知らせは LINE WORKS(DESIGN.md 35 章。2026-10-17。Bot「LONG PORTAL」、鍵と送り先は Vercel Production に Sensitive で登録済み)。**社員にポータルを周知するまでは、長井さんだけの試験の部屋に届く**(`KYOKASHO_LINEWORKS_CHANNEL_ID` = 試験の部屋、`KYOKASHO_LINEWORKS_CHANNELS` は未登録)。周知のあと、ユーザーの PC の `ドキュメント\LONGPORTAL\lineworks-rooms.json`(全社・ブレーキ部・技術部・スタッド・メタルエステの 5 部屋)で `npm run lineworks:setup -- --rooms <JSON> --apply` を実行し、表示された値を Vercel に登録し直す(社員に通知が届く操作なので、ユーザーの「作って」の指示を得てから)。
 
-- **組織図(2026-10-21 作業中)**: `apps/soshikizu`(`/apps/soshikizu`、DESIGN.md 36 章)。第 1 弾は部署ごとの箱(今日の主所属から作る。拠点の絞り込み、名前を押すと役職・拠点・入社年)。DB の変更なし・専用権限なし。本番に出すには: コードを `main` に入れる → `sync:manifests` → `/admin/apps` で有効化。第 2 弾で上司・部下のツリー(migration が要る)。
+- **組織図(2026-10-21 作業中)**: `apps/soshikizu`(`/apps/soshikizu`、DESIGN.md 36 章)。第 1 弾は部署ごとの箱(今日の主所属から作る。拠点の絞り込み、名前を押すと役職・拠点・入社年、顔写真は LINE WORKS のアイコン)。DB の変更なし・専用権限なし。写真は本番の LINE WORKS の鍵(登録済み)と scope `user.read` を使う(本物の LINE WORKS での表示は未確認)。本番に出すには: コードを `main` に入れる → `sync:manifests` → `/admin/apps` で有効化。第 2 弾で上司・部下のツリー(migration が要る)。
 
 ### まだ「枠だけ」の部分
 - 見本(架空)のデータは 2026-10-14 に削除した(`mock-data.ts`)。ホームとサイドバーの**お知らせ・アプリ・社内リンク・要対応**は、`queries.ts` の `listVisible*` が空を返す(アプリは apps/sodatsu だけを固定で返す)ので、枠と「まだありません」の表示だけが出る。実装時は、この関数の中身を差し替える。

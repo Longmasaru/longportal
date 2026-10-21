@@ -65,11 +65,18 @@ export async function listOrgMembers(today: string): Promise<OrgMember[]> {
 
   return people
     .filter((p) => isOnRoster(p, today))
-    .map(({ leftOn: _leftOn, status: _status, ...p }) => {
+    .map((p) => {
       const a = primaryOf.get(p.employeeId);
       return {
-        ...p,
+        employeeId: p.employeeId,
+        employeeNumber: p.employeeNumber,
+        name: p.name,
+        nameKana: p.nameKana,
+        positionName: p.positionName,
         isManagement: p.isManagement ?? false,
+        positionRank: p.positionRank,
+        positionSortOrder: p.positionSortOrder,
+        hiredOn: p.hiredOn,
         departmentId: a?.departmentId ?? null,
         locationId: a?.locationId ?? null,
         locationName: a?.locationName ?? null,

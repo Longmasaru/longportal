@@ -857,5 +857,6 @@ TODOSample の TODO を、ポータルの中のアプリ(`modules/apps/todo`、`
 - **`apps/soshikizu`**(`/apps/soshikizu`)。DB の変更なし・専用権限なし。アプリの登録簿(`sync:manifests`)に登録し、入場は `requireAppAccess`。本番で使うには `/admin/apps` で有効にし、表示する相手を決める。
 - **元のデータ**: 今日(JST)の主所属(`core.employee_assignments`)。異動は所属の画面で直せば、そのまま組織図に出る。載せるのは在籍者(人事上の状態が active / leave、入社済み、最終在籍日を過ぎていない。ログインの在籍判定と同じ考え方)。主所属のない人は最後の「所属なし」の箱。
 - **箱の並び**: 部署の表示順(`sort_order` → `code`)。人のいない部署は出さない。箱の中は、管理職(役職の `is_management`)を上の段に分け、役職の序列(`rank`、大きいほど上位)→ 役職の表示順 → 役職なし → 入社が早い順 → 社員番号。並びはマスタ管理の序列で変えられる。判定は `apps/soshikizu/logic.ts`。
-- **画面**: 拠点で絞り込み(`?location=<拠点の code>`)、名前を押すと役職・拠点・入社年が開く(JS なしの `details`)。本人の札に「あなた」の印。顔写真は第 1 弾では載せない。
+- **画面**: 拠点で絞り込み(`?location=<拠点の code>`)、名前を押すと役職・拠点・入社年が開く(JS なしの `details`)。本人の札に「あなた」の印。
+- **顔写真**(2026-10-21 のユーザーの希望): LINE WORKS のアイコンを出す。写真はポータルに保存しない(DB・R2 の変更なし)。札の `<img>` は `/apps/soshikizu/photos/<社員の id>` を指し、その入口(`apps/soshikizu/photo-route.ts`)が組織図を見られる人・在籍者の写真だけを、LINE WORKS の API(`GET /users/{userId}/photo`、scope `user.read`。302 の転送先から中身を取る)から取って返す(本人のブラウザに 1 日覚えさせる)。社員と LINE WORKS の利用者は、ポータルに登録されたメール → 氏名・フリガナの順で突き合わせ、1 人に決まらなければ写真なし(`core/lineworks` の `matchDirectoryUser`)。利用者の一覧は 1 時間使い回す。LINE WORKS の設定がない環境・写真のない人・突き合わせられない人は、名字の 1 文字の丸を出す。
 - **第 2 弾(ツリー)で要るもの**: 上司・部下(または部署の親子)を持つ表を `soshikizu.*` に migration で足し、登録の画面を作る。今の `core.departments` はフラット(4.3)のまま。

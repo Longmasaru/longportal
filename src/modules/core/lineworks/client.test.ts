@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { generateKeyPairSync, createVerify } from "node:crypto";
 import { test } from "node:test";
-import { lineWorksConfig, signAssertion } from "./client";
+import { isLineWorksHost, lineWorksConfig, signAssertion } from "./client";
 
 test("設定は 5 つそろったときだけ使う。1 行で保存した鍵の \\n は改行に戻す", () => {
   const env = {
@@ -38,4 +38,13 @@ test("アクセストークン用の JWT は RS256 で署名し、iss = クラ�
   const v = createVerify("RSA-SHA256");
   v.update(`${h}.${p}`);
   assert.equal(v.verify(publicKey, Buffer.from(s, "base64url")), true);
+});
+
+test("写真の転送先にトークンを付けるのは LINE WORKS の https の住所だけ", () => {
+  assert.equal(isLineWorksHost("https://apis-storage.worksmobile.com/r/photo"), true);
+  assert.equal(isLineWorksHost("https://www.worksapis.com/v1.0/x"), true);
+  assert.equal(isLineWorksHost("http://www.worksapis.com/v1.0/x"), false);
+  assert.equal(isLineWorksHost("https://worksmobile.com.example.com/x"), false);
+  assert.equal(isLineWorksHost("https://evilworksmobile.com/x"), false);
+  assert.equal(isLineWorksHost("not a url"), false);
 });

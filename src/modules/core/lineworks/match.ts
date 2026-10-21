@@ -87,3 +87,23 @@ export function resolveRoom(spec: RoomSpec, roster: RosterEmployee[], directory:
   }
   return { memberIds: [...memberIds], notInLineWorks, problems };
 }
+
+/**
+ * ポータルの社員 1 人に当たる LINE WORKS の利用者(組織図の写真用)。
+ * まずポータルに登録されたメールで探し(大小は無視)、なければ氏名・フリガナで探す。1 人に決まらなければ null。
+ */
+export function matchDirectoryUser(
+  e: RosterEmployee & { email?: string | null },
+  directory: readonly (DirectoryUser & { email?: string })[],
+): string | null {
+  const email = e.email?.trim().toLowerCase();
+  if (email) {
+    const byEmail = directory.filter((u) => u.email?.trim().toLowerCase() === email);
+    if (byEmail.length === 1) return byEmail[0].userId;
+  }
+  const keys = new Set(nameKeys(e));
+  const ids = [
+    ...new Set(directory.filter((u) => keys.has(normalizeName(`${u.lastName}${u.firstName}`))).map((u) => u.userId)),
+  ];
+  return ids.length === 1 ? ids[0] : null;
+}

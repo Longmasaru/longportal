@@ -1,27 +1,33 @@
 import Link from "next/link";
 import { requireAppAccess } from "@/modules/core/apps";
+import { lineWorksConfig } from "@/modules/core/lineworks";
 import { buildOrgBoxes } from "../logic";
 import { manifest } from "../manifest";
 import { listDepartments, listLocations, listOrgMembers } from "../queries";
 import type { OrgBox, OrgMember } from "../types";
+import { Avatar } from "./avatar";
 
 const FILTER_LINK = "border px-3 py-1.5 text-sm font-bold transition-colors";
 const FILTER_ON = "border-brand01 bg-brand01 text-white";
 const FILTER_OFF = "border-brand01/20 text-brand01 hover:border-brand03 hover:text-brand03 bg-white";
 
 /** 1 人分の札。押すと役職・拠点・入社年が開く(JS なしで動く details)。 */
-function MemberCard({ m, isMe, showLocation }: { m: OrgMember; isMe: boolean; showLocation: boolean }) {
+type CardOptions = { myId: string | null; showLocation: boolean; withPhoto: boolean };
+
+function MemberCard({ m, opts }: { m: OrgMember; opts: CardOptions }) {
+  const isMe = m.employeeId === opts.myId;
   return (
     <details className={`border bg-white ${isMe ? "border-brand03" : "border-brand01/15"}`}>
-      <summary className="hover:bg-brand01/5 flex cursor-pointer list-none items-baseline justify-between gap-2 px-3 py-2">
-        <span className="min-w-0">
+      <summary className="hover:bg-brand01/5 flex cursor-pointer list-none items-center gap-3 px-3 py-2">
+        <Avatar employeeId={m.employeeId} name={m.name} withPhoto={opts.withPhoto} />
+        <span className="min-w-0 flex-1">
           <span className="text-brand01 font-bold">{m.name}</span>
           {isMe && <span className="text-brand03 ml-2 text-xs font-bold">あなた</span>}
           {m.nameKana && <span className="text-brand04 block truncate text-xs">{m.nameKana}</span>}
         </span>
         <span className="text-brand04 shrink-0 text-right text-xs">
           {m.positionName ?? ""}
-          {showLocation && m.locationName && <span className="block">{m.locationName}</span>}
+          {opts.showLocation && m.locationName && <span className="block">{m.locationName}</span>}
         </span>
       </summary>
       <dl className="border-brand01/10 text-brand04 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 border-t px-3 py-2 text-xs">
@@ -36,7 +42,7 @@ function MemberCard({ m, isMe, showLocation }: { m: OrgMember; isMe: boolean; sh
   );
 }
 
-function DepartmentBox({ box, myId, showLocation }: { box: OrgBox; myId: string | null; showLocation: boolean }) {
+function DepartmentBox({ box, opts }: { box: OrgBox; opts: CardOptions }) {
   return (
     <section className="border-brand01/15 flex flex-col border bg-white">
       <header className="bg-brand01 flex items-baseline justify-between px-4 py-2 text-white">
@@ -48,7 +54,7 @@ function DepartmentBox({ box, myId, showLocation }: { box: OrgBox; myId: string 
           <ul className="flex flex-col gap-2">
             {box.leaders.map((m) => (
               <li key={m.employeeId}>
-                <MemberCard m={m} isMe={m.employeeId === myId} showLocation={showLocation} />
+                <MemberCard m={m} opts={opts} />
               </li>
             ))}
           </ul>
@@ -58,7 +64,7 @@ function DepartmentBox({ box, myId, showLocation }: { box: OrgBox; myId: string 
           <ul className="flex flex-col gap-2">
             {box.members.map((m) => (
               <li key={m.employeeId}>
-                <MemberCard m={m} isMe={m.employeeId === myId} showLocation={showLocation} />
+                <MemberCard m={m} opts={opts} />
               </li>
             ))}
           </ul>
@@ -83,7 +89,8 @@ export async function OrgChartPage({ location }: { location: string | null }) {
   const selected = locations.find((l) => l.code === location) ?? null;
   const boxes = buildOrgBoxes(members, departments, selected?.id ?? null);
   const total = boxes.reduce((n, b) => n + b.count, 0);
-  const myId = actor.employee?.id ?? null;
+  // 顔写真は LINE WORKS のアイコン。連携の設定がない環境(手元の開発など)では、名字の 1 文字を出す。
+  const opts: CardOptions = { myId: actor.employee?.id ?? null, showLocation: !selected, withPhoto: lineWorksConfig() !== null };
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-8 md:px-8 md:py-10">
@@ -122,7 +129,7 @@ export async function OrgChartPage({ location }: { location: string | null }) {
       ) : (
         <div className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {boxes.map((box) => (
-            <DepartmentBox key={box.department?.id ?? "none"} box={box} myId={myId} showLocation={!selected} />
+            <DepartmentBox key={box.department?.id ?? "none"} box={box} opts={opts} />
           ))}
         </div>
       )}
