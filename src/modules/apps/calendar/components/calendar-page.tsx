@@ -24,6 +24,7 @@ import { CALENDAR_BIRTHDAYS_VIEW, manifest } from "../manifest";
 import { getPersonalDates, listBirthdays, listEntries } from "../queries";
 import { HighlightList } from "./highlight-list";
 import { InvitationPrompts } from "./invitation-prompts";
+import type { ExtraDayItem } from "../types";
 import { MonthBoard } from "./month-board";
 
 function SummaryCard({ label, children }: { label: string; children: ReactNode }) {
@@ -38,8 +39,17 @@ function SummaryCard({ label, children }: { label: string; children: ReactNode }
 const NAV_LINK =
   "border-brand01/20 text-brand01 hover:border-brand03 hover:text-brand03 border bg-white px-3 py-1.5 text-sm font-bold transition-colors";
 
-/** 会社カレンダー。会社の休日(全社員共通)と、本人だけのメモ・予定を月の表で見る。アプリ管理で有効にし、表示する相手に当てはまる人だけ(それ以外は 404)。 */
-export async function CalendarPage({ month }: { month: string | null }) {
+/**
+ * 会社カレンダー。会社の休日(全社員共通)と、本人だけのメモ・予定を月の表で見る。アプリ管理で有効にし、表示する相手に当てはまる人だけ(それ以外は 404)。
+ * extraDayItems は、ほかのアプリの本人の項目(TODO の期限など)。src/app のルートが渡す(docs/DESIGN.md 39.4)。
+ */
+export async function CalendarPage({
+  month,
+  extraDayItems = [],
+}: {
+  month: string | null;
+  extraDayItems?: ExtraDayItem[];
+}) {
   const actor = await requireAppAccess(manifest.appKey);
 
   const today = todayJst();
@@ -191,6 +201,7 @@ export async function CalendarPage({ month }: { month: string | null }) {
           weeks={monthGrid(current, calendar)}
           entries={entries}
           events={events}
+          extras={extraDayItems.filter((x) => x.date >= first && x.date <= last)}
           marks={marks}
           today={today}
           initialDate={today.startsWith(current) ? today : first}

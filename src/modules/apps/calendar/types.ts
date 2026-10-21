@@ -48,3 +48,18 @@ export type InviteeStatus = {
 
 /** 呼びかけの相手の候補(在籍中でアカウントのある社員) */
 export type InviteeOption = { id: string; employeeNumber: string; name: string; nameKana: string; affiliation: string };
+
+/**
+ * ほかのアプリの、日付つきの項目(例: TODO の期限)。カレンダーはほかのアプリを参照しないので、
+ * src/app のルートが読んで、ただのデータとして渡す(docs/DESIGN.md 39.4)。本人に見せてよいものだけを渡すこと。
+ */
+export type ExtraDayItem = {
+  id: string;
+  /** `YYYY-MM-DD` */
+  date: string;
+  title: string;
+  /** 小さな印(例: 「TODO」「○○さんから」) */
+  tag: string;
+  /** 押したときに開くページ(任意) */
+  href?: string;
+};

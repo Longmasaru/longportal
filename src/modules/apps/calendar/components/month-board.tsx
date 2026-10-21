@@ -6,7 +6,7 @@ import { BUTTON_PRIMARY, BUTTON_SECONDARY, FIELD_CLASS, LABEL_CLASS } from "@/mo
 import { createEntryAction, deleteEntryAction, updateEntryAction } from "../actions";
 import { WEEKDAY_LABELS, shortDate, type CalendarDay } from "../logic";
 import { EVENT_KIND_LABEL, EVENT_RESPONSE_LABEL, OFF_EVENT_MARK } from "../constants";
-import type { CalendarEntry, EntryFormState, ViewerEvent } from "../types";
+import type { CalendarEntry, EntryFormState, ExtraDayItem, ViewerEvent } from "../types";
 import { RespondButtons } from "./respond-buttons";
 
 type Props = {
@@ -14,6 +14,8 @@ type Props = {
   entries: CalendarEntry[];
   /** 全社の予定・呼びかけ(見える条件を通ったもの) */
   events: ViewerEvent[];
+  /** ほかのアプリの本人の項目(TODO の期限など。docs/DESIGN.md 39.4) */
+  extras: ExtraDayItem[];
   /** 日付ごとの印(給料日・入社記念日・誕生日など) */
   marks: Record<string, string[]>;
   today: string;
@@ -27,12 +29,14 @@ function dateTone(day: CalendarDay): string {
 }
 
 /** 月の表と、選んだ日のメモ・予定。 */
-export function MonthBoard({ weeks, entries, events, marks, today, initialDate }: Props) {
+export function MonthBoard({ weeks, entries, events, extras, marks, today, initialDate }: Props) {
   const [selected, setSelected] = useState(initialDate);
   const byDate = new Map<string, CalendarEntry[]>();
   for (const e of entries) byDate.set(e.date, [...(byDate.get(e.date) ?? []), e]);
   const eventsByDate = new Map<string, ViewerEvent[]>();
   for (const e of events) eventsByDate.set(e.date, [...(eventsByDate.get(e.date) ?? []), e]);
+  const extrasByDate = new Map<string, ExtraDayItem[]>();
+  for (const x of extras) extrasByDate.set(x.date, [...(extrasByDate.get(x.date) ?? []), x]);
   const selectedDay = weeks.flat().find((d) => d?.date === selected) ?? null;
 
   return (
@@ -57,12 +61,13 @@ export function MonthBoard({ weeks, entries, events, marks, today, initialDate }
               {week.map((day, di) => {
                 if (!day) return <td key={di} className="border-brand01/10 border" />;
                 const entryItems = byDate.get(day.date) ?? [];
-                // 月の表の中では、行事・予定(休みでないもの)を先に、自分のメモ・予定をあとに並べる
-                const chips = [
+                // 月の表の中では、行事・予定(休みでないもの)を先に、自分のメモ・予定、ほかのアプリの項目(TODO の期限)の順に並べる
+                const chips: { id: string; time: string | null; title: string; tone: "company" | "entry" | "extra"; pending: boolean }[] = [
                   ...(eventsByDate.get(day.date) ?? [])
                     .filter((e) => e.kind === "event")
-                    .map((e) => ({ id: e.id, time: e.time, title: e.title, company: true, pending: e.canRespond && e.myResponse === null })),
-                  ...entryItems.map((e) => ({ id: e.id, time: e.time, title: e.title, company: false, pending: false })),
+                    .map((e) => ({ id: e.id, time: e.time, title: e.title, tone: "company" as const, pending: e.canRespond && e.myResponse === null })),
+                  ...entryItems.map((e) => ({ id: e.id, time: e.time, title: e.title, tone: "entry" as const, pending: false })),
+                  ...(extrasByDate.get(day.date) ?? []).map((x) => ({ id: `x-${x.id}`, time: null, title: `${x.tag}: ${x.title}`, tone: "extra" as const, pending: false })),
                 ];
                 const isSelected = day.date === selected;
                 const isToday = day.date === today;
@@ -113,7 +118,10 @@ export function MonthBoard({ weeks, entries, events, marks, today, initialDate }
                         <>
                           <span className="flex gap-0.5 md:hidden" aria-hidden>
                             {chips.slice(0, 3).map((e) => (
-                              <span key={e.id} className={`size-1.5 rounded-full ${e.company ? "bg-brand03" : "bg-link"}`} />
+                              <span
+                                key={e.id}
+                                className={`size-1.5 rounded-full ${e.tone === "company" ? "bg-brand03" : e.tone === "extra" ? "bg-brand01" : "bg-link"}`}
+                              />
                             ))}
                           </span>
                           <span className="hidden flex-col gap-0.5 md:flex">
@@ -121,7 +129,11 @@ export function MonthBoard({ weeks, entries, events, marks, today, initialDate }
                               <span
                                 key={e.id}
                                 className={`text-brand01 truncate px-1 text-[0.6875rem] leading-snug ${
-                                  e.company ? "border-brand03 border-l-2 bg-white" : "bg-bg01"
+                                  e.tone === "company"
+                                    ? "border-brand03 border-l-2 bg-white"
+                                    : e.tone === "extra"
+                                      ? "border-brand01 border-l-2 bg-white"
+                                      : "bg-bg01"
                                 } ${e.pending ? "font-bold" : ""}`}
                               >
                                 {e.time ? `${e.time} ` : ""}
@@ -150,6 +162,7 @@ export function MonthBoard({ weeks, entries, events, marks, today, initialDate }
           marks={marks[selectedDay.date] ?? []}
           items={byDate.get(selectedDay.date) ?? []}
           events={eventsByDate.get(selectedDay.date) ?? []}
+          extras={extrasByDate.get(selectedDay.date) ?? []}
         />
       ) : null}
     </div>
@@ -161,11 +174,13 @@ function DayPanel({
   marks,
   items,
   events,
+  extras,
 }: {
   day: CalendarDay;
   marks: string[];
   items: CalendarEntry[];
   events: ViewerEvent[];
+  extras: ExtraDayItem[];
 }) {
   const [editingId, setEditingId] = useState<string | null>(null);
 
@@ -186,6 +201,28 @@ function DayPanel({
           <ul className="border-brand01/15 flex flex-col border-t">
             {events.map((e) => (
               <CompanyEventItem key={e.id} event={e} />
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {extras.length > 0 ? (
+        <div className="flex flex-col gap-2">
+          <p className="text-brand01 text-sm font-bold">この日が期限</p>
+          <ul className="border-brand01/15 flex flex-col border-t">
+            {extras.map((x) => (
+              <li key={x.id} className="border-brand01/15 flex flex-wrap items-center gap-x-2 gap-y-1 border-b py-3">
+                <span className="border-brand01 text-brand01 border px-1 text-[0.6875rem] leading-5 font-bold whitespace-nowrap">
+                  {x.tag}
+                </span>
+                {x.href ? (
+                  <Link href={x.href} className="text-brand01 hover:text-brand03 font-bold transition-colors [overflow-wrap:anywhere]">
+                    {x.title}
+                  </Link>
+                ) : (
+                  <span className="text-brand01 font-bold [overflow-wrap:anywhere]">{x.title}</span>
+                )}
+              </li>
             ))}
           </ul>
         </div>

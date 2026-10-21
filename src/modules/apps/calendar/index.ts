@@ -4,3 +4,4 @@ export { CalendarHomeNotice } from "./components/calendar-home-notice";
 export { CalendarEventsPage, CalendarEventPage } from "./components/events-pages";
 export { manifest } from "./manifest";
 export { parseMonth } from "./logic";
+export type { ExtraDayItem } from "./types";
