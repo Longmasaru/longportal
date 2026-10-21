@@ -104,6 +104,10 @@ test("buildOrgChart: 社長・専務・常務・工場長は上に分け、箱�
   assert.deepEqual(boxes.map((b) => [b.department?.name, b.count]), [["技術部", 1]]);
   // 拠点で絞ると、経営もその拠点の人だけ
   assert.deepEqual(buildOrgChart([member({ employeeId: "kojo", positionName: "工場長", locationId: "l-b" })], DEPTS, "l-honsha").executives, []);
-  assert.equal(isExecutive({ positionName: "部長" }), false);
-  assert.equal(isExecutive({ positionName: null }), false);
+  assert.equal(isExecutive({ positionName: "部長", name: "山田　太郎" }), false);
+  assert.equal(isExecutive({ positionName: null, name: "山田　太郎" }), false);
+  // 役職名で決まらない人も、氏名で経営に入れられる(全角・半角の空白は無視)
+  assert.equal(isExecutive({ positionName: null, name: "長井　将" }), true);
+  assert.equal(isExecutive({ positionName: "部長", name: "長井 将" }), true);
+  assert.equal(isExecutive({ positionName: null, name: "長井　将太" }), false);
 });
