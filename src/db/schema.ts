@@ -18,3 +18,4 @@ export * from "@/modules/apps/haisou/schema";
 export * from "@/modules/apps/kyokasho/schema";
 export * from "@/modules/apps/hr/schema";
 export * from "@/modules/apps/nippo/schema";
+export * from "@/modules/apps/bots/schema";
