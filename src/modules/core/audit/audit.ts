@@ -5,7 +5,8 @@ import { auditLogs } from "./schema";
 type Executor = Pick<typeof db, "insert">;
 
 export type AuditEntry = {
-  actorUserId: string;
+  /** 操作した人。人ではなく仕組みが自動で行った操作(定時の同期など)は null。 */
+  actorUserId: string | null;
   action: string;
   targetType: string;
   targetId?: string;

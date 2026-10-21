@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { canViewBook, groupBooks, isValidSlug } from "./logic";
+import { canViewBook, googleDocId, groupBooks, isValidSlug } from "./logic";
 
 test("見られる教科書の判定(deny by default)", () => {
   const none = new Set<string>();
@@ -36,4 +36,14 @@ test("URL に使う名前", () => {
   assert.equal(isValidSlug("-a"), false);
   assert.equal(isValidSlug("manage"), false);
   assert.equal(isValidSlug("images"), false);
+});
+
+test("元の Google ドキュメントの URL から文書の ID を取り出す", () => {
+  const id = "1cACp1XIZxdqTOZxPVZBzAJBVuu3NhnW7grzajXMLOzo";
+  assert.equal(googleDocId(`https://docs.google.com/document/d/${id}/edit?usp=sharing`), id);
+  assert.equal(googleDocId(`https://docs.google.com/document/u/0/d/${id}/edit`), id);
+  assert.equal(googleDocId(` https://docs.google.com/document/d/${id} `), id);
+  assert.equal(googleDocId(`https://docs.google.com/spreadsheets/d/${id}/edit`), null);
+  assert.equal(googleDocId(`https://evil.example/docs.google.com/document/d/${id}`), null);
+  assert.equal(googleDocId(""), null);
 });

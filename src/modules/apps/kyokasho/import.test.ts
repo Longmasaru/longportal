@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { deflateRawSync } from "node:zlib";
-import { importGoogleZip, parseBookHtml, readZip } from "./import";
+import { imagesAlign, importGoogleZip, parseBookHtml, readZip } from "./import";
 import { splitAnswer, splitQuestion } from "./quiz";
 
 const resolve = (src: string) => (src.startsWith("img:") ? src.slice(4) : null);
@@ -124,12 +124,12 @@ test("選択肢と解答の分け方", () => {
 });
 
 /** テスト用の zip を作る(1 つ目は保存、2 つ目以降は deflate)。 */
-function makeZip(files: Record<string, string>): Buffer {
+function makeZip(files: Record<string, string | Buffer>): Buffer {
   const locals: Buffer[] = [];
   const centrals: Buffer[] = [];
   let offset = 0;
   Object.entries(files).forEach(([name, text], i) => {
-    const raw = Buffer.from(text, "utf8");
+    const raw = typeof text === "string" ? Buffer.from(text, "utf8") : text;
     const method = i === 0 ? 0 : 8;
     const data = method === 0 ? raw : deflateRawSync(raw);
     const nameBuf = Buffer.from(name, "utf8");
@@ -183,4 +183,44 @@ test("Google ドキュメントのウェブページ書き出しを読む(太字
     { type: "paragraph", inlines: [{ text: "\u3000\u3000\u3000\u3000すなわち三面です。" }] },
     { type: "paragraph", inlines: [{ text: "設備", href: "https://www.long-kanazawa.com/machines/" }] },
   ]);
+});
+
+test("前回と同じ画像は使い回し(縮め直さない)、新しい画像だけを保存する。空の画像は数える", async () => {
+  const sharp = (await import("sharp")).default;
+  const photo = (r: number) =>
+    sharp({ create: { width: 40, height: 30, channels: 3, background: { r, g: 0, b: 0 } } })
+      .png()
+      .toBuffer();
+  const [a, b] = await Promise.all([photo(10), photo(200)]);
+  const blank = await sharp({ create: { width: 1, height: 1, channels: 3, background: "#fff" } }).png().toBuffer();
+  const html =
+    '<html><body><h1>1️⃣写真</h1><p><img src="images/a.png"></p><p><img src="images/b.png"></p>' +
+    '<p><img src="images/a.png"></p><p><img src="images/blank.png"></p></body></html>';
+  const zip = makeZip({ "doc.html": html, "images/a.png": a, "images/b.png": b, "images/blank.png": blank });
+
+  const first = await importGoogleZip(zip);
+  assert.equal(first.images.length, 2);
+  assert.deepEqual(first.reusedImageIds, []);
+  assert.equal(first.blankImages, 1);
+  assert.equal(Object.keys(first.imageShas).length, 2);
+
+  // 2 回目: a だけを知っている(前回の取り込みで保存済み)。
+  const [shaA] = Object.entries(first.imageShas).find(([, id]) => id === first.images[0].id)!;
+  const second = await importGoogleZip(zip, { [shaA]: "known-a" });
+  assert.deepEqual(second.reusedImageIds, ["known-a"]);
+  assert.equal(second.images.length, 1);
+  const ids = second.content.chapters[0].blocks.flatMap((bl) => (bl.type === "image" ? [bl.id] : []));
+  assert.deepEqual(ids, ["known-a", second.images[0].id, "known-a"]);
+  assert.equal(second.imageShas[shaA], "known-a");
+});
+
+test("Word とウェブページの画像の並びの照らし合わせ(図形描画を埋めてよいか)", () => {
+  const word = [{ width: 2000, height: 1500 }, { width: 1, height: 1 }, { width: 590, height: 415 }, null];
+  // ウェブページの写真は表示の大きさに縮む。空の画像(図形描画)の位置は比べない。
+  const page = [{ width: 400, height: 300 }, { width: 600, height: 200 }, { width: 295, height: 207 }, { width: 10, height: 10 }];
+  assert.equal(imagesAlign(word, page), true);
+  assert.equal(imagesAlign(word, page.slice(1)), false, "数が違う");
+  const swapped = [{ width: 295, height: 207 }, { width: 600, height: 200 }, { width: 300, height: 400 }, null];
+  assert.equal(imagesAlign(word, swapped), false, "写真の縦横が合わない");
+  assert.equal(imagesAlign([], []), false);
 });

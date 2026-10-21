@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { addDays, monthRange, shiftMonth, weekRange } from "./constants";
+import { addDays, monthRange, receivedPoints, shiftMonth, weekRange } from "./constants";
 
 describe("arigato の日付計算", () => {
   it("週は月曜はじまり", () => {
@@ -23,5 +23,15 @@ describe("arigato の日付計算", () => {
     assert.deepEqual(monthRange("2026-10"), { start: "2026-10-01", end: "2026-10-31" });
     assert.equal(shiftMonth("2026-01", -1), "2025-12");
     assert.equal(shiftMonth("2026-10", 3), "2027-01");
+  });
+});
+
+describe("もらった点", () => {
+  it("同じ人からは月 4 点まで", () => {
+    assert.deepEqual(receivedPoints([1, 2, 9], 100), { raw: 7, counted: 7 });
+  });
+  it("評価に入るのは、伝えた点と同じ数まで", () => {
+    assert.deepEqual(receivedPoints([3, 3], 2), { raw: 6, counted: 2 });
+    assert.deepEqual(receivedPoints([3], 0), { raw: 3, counted: 0 });
   });
 });

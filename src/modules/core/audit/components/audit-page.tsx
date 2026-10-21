@@ -87,7 +87,7 @@ export async function AuditPage({ action, page }: { action?: string; page: numbe
                     <td className="font-heading text-brand04 px-2 py-3 text-xs whitespace-nowrap">
                       {formatJst(r.at)}
                     </td>
-                    <td className="text-brand01 px-2 py-3">{r.actorLoginId ?? "(削除済み)"}</td>
+                    <td className="text-brand01 px-2 py-3">{r.actorLoginId ?? (isAutomatic(r.after) ? "(自動)" : "(削除済み)")}</td>
                     <td className="px-2 py-3">
                       <StatusTag tone="info">{auditActionLabel(r.action)}</StatusTag>
                     </td>
@@ -147,4 +147,9 @@ export async function AuditPage({ action, page }: { action?: string; page: numbe
       </section>
     </div>
   );
+}
+
+/** 人ではなく仕組みが自動で行った操作(記録の after に trigger: "auto" がある)。 */
+function isAutomatic(after: unknown): boolean {
+  return typeof after === "object" && after !== null && (after as { trigger?: unknown }).trigger === "auto";
 }
