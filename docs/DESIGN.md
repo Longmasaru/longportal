@@ -807,7 +807,7 @@ TODOSample の TODO を、ポータルの中のアプリ(`modules/apps/todo`、`
 - **表示**: 1 章に「上司」と「直属の部下」を出す(本人にも見せる)。
 - **退職**: 上司・部下が退職しても指定は消さない(退職した上司はログインできないので見られない)。一覧では、これまでどおり退職者は「退職した社員も出す」のときだけ。
 - **監査ログ**: `hr.profile.update` の `after` に、変えた項目名に加えて `supervisorEmployeeId`(社員 ID)を残す。
-- migration `0021_hr_supervisor`(上司の列・FK・索引・CHECK の追加と、`hr.records` の visibility の CHECK に `supervisors`・`personal` を足す。既存の行は変えない)。
+- migration `0022_hr_supervisor`(上司の列・FK・索引・CHECK の追加と、`hr.records` の visibility の CHECK に `supervisors`・`personal` を足す。既存の行は変えない)。
 
 ## 32. 実装メモ(ロングの教科書: ツッコミ)
 
@@ -903,3 +903,54 @@ TODOSample の TODO を、ポータルの中のアプリ(`modules/apps/todo`、`
   - それ以外の人には、ほかの人の誕生日は出さない。
   - 2/29 生まれの人は、平年は 2/28。
 - **本番に出すとき**: migration 0020 を本番に適用 → `sync:manifests`(権限の追加) → コードを main に入れる → 生年月日を入れる(画面か一括登録)。
+
+## 38. 実装メモ(会社カレンダー: 第 2 弾 全社の予定・参加の呼びかけ)
+
+2026-10-21 にユーザーと決めた「第 2 弾」。第 1 弾(33 章)の動き、本人だけのメモ・予定(`calendar.entries`)、誕生日(37 章。権限 `calendar.birthdays.view`)はそのまま残す。
+
+### 38.1 全社の予定
+
+担当の人(権限 `calendar.events.manage`、全社)が `/apps/calendar/events` から登録する。カレンダーを使える人は全員見られる。種類は 3 つ。
+
+| 種類(`kind`) | 表示 | 休みとして数えるか |
+|---|---|---|
+| `paid_leave_day` 一斉有給取得日 | 休日と同じ赤 + 「有給」の印 | 数える |
+| `temporary_closure` 臨時休業 | 休日と同じ赤 + 「臨時休業」の印 | 数える |
+| `event` 行事・予定(健康診断・棚卸し・大掃除など) | その日の印と一覧(時刻・メモは任意) | 数えない |
+
+- **休みとして数える**: 次の休み・連休のカウントダウン(金曜が一斉有給なら土日と合わせて 3 連休)・明日から連休・今月の残りの出勤日数・年間のまとめ・月の表の色が、すべて同じ判定(`logic.ts` の `dayInfo`)で変わる。判定の関数は純粋関数のままにし、DB から読んだ休みの日を `withCompanyOffDays(会社カレンダー, 休みの日)` で会社カレンダーに重ねて渡す(`company-calendar.ts` の `extraOffDays`)。出勤土曜が臨時休業になれば、その日は出勤土曜として扱わない。
+- **一斉有給取得日には、特別なお知らせを出さない**(ユーザーの指示: ふつうの有給のように表示するだけ)。ただし、連休の判定が変わった結果としての「明日から◯連休です」は、これまでの決まり(33 章)どおり出る。臨時休業も、カレンダーへの表示だけ。
+- **登録の決まり**: 休みの 2 種類は、会社カレンダーが登録済みの年の、もともと出勤日の日だけに登録できる(休みの日に重ねても意味がないため)。時刻・呼びかけは付けられない。名称が空なら「一斉有給取得日」「臨時休業」にする。
+- **給料日は動かさない**: 給料日のずらし(33 章)は、紙の会社カレンダー(`COMPANY_CALENDAR`)だけで判定する(一斉有給取得日・臨時休業で振り込み日は変わらないため)。
+
+### 38.2 参加の呼びかけ(出欠の返事)
+
+行事・予定(`kind = event`)には、呼びかける相手を付けられる。
+
+- **相手の指定**: 社員を名指し(`calendar.event_invitees`)と、Audience(`audience_id`。部署・拠点・全社など。7 章・23 章と同じく、保存するのは条件で、見るたびに `matchedAudienceIds` / `evaluateDefinition` で評価する)。両方を付ければ、どちらかに当てはまる人が相手。登録した本人は相手に含めない(主催者のため)。いまログインできない社員(退職など)は数えない。
+- **誰が作れるか**(決めた既定): カレンダーを使える人は誰でも、**社員を名指しした「自分の予定 + 呼びかけ」**を作れる(見えるのは本人と相手だけ。`visibility = invitees`)。次のどれかに当たるものは、権限 `calendar.events.manage` が必要: 全社に表示する(`visibility = company`)、Audience に呼びかける、休みの 2 種類。権限のない人が名指しの相手なしで作ろうとしたら、「メモ・予定」(自分だけ)に書くよう案内する。
+- **見える条件**(deny by default): `visibility = company` はカレンダーを使える全員。`invitees` は登録した本人と、相手に当てはまる人だけ(それ以外には一覧にも詳細にも出さない。詳細は 404)。
+- **返事**: 相手は、カレンダーの画面とポータルのホームの一番上に「10.30(木) 健康診断の説明会 への参加の返事をしてください」と「参加」「不参加」のボタンを見る。返事をするか、予定の日が過ぎると消える。返事は予定の日まで、その日の欄から変えられる。返事はアカウントごと(`calendar.event_responses`、`user_id` × 予定)。予定の日付・時刻を変えたら、返事は消して、もう一度聞く。
+- **返事の一覧**: 登録した本人(と、全社に表示する予定なら `calendar.events.manage` を持つ人)が、予定の詳細(`/apps/calendar/events/[id]`)で「参加 / 不参加 / 未回答」と名前を見られる。相手はその時点で評価する(異動で変わる)。アカウントのない社員は「未回答(アカウントなし)」。カレンダーのアプリを使えない設定の人も相手に入りうる(アプリ管理の表示する相手と揃えて運用する)。
+- **編集・削除**: `visibility = company` の予定は `calendar.events.manage` を持つ人。`invitees` の予定は登録した本人だけ(管理者でも他人の私的な呼びかけは見ない)。全社の予定の登録・変更・削除は監査ログに記録する(`calendar.event.create` / `update` / `delete`)。
+- **Audience の削除**: core は apps を参照できないため、Audience の「利用先」(`listAudienceUsages`)には出ない。FK は `ON DELETE SET NULL` にし、Audience が消えたら、その条件の相手はいなくなる(名指しの相手は残る)。
+- **通知**: メール・LINE WORKS には送らない(ポータルの画面に出すだけ)。
+
+### 38.3 テーブル(`pgSchema("calendar")`、migration `0021_calendar_company_events`)
+
+- **`calendar.company_events`** … `id`(UUID)、`kind`、`date`(JST の暦日)、`time`(`HH:MM` か NULL)、`title`(100 字)、`note`(1000 字)、`visibility`(`company` / `invitees`)、`audience_id`(`core.audiences`、SET NULL)、`created_by` / `updated_by`(`core.users`、SET NULL)、作成・更新日時。CHECK: 休みの 2 種類は `visibility = company`・時刻なし・Audience なし。
+- **`calendar.event_invitees`** … 名指しの相手(予定 × `core.employees`、どちらも CASCADE)。
+- **`calendar.event_responses`** … 返事(予定 × `core.users`、`response` = `yes` / `no`、返事をした日時)。
+
+### 38.4 純粋関数とテスト
+
+`logic.ts`(休みの判定に `calendar` を渡せるようにした)、`events.ts`(休みの日の重ね合わせ・見える条件・返事が必要か・編集できるか・権限が要るか)。`npm test` で、金曜の一斉有給で 3 連休になる・残りの出勤日数が減る・臨時休業は休み・行事は休みにしない・呼びかけの見え方を確かめる。
+
+### 38.5 誕生日(37 章)との組み合わせ
+
+- 誕生日の表示は 37 章のまま(本人のお祝い・「誕生日」の印、`calendar.birthdays.view` の人には「◯◯さん誕生日」の印と当日のお知らせ)。月の表の印(`marks`)に入れるだけで、予定の一覧とは別に出す。
+- ホームとカレンダーの一番上は、上から「参加の返事のお願い」→ 会社カレンダーからのお知らせ(33 章・37 章。出勤土曜・連休・本人の誕生日・入社の周年・ほかの人の誕生日・給料日)の順。お知らせの判定には、全社の休みを重ねた会社カレンダーを渡す(連休・出勤土曜が変わる)。給料日だけは紙の会社カレンダーで判定する(38.1)。
+
+### 38.6 本番に出すとき
+
+migration `0021_calendar_company_events` を本番 DB に適用 → `sync:manifests`(権限 `calendar.events.manage` の追加) → コードを `main` に入れる → 担当の人のロールに `calendar.events.manage` を付ける。

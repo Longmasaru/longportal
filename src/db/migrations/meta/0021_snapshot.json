@@ -1,5 +1,5 @@
 {
-  "id": "192f9fd1-ecb1-4358-bb7a-bd90c3edabab",
+  "id": "60c78d5b-8cc8-4c2f-8c5a-d4348f609a4d",
   "prevId": "398a45a0-5bcb-497e-8ca3-3fa11b5316a2",
   "version": "7",
   "dialect": "postgresql",
@@ -470,6 +470,197 @@
       },
       "isRLSEnabled": false
     },
+    "calendar.company_events": {
+      "name": "company_events",
+      "schema": "calendar",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "date": {
+          "name": "date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "time": {
+          "name": "time",
+          "type": "varchar(5)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "note": {
+          "name": "note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "visibility": {
+          "name": "visibility",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "audience_id": {
+          "name": "audience_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "company_events_date_idx": {
+          "name": "company_events_date_idx",
+          "columns": [
+            {
+              "expression": "date",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "company_events_created_by_idx": {
+          "name": "company_events_created_by_idx",
+          "columns": [
+            {
+              "expression": "created_by",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "company_events_audience_id_idx": {
+          "name": "company_events_audience_id_idx",
+          "columns": [
+            {
+              "expression": "audience_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "company_events_audience_id_audiences_id_fk": {
+          "name": "company_events_audience_id_audiences_id_fk",
+          "tableFrom": "company_events",
+          "tableTo": "audiences",
+          "schemaTo": "core",
+          "columnsFrom": [
+            "audience_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "company_events_created_by_users_id_fk": {
+          "name": "company_events_created_by_users_id_fk",
+          "tableFrom": "company_events",
+          "tableTo": "users",
+          "schemaTo": "core",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "company_events_updated_by_users_id_fk": {
+          "name": "company_events_updated_by_users_id_fk",
+          "tableFrom": "company_events",
+          "tableTo": "users",
+          "schemaTo": "core",
+          "columnsFrom": [
+            "updated_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "company_events_kind_check": {
+          "name": "company_events_kind_check",
+          "value": "\"calendar\".\"company_events\".\"kind\" in ('paid_leave_day', 'temporary_closure', 'event')"
+        },
+        "company_events_visibility_check": {
+          "name": "company_events_visibility_check",
+          "value": "\"calendar\".\"company_events\".\"visibility\" in ('company', 'invitees')"
+        },
+        "company_events_off_day_check": {
+          "name": "company_events_off_day_check",
+          "value": "\"calendar\".\"company_events\".\"kind\" = 'event' or (\"calendar\".\"company_events\".\"visibility\" = 'company' and \"calendar\".\"company_events\".\"time\" is null and \"calendar\".\"company_events\".\"audience_id\" is null)"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "calendar.entries": {
       "name": "entries",
       "schema": "calendar",
@@ -570,6 +761,180 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "calendar.event_invitees": {
+      "name": "event_invitees",
+      "schema": "calendar",
+      "columns": {
+        "event_id": {
+          "name": "event_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "employee_id": {
+          "name": "employee_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "event_invitees_employee_id_idx": {
+          "name": "event_invitees_employee_id_idx",
+          "columns": [
+            {
+              "expression": "employee_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "event_invitees_event_id_company_events_id_fk": {
+          "name": "event_invitees_event_id_company_events_id_fk",
+          "tableFrom": "event_invitees",
+          "tableTo": "company_events",
+          "schemaTo": "calendar",
+          "columnsFrom": [
+            "event_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "event_invitees_employee_id_employees_id_fk": {
+          "name": "event_invitees_employee_id_employees_id_fk",
+          "tableFrom": "event_invitees",
+          "tableTo": "employees",
+          "schemaTo": "core",
+          "columnsFrom": [
+            "employee_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "event_invitees_event_id_employee_id_pk": {
+          "name": "event_invitees_event_id_employee_id_pk",
+          "columns": [
+            "event_id",
+            "employee_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "calendar.event_responses": {
+      "name": "event_responses",
+      "schema": "calendar",
+      "columns": {
+        "event_id": {
+          "name": "event_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "response": {
+          "name": "response",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "responded_at": {
+          "name": "responded_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "event_responses_user_id_idx": {
+          "name": "event_responses_user_id_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "event_responses_event_id_company_events_id_fk": {
+          "name": "event_responses_event_id_company_events_id_fk",
+          "tableFrom": "event_responses",
+          "tableTo": "company_events",
+          "schemaTo": "calendar",
+          "columnsFrom": [
+            "event_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "event_responses_user_id_users_id_fk": {
+          "name": "event_responses_user_id_users_id_fk",
+          "tableFrom": "event_responses",
+          "tableTo": "users",
+          "schemaTo": "core",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "event_responses_event_id_user_id_pk": {
+          "name": "event_responses_event_id_user_id_pk",
+          "columns": [
+            "event_id",
+            "user_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "event_responses_response_check": {
+          "name": "event_responses_response_check",
+          "value": "\"calendar\".\"event_responses\".\"response\" in ('yes', 'no')"
+        }
+      },
       "isRLSEnabled": false
     },
     "haisou.clients": {
@@ -1558,12 +1923,6 @@
           "primaryKey": true,
           "notNull": true
         },
-        "supervisor_employee_id": {
-          "name": "supervisor_employee_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
         "gender": {
           "name": "gender",
           "type": "text",
@@ -1705,23 +2064,7 @@
           "default": "now()"
         }
       },
-      "indexes": {
-        "profiles_supervisor_employee_id_idx": {
-          "name": "profiles_supervisor_employee_id_idx",
-          "columns": [
-            {
-              "expression": "supervisor_employee_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
+      "indexes": {},
       "foreignKeys": {
         "profiles_employee_id_employees_id_fk": {
           "name": "profiles_employee_id_employees_id_fk",
@@ -1730,20 +2073,6 @@
           "schemaTo": "core",
           "columnsFrom": [
             "employee_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "restrict",
-          "onUpdate": "no action"
-        },
-        "profiles_supervisor_employee_id_employees_id_fk": {
-          "name": "profiles_supervisor_employee_id_employees_id_fk",
-          "tableFrom": "profiles",
-          "tableTo": "employees",
-          "schemaTo": "core",
-          "columnsFrom": [
-            "supervisor_employee_id"
           ],
           "columnsTo": [
             "id"
@@ -1770,10 +2099,6 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {
-        "profiles_supervisor_not_self": {
-          "name": "profiles_supervisor_not_self",
-          "value": "\"hr\".\"profiles\".\"supervisor_employee_id\" is null or \"hr\".\"profiles\".\"supervisor_employee_id\" <> \"hr\".\"profiles\".\"employee_id\""
-        },
         "profiles_gender_check": {
           "name": "profiles_gender_check",
           "value": "\"hr\".\"profiles\".\"gender\" is null or \"hr\".\"profiles\".\"gender\" in ('male', 'female', 'other')"
@@ -2015,7 +2340,7 @@
         },
         "records_visibility_check": {
           "name": "records_visibility_check",
-          "value": "\"hr\".\"records\".\"visibility\" in ('employee', 'supervisors', 'personal', 'managers')"
+          "value": "\"hr\".\"records\".\"visibility\" in ('employee', 'managers')"
         }
       },
       "isRLSEnabled": false

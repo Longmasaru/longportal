@@ -143,10 +143,14 @@ export function todaysHighlights(
     birthDate?: string | null;
     others?: readonly BirthdayPerson[];
     payday?: number | null;
+    /** 全社の休みを重ねた会社カレンダー(events.ts の withCompanyOffDays) */
     calendar?: Record<number, CompanyYear>;
+    /** 給料日のずらしに使う会社カレンダー。一斉有給取得日などでは振り込み日は変わらないため、既定は紙の会社カレンダー(38.1) */
+    paydayCalendar?: Record<number, CompanyYear>;
   } = {},
 ): Highlight[] {
   const calendar = options.calendar ?? COMPANY_CALENDAR;
+  const paydayCalendar = options.paydayCalendar ?? COMPANY_CALENDAR;
   const payday = options.payday === undefined ? PAYDAY : options.payday;
   const result: Highlight[] = [];
 
@@ -180,7 +184,7 @@ export function todaysHighlights(
     if (names.length > 0) result.push({ kind: "birthdays", names });
   }
 
-  if (paydayOf(today.slice(0, 7), payday, calendar) === today) result.push({ kind: "payday", date: today });
+  if (paydayOf(today.slice(0, 7), payday, paydayCalendar) === today) result.push({ kind: "payday", date: today });
 
   return result;
 }
