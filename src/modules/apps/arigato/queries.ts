@@ -11,6 +11,7 @@ import {
   receivedPoints,
   monthRange,
   weekRange,
+  type ArigatoReply,
   type ArigatoTag,
   type ArigatoVisibility,
 } from "./constants";
@@ -34,6 +35,8 @@ export type CardRow = {
   createdAt: string;
   likeCount: number;
   likedByMe: boolean;
+  /** もらった人の返事のスタンプ(なければ null)。 */
+  reply: ArigatoReply | null;
 };
 
 const fromUser = alias(users, "from_user");
@@ -128,6 +131,7 @@ async function selectCards(viewerId: string, where: ReturnType<typeof and>, limi
       message: arigatoCards.message,
       visibility: arigatoCards.visibility,
       createdAt: arigatoCards.createdAt,
+      reply: arigatoCards.reply,
       likeCount: sql<number>`(select count(*)::int from ${arigatoLikes} where ${arigatoLikes.cardId} = ${arigatoCards.id})`,
       likedByMe: sql<boolean>`exists (select 1 from ${arigatoLikes} where ${arigatoLikes.cardId} = ${arigatoCards.id} and ${arigatoLikes.userId} = ${viewerId})`,
     })

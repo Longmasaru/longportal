@@ -16,6 +16,16 @@ export const ARIGATO_TAG_LABEL: Record<ArigatoTag, string> = {
 export const ARIGATO_VISIBILITIES = ["public", "private"] as const;
 export type ArigatoVisibility = (typeof ARIGATO_VISIBILITIES)[number];
 
+/** もらった人が、カードに 1 つだけ付けられる返事のスタンプ(docs/DESIGN.md 34 章)。 */
+export const ARIGATO_REPLIES = ["glad", "likewise", "welcome", "anytime"] as const;
+export type ArigatoReply = (typeof ARIGATO_REPLIES)[number];
+export const ARIGATO_REPLY_LABEL: Record<ArigatoReply, string> = {
+  glad: "うれしい!",
+  likewise: "こちらこそ",
+  welcome: "どういたしまして",
+  anytime: "またいつでも",
+};
+
 export const MESSAGE_MAX_LENGTH = 140;
 /** 1 人が 1 日(JST)に送れる枚数(連投の防止)。 */
 export const DAILY_SEND_LIMIT = 20;

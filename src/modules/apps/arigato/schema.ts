@@ -3,7 +3,7 @@ import { boolean, check, date, index, integer, pgSchema, primaryKey, text, times
 import { users } from "@/modules/core/auth/schema";
 import { departments } from "@/modules/core/departments/schema";
 import type { Rank, Side } from "./banzuke";
-import type { ArigatoTag, ArigatoVisibility } from "./constants";
+import type { ArigatoReply, ArigatoTag, ArigatoVisibility } from "./constants";
 
 // ありがとうカードのテーブル(docs/DESIGN.md 34 章)。
 export const arigato = pgSchema("arigato");
@@ -26,8 +26,12 @@ export const arigatoCards = arigato.table(
     /** 送った日(JST の暦日)。週・月の集計に使う。 */
     sentOn: date("sent_on", { mode: "string" }).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    /** もらった人の返事のスタンプ(1 つだけ。付けていなければ null)。点数には入れない。 */
+    reply: text("reply").$type<ArigatoReply>(),
+    repliedAt: timestamp("replied_at", { withTimezone: true }),
   },
   (t) => [
+    check("cards_reply_check", sql`${t.reply} is null or ${t.reply} in ('glad', 'likewise', 'welcome', 'anytime')`),
     check("cards_tag_check", sql`${t.tag} in ('taught', 'helped', 'challenged', 'systemized')`),
     check("cards_visibility_check", sql`${t.visibility} in ('public', 'private')`),
     check("cards_message_length_check", sql`char_length(${t.message}) between 1 and 140`),
