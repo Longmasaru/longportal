@@ -140,7 +140,7 @@ export function SheetSection({
         fields={
           editable
             ? [
-                { name: "birthDate", label: "生年月日", type: "date", value: p?.birthDate ?? "" },
+                { name: "birthDate", label: "生年月日", type: "date", value: sheet.birthDate ?? "" },
                 {
                   name: "gender",
                   label: "性別",
@@ -160,7 +160,7 @@ export function SheetSection({
             <Item label="氏名">{profile.name}</Item>
             <Item label="フリガナ">{profile.nameKana ?? EMPTY}</Item>
             <Item label="生年月日 / 年齢">
-              {p?.birthDate ? `${formatDateDot(p.birthDate)}(${ageOn(p.birthDate, today)}歳)` : EMPTY}
+              {sheet.birthDate ? `${formatDateDot(sheet.birthDate)}(${ageOn(sheet.birthDate, today)}歳)` : EMPTY}
             </Item>
             <Item label="性別">{p?.gender ? GENDER_LABEL[p.gender] : EMPTY}</Item>
             <Item label="所属部署">{primary?.departmentName ?? "所属なし"}</Item>

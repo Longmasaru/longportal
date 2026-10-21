@@ -76,7 +76,7 @@ function ReportTable({ rows, showName }: { rows: ReportSummary[]; showName: bool
 
 /**
  * /apps/nippo。指導者(nippo.reports.review)には、スコープ内の社員の提出済みの日報を出す(既定はコメント待ち)。
- * それ以外の人と「自分の日報」タブでは、自分の日報の一覧を出す。docs/DESIGN.md 37 章。
+ * それ以外の人と「自分の日報」タブでは、自分の日報の一覧を出す。docs/DESIGN.md 38 章。
  */
 export async function NippoPage({ tab, view, employeeId }: { tab?: string; view: ReviewView; employeeId?: string }) {
   const actor = await requireAppAccess(manifest.appKey);

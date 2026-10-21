@@ -68,9 +68,13 @@ const employeeSchema = z
     positionId: optionalUuid,
     hiredOn: isoDate("入社日"),
     leftOn: optionalDate("退職日(最終在籍日)"),
+    birthDate: optionalDate("生年月日"),
     status: z.enum(["planned", "active", "leave", "retired"], "状態を選択してください。"),
   })
   .superRefine((v, ctx) => {
+    if (v.birthDate !== null && (v.birthDate < "1900-01-01" || v.birthDate >= v.hiredOn)) {
+      ctx.addIssue({ code: "custom", message: "生年月日を確かめてください(入社日より前の日付です)。" });
+    }
     if (v.leftOn !== null && v.leftOn < v.hiredOn) {
       ctx.addIssue({ code: "custom", message: "退職日は入社日以降の日付にしてください。" });
     }

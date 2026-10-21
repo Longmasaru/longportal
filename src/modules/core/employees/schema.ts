@@ -44,6 +44,8 @@ export const employees = core.table(
     /** 役職なしの社員もいるため NULL 可。 */
     positionId: uuid("position_id").references(() => positions.id, { onDelete: "restrict" }),
     hiredOn: date("hired_on", { mode: "string" }).notNull(),
+    /** 生年月日(任意)。会社カレンダーの誕生日・人事管理の年齢に使う。docs/DESIGN.md 37 章。 */
+    birthDate: date("birth_date", { mode: "string" }),
     /** 最終在籍日(この日までは利用可、翌日から deny)。 */
     leftOn: date("left_on", { mode: "string" }),
     status: text("status").$type<EmployeeStatus>().notNull().default("planned"),

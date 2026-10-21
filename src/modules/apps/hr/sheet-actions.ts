@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/db/client";
 import { writeAuditLog } from "@/modules/core/audit";
+import { employees } from "@/modules/core/employees/schema";
 import { isIsoDate } from "@/modules/core/shared/date";
 import { DENIED, managerFor } from "./guard";
 import {
@@ -93,11 +94,16 @@ export async function saveSectionAction(_prev: RecordFormState, formData: FormDa
     return { error: "取得日数が付与日数より多くなっています。" };
   }
 
+  // 生年月日は社員マスタ(core.employees)に持つ。docs/DESIGN.md 37 章。
+  const { birthDate, ...profileValues } = values;
   await db.transaction(async (tx) => {
+    if (section === "basic") {
+      await tx.update(employees).set({ birthDate: birthDate as string | null }).where(eq(employees.id, employeeId.data));
+    }
     await tx
       .insert(hrProfiles)
-      .values({ employeeId: employeeId.data, ...values, updatedBy: actor.userId })
-      .onConflictDoUpdate({ target: hrProfiles.employeeId, set: { ...values, updatedBy: actor.userId } });
+      .values({ employeeId: employeeId.data, ...profileValues, updatedBy: actor.userId })
+      .onConflictDoUpdate({ target: hrProfiles.employeeId, set: { ...profileValues, updatedBy: actor.userId } });
     await writeAuditLog(tx, {
       actorUserId: actor.userId,
       action: "hr.profile.update",

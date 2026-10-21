@@ -84,6 +84,7 @@ export async function EmployeeDetailPage({ id }: { id: string }) {
             positionId: employee.positionId,
             hiredOn: employee.hiredOn,
             leftOn: employee.leftOn,
+            birthDate: employee.birthDate,
             status: employee.status,
           }}
         />

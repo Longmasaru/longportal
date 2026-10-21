@@ -1,7 +1,7 @@
 import { grantAllows, hasGlobalGrant, type Grant } from "@/modules/core/access/grants";
 import { FIELD_MAX, SCORE_MAX, SCORE_MIN, SCORE_NOTE_MAX, TEXT_FIELDS, type ReportStatus, type TextField } from "./labels";
 
-// 日報アプリの見え方の判定(DB・セッションに依存しない純粋関数)。docs/DESIGN.md 37 章。
+// 日報アプリの見え方の判定(DB・セッションに依存しない純粋関数)。docs/DESIGN.md 38 章。
 
 /** 日報を書いた社員の、今日有効な所属(拠点・部署)。 */
 export type TargetAssignment = { locationId: string; departmentId: string };
