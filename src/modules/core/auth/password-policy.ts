@@ -13,3 +13,19 @@ export const newPasswordSchema = z
   .refine((v) => new TextEncoder().encode(v).length <= MAX_PASSWORD_BYTES, {
     message: "パスワードが長すぎます(72バイト以内)。",
   });
+
+/**
+ * 初回ログインの直後は、パスワードの変更で「現在のパスワード(初期パスワード)」をもう一度聞かない。
+ * ログインで初期パスワードを確かめたばかりなので。時間がたった画面(席を離れた間など)では、聞き直す。
+ */
+export const FIRST_LOGIN_GRACE_MINUTES = 15;
+
+export function canSkipCurrentPassword(
+  mustChangePassword: boolean,
+  lastLoginAt: Date | null,
+  now: Date = new Date(),
+): boolean {
+  if (!mustChangePassword || !lastLoginAt) return false;
+  const elapsed = now.getTime() - lastLoginAt.getTime();
+  return elapsed >= 0 && elapsed <= FIRST_LOGIN_GRACE_MINUTES * 60_000;
+}

@@ -1,7 +1,7 @@
 import { and, eq, lt, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { loginAttempts } from "./schema";
-import { LOGIN_WINDOW_MINUTES, isThrottled, type FailureCounts } from "./throttle-policy";
+import { LOGIN_FAILURE_LIMIT, LOGIN_WINDOW_MINUTES, isThrottled, type FailureCounts } from "./throttle-policy";
 
 // ログインの失敗回数の制限(DB 側)。規則は throttle-policy.ts。
 //
@@ -51,6 +51,20 @@ export async function isLoginThrottled(loginId: string, ip: string | null): Prom
   } catch (err) {
     console.error("[login-throttle] 失敗回数を確認できませんでした(制限なしで続行):", err);
     return false;
+  }
+}
+
+/**
+ * この ID で、あと何回まちがえるとロックされるか(画面の案内用)。読めなければ null。
+ * 存在しない ID も同じように数えるので、この数から ID の有無は分からない。
+ */
+export async function remainingLoginAttempts(loginId: string): Promise<number | null> {
+  try {
+    const { loginFailures } = await countFailures(loginId, null);
+    return Math.max(0, LOGIN_FAILURE_LIMIT - loginFailures);
+  } catch (err) {
+    console.error("[login-throttle] 失敗回数を確認できませんでした:", err);
+    return null;
   }
 }
 

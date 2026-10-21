@@ -8,24 +8,36 @@ import { db } from "@/db/client";
 import { requireActor } from "../access";
 import { signIn, signOut } from "./auth";
 import { PG_UNIQUE_VIOLATION, pgErrorCode } from "../shared/db-errors";
-import { newPasswordSchema } from "./password-policy";
+import { canSkipCurrentPassword, newPasswordSchema } from "./password-policy";
 import { sendVerificationMail } from "./recovery";
 import { emailSchema } from "./recovery-policy";
 import { hashPassword, verifyPassword } from "./password";
-import { MAX_LOGIN_ID_LENGTH, MAX_LOGIN_PASSWORD_LENGTH } from "./throttle-policy";
+import { normalizeLoginId } from "./input-checks";
+import { remainingLoginAttempts } from "./throttle";
+import { LOGIN_WINDOW_MINUTES, MAX_LOGIN_ID_LENGTH, MAX_LOGIN_PASSWORD_LENGTH } from "./throttle-policy";
 import { users } from "./schema";
 
 // クライアントコンポーネントから呼べる Server Action。サーバー専用の API は index.ts から参照する。
 
-export type FormState = { error?: string } | undefined;
+/** error は画面上部の通知、hints は見直すところの箇条書き。 */
+export type FormState = { error?: string; hints?: string[] } | undefined;
+
+/** ID かパスワードが違うときの、見直すところ(どちらが違うかは、安全のため言わない)。 */
+const LOGIN_HINTS = [
+  "ログインIDは社員番号です(例: 0123)。",
+  "パスワードは、英字の大文字・小文字を区別します。",
+  "初めてログインする方は、配られた初期パスワードを入れてください。",
+];
 
 export async function loginAction(_prev: FormState, formData: FormData): Promise<FormState> {
-  const loginId = String(formData.get("loginId") ?? "").trim().toLowerCase();
+  const loginId = normalizeLoginId(String(formData.get("loginId") ?? ""));
   const password = String(formData.get("password") ?? "");
-  if (!loginId || !password) return { error: "ログインIDとパスワードを入力してください。" };
+  if (!loginId && !password) return { error: "ログインIDとパスワードを入力してください。" };
+  if (!loginId) return { error: "ログインIDを入力してください。" };
+  if (!password) return { error: "パスワードを入力してください。" };
   // 異常に長い入力は、照合せずに(通常の失敗と同じ文言で)弾く。
   if (loginId.length > MAX_LOGIN_ID_LENGTH || password.length > MAX_LOGIN_PASSWORD_LENGTH) {
-    return { error: "ログインIDまたはパスワードが違います。" };
+    return { error: "ログインIDまたはパスワードが違います。", hints: LOGIN_HINTS };
   }
 
   try {
@@ -35,17 +47,17 @@ export async function loginAction(_prev: FormState, formData: FormData): Promise
     if (err instanceof AuthError) {
       if (err.type === "CredentialsSignin") {
         const code = (err as CredentialsSignin).code;
-        if (code === "too_many_attempts") {
-          return {
-            error: "ログインの試行回数が多すぎます。しばらく(15分ほど)待ってから、もう一度お試しください。",
-          };
+        if (code === "too_many_attempts") return lockedState();
+        if (code === "account_unavailable") {
+          return { error: "このアカウントは現在ご利用いただけません。管理者に確認してください。" };
         }
-        return {
-          error:
-            code === "account_unavailable"
-              ? "このアカウントは現在ご利用いただけません。管理者に確認してください。"
-              : "ログインIDまたはパスワードが違います。",
-        };
+        const remaining = await remainingLoginAttempts(loginId);
+        if (remaining === 0) return lockedState();
+        const hints = [...LOGIN_HINTS];
+        if (remaining !== null && remaining <= 3) {
+          hints.push(`あと${remaining}回まちがえると、${LOGIN_WINDOW_MINUTES}分ほどログインできなくなります。`);
+        }
+        return { error: "ログインIDまたはパスワードが違います。", hints };
       }
       return { error: "ログインに失敗しました。時間をおいて再度お試しください。" };
     }
@@ -53,15 +65,20 @@ export async function loginAction(_prev: FormState, formData: FormData): Promise
   }
 }
 
+function lockedState(): FormState {
+  return {
+    error: `まちがいが続いたため、しばらくログインできません。${LOGIN_WINDOW_MINUTES}分ほど待ってから、もう一度お試しください。`,
+    hints: ["パスワードが分からないときは、下の「パスワードを忘れた方」から再設定できます。"],
+  };
+}
+
 export async function signOutAction(): Promise<void> {
   await signOut({ redirectTo: "/login" });
 }
 
 const changePasswordSchema = z.object({
-  currentPassword: z
-    .string()
-    .min(1, "現在のパスワードを入力してください。")
-    .max(MAX_LOGIN_PASSWORD_LENGTH, "現在のパスワードが違います。"),
+  // 初回ログインの直後は空でよい(canSkipCurrentPassword)。必要かどうかは、DB の値で下で判定する。
+  currentPassword: z.string().max(MAX_LOGIN_PASSWORD_LENGTH, "現在のパスワードが違います。"),
   newPassword: newPasswordSchema,
   confirmPassword: z.string(),
 });
@@ -82,17 +99,27 @@ export async function changePasswordAction(
 
   const { currentPassword, newPassword, confirmPassword } = parsed.data;
   if (newPassword !== confirmPassword) return { error: "新しいパスワードが一致しません。" };
-  if (newPassword === currentPassword) {
-    return { error: "新しいパスワードは現在のパスワードと異なるものにしてください。" };
-  }
 
   const [row] = await db
-    .select({ passwordHash: users.passwordHash, email: users.email })
+    .select({ passwordHash: users.passwordHash, email: users.email, lastLoginAt: users.lastLoginAt })
     .from(users)
     .where(eq(users.id, actor.userId))
     .limit(1);
-  if (!row || !(await verifyPassword(currentPassword, row.passwordHash))) {
-    return { error: "現在のパスワードが違います。" };
+  if (!row) return { error: "現在のパスワードが違います。" };
+
+  // 初回ログインの直後は、ログインで初期パスワードを確かめたばかりなので、聞き直さない。
+  if (!canSkipCurrentPassword(actor.mustChangePassword, row.lastLoginAt)) {
+    if (!currentPassword) return { error: "現在のパスワードを入力してください。" };
+    if (!(await verifyPassword(currentPassword, row.passwordHash))) {
+      return { error: "現在のパスワードが違います。" };
+    }
+  }
+  if (await verifyPassword(newPassword, row.passwordHash)) {
+    return {
+      error: actor.mustChangePassword
+        ? "新しいパスワードは、初期パスワードと違うものにしてください。"
+        : "新しいパスワードは現在のパスワードと異なるものにしてください。",
+    };
   }
 
   // 初回ログインのときは、パスワードを忘れたときの連絡先として、メールアドレスを必須にする(docs/DESIGN.md 26 章)。

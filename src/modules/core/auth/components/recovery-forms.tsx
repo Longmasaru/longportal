@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useActionState, useTransition, useState } from "react";
+import { newPasswordChecks } from "../input-checks";
 import { MIN_PASSWORD_LENGTH } from "../password-policy";
 import {
   requestPasswordResetAction,
@@ -11,12 +12,15 @@ import {
   type RecoveryFormState,
 } from "../recovery-actions";
 import { FIELD_CLASS, LABEL_CLASS, Notice, SUBMIT_CLASS } from "./auth-shell";
+import { PasswordChecklist, PasswordInput } from "./password-input";
+import { UsernameForPasswordManager } from "./username-field";
 
 const BACK_LINK = "text-brand01 hover:text-brand03 text-center text-sm font-bold transition-colors";
 
 /** 「パスワードを忘れた方」: ログイン ID を入れると、確認済みのメールに再設定の案内が届く。 */
 export function ForgotPasswordForm() {
   const [state, action, pending] = useActionState<RecoveryFormState, FormData>(requestPasswordResetAction, undefined);
+  const [loginId, setLoginId] = useState("");
   return (
     <form action={action} className="flex flex-col gap-5">
       {state?.error ? <Notice tone="error">{state.error}</Notice> : null}
@@ -36,6 +40,8 @@ export function ForgotPasswordForm() {
           autoCapitalize="none"
           spellCheck={false}
           required
+          value={loginId}
+          onChange={(e) => setLoginId(e.target.value)}
           className={FIELD_CLASS}
         />
       </div>
@@ -50,42 +56,46 @@ export function ForgotPasswordForm() {
 }
 
 /** メールのリンクから開く、新しいパスワードの入力。 */
-export function ResetPasswordForm({ token }: { token: string }) {
+export function ResetPasswordForm({ token, loginId }: { token: string; loginId: string }) {
   const [state, action, pending] = useActionState<RecoveryFormState, FormData>(
     resetPasswordWithTokenAction,
     undefined,
   );
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   return (
     <form action={action} className="flex flex-col gap-5">
+      <UsernameForPasswordManager loginId={loginId} />
       {state?.error ? <Notice tone="error">{state.error}</Notice> : null}
+      <p className="text-brand04 text-sm">ログインID: {loginId}</p>
       <input type="hidden" name="token" value={token} />
       <div>
         <label htmlFor="newPassword" className={LABEL_CLASS}>
           新しいパスワード
         </label>
-        <input
+        <PasswordInput
           id="newPassword"
           name="newPassword"
-          type="password"
           autoComplete="new-password"
           minLength={MIN_PASSWORD_LENGTH}
           required
-          className={FIELD_CLASS}
+          value={newPassword}
+          onValueChange={setNewPassword}
         />
-        <p className="text-brand04 mt-1 text-xs">{MIN_PASSWORD_LENGTH}文字以上で入力してください。</p>
       </div>
       <div>
         <label htmlFor="confirmPassword" className={LABEL_CLASS}>
           新しいパスワード(確認)
         </label>
-        <input
+        <PasswordInput
           id="confirmPassword"
           name="confirmPassword"
-          type="password"
           autoComplete="new-password"
           required
-          className={FIELD_CLASS}
+          value={confirmPassword}
+          onValueChange={setConfirmPassword}
         />
+        <PasswordChecklist checks={newPasswordChecks(newPassword, confirmPassword)} />
       </div>
       <button type="submit" disabled={pending} className={SUBMIT_CLASS}>
         {pending ? "変更中…" : "パスワードを変更"}
@@ -95,14 +105,25 @@ export function ResetPasswordForm({ token }: { token: string }) {
 }
 
 /** ログイン中のメールアドレスの登録・変更と、確認メールの送り直し。 */
-export function EmailSettingsForm({ email, verified }: { email: string | null; verified: boolean }) {
+export function EmailSettingsForm({
+  loginId,
+  email,
+  verified,
+}: {
+  loginId: string;
+  email: string | null;
+  verified: boolean;
+}) {
   const [state, action, pending] = useActionState<RecoveryFormState, FormData>(updateEmailAction, undefined);
   const [resent, setResent] = useState<RecoveryFormState>(undefined);
   const [resending, startResend] = useTransition();
   const shown = resent ?? state;
+  const [newEmail, setNewEmail] = useState(email ?? "");
+  const [currentPassword, setCurrentPassword] = useState("");
 
   return (
     <form action={action} className="flex flex-col gap-5">
+      <UsernameForPasswordManager loginId={loginId} />
       {shown?.error ? <Notice tone="error">{shown.error}</Notice> : null}
       {shown?.success ? <Notice tone="info">{shown.success}</Notice> : null}
       <p className="text-brand04 text-sm leading-relaxed">
@@ -132,7 +153,8 @@ export function EmailSettingsForm({ email, verified }: { email: string | null; v
           type="email"
           autoComplete="email"
           required
-          defaultValue={email ?? ""}
+          value={newEmail}
+          onChange={(e) => setNewEmail(e.target.value)}
           className={FIELD_CLASS}
         />
       </div>
@@ -140,13 +162,13 @@ export function EmailSettingsForm({ email, verified }: { email: string | null; v
         <label htmlFor="settingsPassword" className={LABEL_CLASS}>
           現在のパスワード
         </label>
-        <input
+        <PasswordInput
           id="settingsPassword"
           name="currentPassword"
-          type="password"
           autoComplete="current-password"
           required
-          className={FIELD_CLASS}
+          value={currentPassword}
+          onValueChange={setCurrentPassword}
         />
       </div>
       <button type="submit" disabled={pending} className={SUBMIT_CLASS}>

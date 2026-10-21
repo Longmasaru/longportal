@@ -8,6 +8,7 @@ import { evaluateUserAccess } from "../access/evaluate";
 import { employees } from "../employees/schema";
 import { todayJst } from "../shared/jst";
 import { authConfig } from "./auth.config";
+import { normalizeLoginId } from "./input-checks";
 import { verifyPassword } from "./password";
 import { users } from "./schema";
 import { isLoginThrottled, recordLoginAttempt } from "./throttle";
@@ -28,7 +29,7 @@ const DUMMY_HASH = bcrypt.hashSync("timing-equalizer-not-a-real-password", 10);
 
 // 異常に長い入力は、照合も記録もせずに弾く(bcrypt の負荷・記録の肥大化を避ける)。
 const credentialsSchema = z.object({
-  loginId: z.string().trim().toLowerCase().min(1).max(MAX_LOGIN_ID_LENGTH),
+  loginId: z.string().transform(normalizeLoginId).pipe(z.string().min(1).max(MAX_LOGIN_ID_LENGTH)),
   password: z.string().min(1).max(MAX_LOGIN_PASSWORD_LENGTH),
 });
 

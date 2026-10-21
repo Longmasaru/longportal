@@ -7,6 +7,7 @@ import { db } from "@/db/client";
 import { requireActor } from "../access";
 import { writeAuditLog } from "../audit";
 import { PG_UNIQUE_VIOLATION, pgErrorCode } from "../shared/db-errors";
+import { normalizeLoginId } from "./input-checks";
 import { hashPassword, verifyPassword } from "./password";
 import { newPasswordSchema } from "./password-policy";
 import {
@@ -30,7 +31,7 @@ export async function requestPasswordResetAction(
   _prev: RecoveryFormState,
   formData: FormData,
 ): Promise<RecoveryFormState> {
-  const loginId = String(formData.get("loginId") ?? "").trim().toLowerCase();
+  const loginId = normalizeLoginId(String(formData.get("loginId") ?? ""));
   if (!loginId) return { error: "ログイン ID を入力してください。" };
   const done = {
     success:
