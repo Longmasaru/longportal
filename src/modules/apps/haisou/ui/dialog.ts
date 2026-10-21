@@ -129,10 +129,12 @@ export const DIALOG_HTML = String.raw`<!DOCTYPE html>
   .rcard .t { font-weight:bold; font-size:14px; }
   .rcard .s { color:#555; font-size:12px; margin:3px 0 6px; }
   .rcard .counts b { font-size:14px; color:var(--navy); }
+  .cmp-shift { box-sizing:border-box; }
+  .cmp-shift.empty { color:#888; font-size:12px; padding:14px 0 8px; }
   .drop-zone { border:2px dashed transparent; border-radius:6px; padding:0 4px 4px; margin:0 -6px; }
   body.day-dragging .drop-zone { border-color:#bcd7d6; }
   .drop-zone.over { border-color:var(--teal) !important; background:#eef8f7; }
-  .drop-zone.empty { color:#888; font-size:12px; padding:8px; margin:8px -6px 0; }
+  .drop-zone.empty { color:#888; font-size:12px; padding:14px 8px 8px; }
   body.day-dragging .drop-zone.empty { background:#f6fbfb; }
   tr.drag-row { cursor:grab; }
   tr.drag-row:hover { background:#f6fbfb; }
@@ -901,19 +903,21 @@ function renderCompareColumn(label, data, bi) {
     const stops = (data.stops && data.stops[shift]) || [];
     if (!stops.length && !r) {
       if (board) {
-        html += '<div class="drop-zone empty" ondragover="dayDragOver(event)" ondragleave="dayDragLeave(event)" ' +
+        html += '<div class="cmp-shift drop-zone empty" data-shift="' + shift + '" ondragover="dayDragOver(event)" ondragleave="dayDragLeave(event)" ' +
           'ondrop="dayDrop(event,' + bi + ',\'' + shift + '\')">' + (shift === 'AM' ? 'AM便' : 'PM便') +
           '　（配達先なし。ここへ移せます）</div>';
+      } else {
+        html += '<div class="cmp-shift empty" data-shift="' + shift + '">' + (shift === 'AM' ? 'AM便' : 'PM便') + '　（なし）</div>';
       }
       return;
     }
     any = true;
     const shiftLabel = shift === 'AM' ? 'AM便' : 'PM便';
     const w = r ? totalWait(r) : 0;
-    if (board) {
-      html += '<div class="drop-zone" ondragover="dayDragOver(event)" ondragleave="dayDragLeave(event)" ' +
-        'ondrop="dayDrop(event,' + bi + ',\'' + shift + '\')">';
-    }
+    html += board
+      ? '<div class="cmp-shift drop-zone" data-shift="' + shift + '" ondragover="dayDragOver(event)" ondragleave="dayDragLeave(event)" ' +
+        'ondrop="dayDrop(event,' + bi + ',\'' + shift + '\')">'
+      : '<div class="cmp-shift" data-shift="' + shift + '">';
     html += '<div style="font-weight:bold;color:var(--navy);margin:8px 0 4px">' + shiftLabel +
       (r ? '　｜　出発 ' + r.startTime + ' ／ 帰着予定 ' + r.backTime +
            (w ? '<span class="wait-tag">⏳ 待ち 計' + w + '分</span>' : '') +
@@ -935,10 +939,9 @@ function renderCompareColumn(label, data, bi) {
           'onclick="dayMoveMenu(' + bi + ',\'' + shift + '\',' + idx + ')">↪</button></td>' : '') +
         '</tr>';
     });
-    html += '</tbody></table>';
-    if (board) html += '</div>';
+    html += '</tbody></table></div>';
   });
-  if (!any) html += '<div style="color:#888">配達先が保存されていません</div>';
+  if (!any && !board) html += '<div style="color:#888">配達先が保存されていません</div>';
 
   if (data.results && data.results.AM && data.results.PM) {
     const bothKm = (data.results.AM.totalKm != null && data.results.PM.totalKm != null)
@@ -979,7 +982,7 @@ function showCompareMany(list, title, summary) {
   DAY_LIST = summary ? list : [];
   document.getElementById('compareHint').style.display = summary ? 'block' : 'none';
   document.getElementById('compareCols').innerHTML = list.map((o, i) =>
-    '<div style="flex:1;min-width:' + minW + 'px">' + renderCompareColumn(o.name, o.data, summary ? i : undefined) + '</div>').join('');
+    '<div class="cmp-col" style="flex:1;min-width:' + minW + 'px">' + renderCompareColumn(o.name, o.data, summary ? i : undefined) + '</div>').join('');
   document.getElementById('cmpNow').textContent = new Date().toLocaleString('ja-JP');
   // 比較画面のまま表示し直すときは、戻り先をそのままにする
   if (document.getElementById('pageCompare').style.display === 'none') {
@@ -989,8 +992,28 @@ function showCompareMany(list, title, summary) {
   document.getElementById('pageResult').style.display = 'none';
   document.getElementById('pageCalendar').style.display = 'none';
   document.getElementById('pageCompare').style.display = 'block';
+  alignCompareShifts();
   window.scrollTo(0, 0);
 }
+
+/* 並べた列の AM便・PM便の高さをそろえ、横一列に読めるようにする */
+function alignCompareShifts() {
+  const cols = document.getElementById('compareCols');
+  ['AM', 'PM'].forEach(shift => {
+    const blocks = Array.prototype.slice.call(cols.querySelectorAll('.cmp-shift[data-shift="' + shift + '"]'));
+    blocks.forEach(b => { b.style.minHeight = ''; });
+    // 折り返して別の段に並んだ列とは、そろえない
+    const rows = {};
+    blocks.forEach(b => { const top = Math.round(b.closest('.cmp-col').offsetTop); (rows[top] = rows[top] || []).push(b); });
+    Object.keys(rows).forEach(k => {
+      const max = Math.max.apply(null, rows[k].map(b => b.offsetHeight));
+      rows[k].forEach(b => { b.style.minHeight = max + 'px'; });
+    });
+  });
+}
+['resize', 'beforeprint', 'afterprint'].forEach(ev => window.addEventListener(ev, () => {
+  if (document.getElementById('pageCompare').style.display !== 'none') alignCompareShifts();
+}));
 
 /* ---------- 1日の全トラック表示で、配達先を別の便・配達者へ移す ---------- */
 let DAY_LIST = [];        // 表示中の {name, data}
