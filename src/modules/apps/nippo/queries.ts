@@ -54,7 +54,8 @@ const summaryColumns = {
   employeeNumber: employees.employeeNumber,
   reportDate: nippoReports.reportDate,
   status: nippoReports.status,
-  training: nippoReports.training,
+  // 研修内容の欄がない時期の日報(取り込んだ 8 月〜の様式)は、教わったことを一覧の見出しにする。
+  training: sql<string>`coalesce(nullif(${nippoReports.training}, ''), ${nippoReports.taught})`,
   score: nippoReports.score,
   submittedAt: nippoReports.submittedAt,
   reviewerComments: sql<number>`coalesce(${commentStats.reviewer}, 0)`.mapWith(Number),
