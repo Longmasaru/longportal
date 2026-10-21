@@ -110,8 +110,12 @@ vercel --version ; vercel whoami                  # ログインしていなけ�
 3. 確認: `vercel ls --scope <スコープ>`、`vercel project inspect <名前>`(Node 24.x、Framework = Next.js)。
 
 ### E. 本番 DB の準備(ユーザー + Claude。**本番への書き込み**)
-1. **ユーザー**: Neon の `production` ブランチの接続文字列(pooler あり/なし)を、`<プロジェクト>\.env.production.local` に保存する(**チャットに貼らない**)。Claude が、メモ帳の作成を手伝ってもよい(中身は、ユーザーが入力)。形式:
+1. **ユーザー**: Neon の `production` ブランチの接続文字列(pooler あり/なし)を、`<プロジェクト>\.env.production.local` に保存する(**チャットに貼らない**)。Claude が、メモ帳の作成を手伝ってもよい(中身は、ユーザーが入力)。**メモ帳で開くときは毎回、ファイルの一番上に「どのアプリの・どのサービス(Neon のプロジェクト名とブランチ)の・どの値を・画面のどこからコピーして貼るか」をコメントで書いておく**(2026-10-21 のユーザーの指示。似たファイルが何度も出てきて、何のためか分からなくなるため)。形式:
    ```
+   # LONG PORTAL(longportal)の本番 DB の準備用。終わったら Claude が削除します。
+   # Neon のプロジェクト longdashbord → ブランチ production → Connect の画面からコピーして、= のあとに貼る。
+   # 1 行目: Connection pooling を ON にした文字列(ホスト名に -pooler が入る)
+   # 2 行目: Connection pooling を OFF にした文字列(-pooler が入らない)
    DATABASE_URL="(本番・pooler あり)"
    DATABASE_URL_UNPOOLED="(本番・pooler なし)"
    DB_TARGET=production
