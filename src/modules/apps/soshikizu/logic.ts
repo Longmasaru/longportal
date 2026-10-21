@@ -17,7 +17,35 @@ export function compareMembers(a: OrgMember, b: OrgMember): number {
 }
 
 /**
- * 部署ごとの箱を作る。部署は表示順(sort_order → code)、人のいない部署は出さない(includeEmpty なら出す。ドラッグの落とし先用)。
+ * 経営の役職(部署の箱には入れず、組織図の一番上に別に並べる)。役職名にこの言葉を含めば経営とみなす(「代表取締役社長」「副社長」も含む)。
+ * 2026-10-21 のユーザーの判断: 社長・専務・常務・工場長。
+ */
+export const EXECUTIVE_TITLE_WORDS = ["社長", "専務", "常務", "工場長"] as const;
+
+export function isExecutive(m: Pick<OrgMember, "positionName">): boolean {
+  const name = m.positionName ?? "";
+  return EXECUTIVE_TITLE_WORDS.some((w) => name.includes(w));
+}
+
+/** 組織図: 一番上の経営の人と、部署ごとの箱(経営の人は箱に入れない)。 */
+export function buildOrgChart(
+  members: readonly OrgMember[],
+  departments: readonly OrgUnit[],
+  locationId: string | null,
+): { executives: OrgMember[]; boxes: OrgBox[] } {
+  const shown = locationId ? members.filter((m) => m.locationId === locationId) : members;
+  return {
+    executives: shown.filter(isExecutive).sort(compareMembers),
+    boxes: buildOrgBoxes(
+      members.filter((m) => !isExecutive(m)),
+      departments,
+      locationId,
+    ),
+  };
+}
+
+/**
+ * 部署ごとの箱を作る。部署は表示順(sort_order → code)、人のいない部署は出さない。
  * locationId を指定すると、その拠点の主所属の人だけを載せる(所属のない人の箱も出さない)。
  * 所属のない人(拠点で絞っていないとき)は、最後に department = null の箱にまとめる。
  */
@@ -25,7 +53,6 @@ export function buildOrgBoxes(
   members: readonly OrgMember[],
   departments: readonly OrgUnit[],
   locationId: string | null,
-  options: { includeEmpty?: boolean } = {},
 ): OrgBox[] {
   const shown = locationId ? members.filter((m) => m.locationId === locationId) : members;
   const byDept = new Map<string | null, OrgMember[]>();
@@ -47,8 +74,8 @@ export function buildOrgBoxes(
 
   const ordered = [...departments].sort((a, b) => a.sortOrder - b.sortOrder || a.code.localeCompare(b.code));
   const boxes = ordered.flatMap((d) => {
-    const list = byDept.get(d.id) ?? [];
-    return list.length > 0 || options.includeEmpty ? [toBox(d, list)] : [];
+    const list = byDept.get(d.id);
+    return list && list.length > 0 ? [toBox(d, list)] : [];
   });
   // 主所属のない人と、一覧にない(無効になった)部署の人は「所属なし」にまとめる。
   const known = new Set(ordered.map((d) => d.id));

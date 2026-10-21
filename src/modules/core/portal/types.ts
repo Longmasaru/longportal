@@ -121,6 +121,8 @@ export type Notice = {
   id: string;
   title: string;
   summary: string;
+  /** 本文(ホームのプレビューと「続きを読む」用) */
+  body: string;
   kind: NoticeKind;
   priority: NoticePriority;
   target: NoticeTarget;
@@ -162,6 +164,31 @@ export type PortalHomeData = {
   actionRequiredCount: number;
   /** 各アプリが報告する未対応・要確認の件数。該当がなければ空(セクションごと非表示)。 */
   pendingItems: PendingItem[];
+};
+
+/** ホームの「今週」(会社カレンダーのアプリが作って渡す。月曜〜日曜)。 */
+export type HomeWeek = {
+  /** カレンダーのアプリを開く先 */
+  href: string;
+  days: HomeWeekDay[];
+};
+
+export type HomeWeekDay = {
+  /** `YYYY-MM-DD` */
+  date: string;
+  /** 0 = 日曜 … 6 = 土曜 */
+  weekday: number;
+  isToday: boolean;
+  /** 会社の休み(会社カレンダーが未登録の年は false) */
+  isOff: boolean;
+  /** 出勤する土曜 */
+  isWorkSaturday: boolean;
+  /** 祝日・休暇の名称など */
+  label: string | null;
+  /** 本人のメモ・予定 */
+  entries: { time: string | null; title: string }[];
+  /** その日の月のカレンダーを開く先 */
+  href: string;
 };
 
 /** アプリ側が「本人の対応が必要」と報告する件数(アプリへの導線を兼ねる)。 */
