@@ -98,6 +98,7 @@ export async function ArigatoBanzukePage() {
           <p className={styles.eyebrow}>ありがとう番付とは</p>
           <h1 className={cx(styles.introTitle, styles.solid)}>ありがとうを送るほど、位が上がる</h1>
           <p>ありがとうカードを送った数で、大相撲の番付(順位表)のように位が決まります。2 か月ごとに番付が組み直されます。</p>
+          <p>番付は、ありがとうを伝えるきっかけです。競い合うためではなく、ありがとうが社内に増えて「育てて、育つ。」が進むことをめざしています。</p>
           <ol className={styles.steps}>
             <li>
               <b>送る</b>

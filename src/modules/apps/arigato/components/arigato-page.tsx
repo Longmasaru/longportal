@@ -49,6 +49,7 @@ export async function ArigatoPage() {
         initialReceived={received}
         initialWeek={week}
         initialMyPoints={myPoints.points}
+        receivedRaw={myPoints.receivedRaw}
       />
     </div>
   );

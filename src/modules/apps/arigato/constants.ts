@@ -49,3 +49,15 @@ export function shiftMonth(month: string, n: number): string {
   const d = new Date(Date.UTC(y, m - 1 + n, 1));
   return d.toISOString().slice(0, 7);
 }
+
+/** もらった点: 同じ人からは 1 か月にこの点数まで(送り合いで稼げないように)。 */
+export const RECEIVED_PER_SENDER_MONTH = 4;
+
+/**
+ * もらった点(docs/DESIGN.md 34 章)。送り主ごとの「カードをもらった日数」(同じ人からは 1 日 1 点)を、
+ * 1 人あたり月 RECEIVED_PER_SENDER_MONTH 点までで足す(raw)。評価に入るのは、自分が伝えた点と同じ数まで(counted)。
+ */
+export function receivedPoints(daysBySender: number[], given: number): { raw: number; counted: number } {
+  const raw = daysBySender.reduce((sum, d) => sum + Math.min(d, RECEIVED_PER_SENDER_MONTH), 0);
+  return { raw, counted: Math.min(raw, given) };
+}
