@@ -17,7 +17,7 @@ export function compareMembers(a: OrgMember, b: OrgMember): number {
 }
 
 /**
- * 部署ごとの箱を作る。部署は表示順(sort_order → code)、人のいない部署は出さない。
+ * 部署ごとの箱を作る。部署は表示順(sort_order → code)、人のいない部署は出さない(includeEmpty なら出す。ドラッグの落とし先用)。
  * locationId を指定すると、その拠点の主所属の人だけを載せる(所属のない人の箱も出さない)。
  * 所属のない人(拠点で絞っていないとき)は、最後に department = null の箱にまとめる。
  */
@@ -25,6 +25,7 @@ export function buildOrgBoxes(
   members: readonly OrgMember[],
   departments: readonly OrgUnit[],
   locationId: string | null,
+  options: { includeEmpty?: boolean } = {},
 ): OrgBox[] {
   const shown = locationId ? members.filter((m) => m.locationId === locationId) : members;
   const byDept = new Map<string | null, OrgMember[]>();
@@ -46,8 +47,8 @@ export function buildOrgBoxes(
 
   const ordered = [...departments].sort((a, b) => a.sortOrder - b.sortOrder || a.code.localeCompare(b.code));
   const boxes = ordered.flatMap((d) => {
-    const list = byDept.get(d.id);
-    return list && list.length > 0 ? [toBox(d, list)] : [];
+    const list = byDept.get(d.id) ?? [];
+    return list.length > 0 || options.includeEmpty ? [toBox(d, list)] : [];
   });
   // 主所属のない人と、一覧にない(無効になった)部署の人は「所属なし」にまとめる。
   const known = new Set(ordered.map((d) => d.id));

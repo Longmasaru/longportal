@@ -19,12 +19,19 @@ export const RECORD_KIND_SHORT: Record<RecordKind, string> = {
   transfer: "異動",
 };
 
-export const RECORD_VISIBILITIES = ["employee", "managers"] as const;
+/**
+ * 記録の公開範囲(31.4)。管理する人には、どれも見える。
+ * employee = 本人・上司、supervisors = 上司だけ(本人には見せない)、
+ * personal = 本人だけ(上司には見せない。管理者との 1on1 など)、managers = 管理者だけ(本人にも上司にも見せない)。
+ */
+export const RECORD_VISIBILITIES = ["employee", "supervisors", "personal", "managers"] as const;
 export type RecordVisibility = (typeof RECORD_VISIBILITIES)[number];
 
 export const RECORD_VISIBILITY_LABEL: Record<RecordVisibility, string> = {
   employee: "本人に公開",
-  managers: "管理者だけのメモ",
+  supervisors: "上司まで(本人には見せない)",
+  personal: "本人と管理者だけ(上司には見せない)",
+  managers: "管理者だけ(本人にも上司にも見せない)",
 };
 
 export function isRecordKind(value: unknown): value is RecordKind {

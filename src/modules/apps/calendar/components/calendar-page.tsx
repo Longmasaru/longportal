@@ -15,11 +15,15 @@ import {
   shortDate,
   yearSummary,
 } from "../logic";
+import { COMPANY_CALENDAR } from "../company-calendar";
 import { dailyNote } from "../daily-notes";
+import { listEventsForViewer, listOffDayEvents, listPendingInvitations } from "../event-queries";
+import { withCompanyOffDays } from "../events";
 import { anniversaryDate, birthdaysOn, nextLongHoliday, paydayOf, todaysHighlights } from "../highlights";
 import { CALENDAR_BIRTHDAYS_VIEW, manifest } from "../manifest";
 import { getPersonalDates, listBirthdays, listEntries } from "../queries";
 import { HighlightList } from "./highlight-list";
+import { InvitationPrompts } from "./invitation-prompts";
 import { MonthBoard } from "./month-board";
 
 function SummaryCard({ label, children }: { label: string; children: ReactNode }) {
@@ -42,22 +46,27 @@ export async function CalendarPage({ month }: { month: string | null }) {
   const current = month ?? today.slice(0, 7);
   const first = `${current}-01`;
   const last = `${current}-${String(daysInMonth(current)).padStart(2, "0")}`;
-  const [entries, mine, everyone] = await Promise.all([
+  const [entries, mine, everyone, offDays, events, pending] = await Promise.all([
     listEntries(actor.userId, first, last),
     getPersonalDates(actor.employee?.id),
     canGlobally(actor, CALENDAR_BIRTHDAYS_VIEW) ? listBirthdays(today) : Promise.resolve(null),
+    listOffDayEvents(today),
+    listEventsForViewer(actor, first, last),
+    listPendingInvitations(actor),
   ]);
   const { hiredOn, birthDate } = mine;
   // ほかの人の誕生日(権限のある人だけ)。本人の誕生日は「誕生日」の印で別に出す。
   const others = everyone?.filter((p) => p.employeeId !== actor.employee?.id);
 
-  const todayInfo = dayInfo(today);
-  const nextOff = nextOffDay(today);
-  const remaining = remainingWorkdays(today);
+  // 紙の会社カレンダーに、全社の休み(一斉有給取得日・臨時休業)を重ねて判定する(docs/DESIGN.md 38.1)
+  const calendar = withCompanyOffDays(COMPANY_CALENDAR, offDays);
+  const todayInfo = dayInfo(today, calendar);
+  const nextOff = nextOffDay(today, calendar);
+  const remaining = remainingWorkdays(today, calendar);
   const year = Number(current.slice(0, 4));
-  const summary = yearSummary(year);
-  const highlights = todaysHighlights(today, { hiredOn, birthDate, others });
-  const longHoliday = nextLongHoliday(today);
+  const summary = yearSummary(year, calendar);
+  const highlights = todaysHighlights(today, { hiredOn, birthDate, others, calendar });
+  const longHoliday = nextLongHoliday(today, calendar);
 
   // 月の表に付ける印(給料日・本人の入社記念日)
   const marks: Record<string, string[]> = {};
@@ -85,8 +94,14 @@ export async function CalendarPage({ month }: { month: string | null }) {
         <p className="text-brand04 mt-1 text-sm">
           会社の休日と出勤日を確認できます。日付を押すと、自分のメモや予定を書き込めます(自分にしか見えません)。
         </p>
+        <p className="mt-3">
+          <Link href={`${manifest.route}/events`} className={NAV_LINK}>
+            予定・参加の呼びかけ ›
+          </Link>
+        </p>
       </div>
 
+      <InvitationPrompts items={pending} />
       <HighlightList items={highlights} />
 
       <p className="border-brand01/15 text-brand01 border-y py-3 text-sm leading-relaxed">
@@ -166,15 +181,16 @@ export async function CalendarPage({ month }: { month: string | null }) {
             </Link>
           </nav>
         </div>
-        {!hasCompanyYear(year) ? (
+        {!hasCompanyYear(year, calendar) ? (
           <p className="bg-bg01 text-brand01 p-3 text-sm">
             {year}年の会社カレンダーはまだ登録されていません。メモ・予定は書き込めます。
           </p>
         ) : null}
         <MonthBoard
           key={current}
-          weeks={monthGrid(current)}
+          weeks={monthGrid(current, calendar)}
           entries={entries}
+          events={events}
           marks={marks}
           today={today}
           initialDate={today.startsWith(current) ? today : first}

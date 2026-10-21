@@ -23,7 +23,7 @@ const STATUS_TONE: Record<BotRunStatus, "neutral" | "info" | "attention" | "mute
   failed: "attention",
 };
 
-/** LINE WORKS の Bot の管理(bots.manage を全社で持つ人だけ。それ以外は 404)。docs/DESIGN.md 38 章。 */
+/** LINE WORKS の Bot の管理(bots.manage を全社で持つ人だけ。それ以外は 404)。docs/DESIGN.md 39 章。 */
 export async function BotsPage() {
   await requireAppAccess(manifest.appKey);
   await requireGlobalPermission(MANAGE_PERMISSION);

@@ -2,7 +2,7 @@ import { desc, inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import { botsBots, botsRuns, type Bot, type BotRun } from "./schema";
 
-// Bot の一覧(管理画面用)。docs/DESIGN.md 38 章。
+// Bot の一覧(管理画面用)。docs/DESIGN.md 39 章。
 
 export type BotWithRuns = Bot & { runs: Pick<BotRun, "runDate" | "status" | "message">[] };
 

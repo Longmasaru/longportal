@@ -1,4 +1,4 @@
-// 雨予報の Bot の天気の読み取り(docs/DESIGN.md 38 章)。気象庁の天気予報の JSON(鍵なし)を使う。
+// 雨予報の Bot の天気の読み取り(docs/DESIGN.md 39 章)。気象庁の天気予報の JSON(鍵なし)を使う。
 // 読み取り(rainReport)は純粋関数にして、テストで形を確かめる。
 
 const TIMEOUT_MS = 10_000;

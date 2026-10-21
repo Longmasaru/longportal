@@ -1,7 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { runEnabledBots } from "./run";
 
-// 毎朝の定時の実行の入口(Vercel Cron。vercel.json の crons)。docs/DESIGN.md 38 章。
+// 毎朝の定時の実行の入口(Vercel Cron。vercel.json の crons)。docs/DESIGN.md 39 章。
 // Vercel は環境変数 CRON_SECRET を「Authorization: Bearer <値>」で送ってくるので、それと同じときだけ動かす。
 // CRON_SECRET がなければ動かさない(deny by default)。
 

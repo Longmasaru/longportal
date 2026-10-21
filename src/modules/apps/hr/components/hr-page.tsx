@@ -5,17 +5,20 @@ import { formatDateDot } from "@/modules/core/shared/format";
 import { BUTTON_PRIMARY, BUTTON_SECONDARY, FIELD_CLASS, StatusTag } from "@/modules/core/shared/ui/form";
 import type { RecordKind, Tab } from "../labels";
 import { HR_RECORDS_MANAGE, manifest } from "../manifest";
-import { listManagedEmployees } from "../queries";
+import { listManagedEmployees, reportsOfActor } from "../queries";
 import { EmployeeRecordsView } from "./employee-page";
 
 /**
- * /apps/hr。権限(hr.records.manage)を持つ人には、スコープ内の社員の一覧を出す。
- * 持たない人には、自分のページ(本人に公開の記録だけ)を出す。docs/DESIGN.md 31 章。
+ * /apps/hr。権限(hr.records.manage)を持つ人と、部下がいる人(31.4)には、見られる社員の一覧を出す。
+ * どちらでもない人には、自分のページ(本人に公開の記録だけ)を出す。docs/DESIGN.md 31 章。
  */
 export async function HrPage({ q, all, kind, tab }: { q?: string; all?: boolean; kind: RecordKind | null; tab: Tab }) {
   const actor = await requireAppAccess(manifest.appKey);
 
-  if (!canInAnyScope(actor, HR_RECORDS_MANAGE)) {
+  const canManage = canInAnyScope(actor, HR_RECORDS_MANAGE);
+  const reports = await reportsOfActor(actor);
+
+  if (!canManage && reports.size === 0) {
     if (actor.employee) return <EmployeeRecordsView actor={actor} employeeId={actor.employee.id} kind={kind} tab={tab} />;
     return (
       <div className="mx-auto w-full max-w-4xl px-4 py-8 md:px-8 md:py-10">
@@ -24,7 +27,7 @@ export async function HrPage({ q, all, kind, tab }: { q?: string; all?: boolean;
     );
   }
 
-  const rows = await listManagedEmployees(actor, { q, includeRetired: all });
+  const rows = await listManagedEmployees(actor, { q, includeRetired: all, reports });
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-8 md:px-8 md:py-10">
@@ -35,7 +38,9 @@ export async function HrPage({ q, all, kind, tab }: { q?: string; all?: boolean;
           </p>
           <h1 className="text-brand01 mt-2 text-2xl font-bold">人事管理</h1>
           <p className="text-brand04 mt-1 text-sm">
-            社員を選ぶと、面談で話したこと・注意・ほめの記録を見たり、書いたりできます。
+            {canManage
+              ? "社員を選ぶと、面談で話したこと・注意・ほめの記録を見たり、書いたりできます。"
+              : "部下を選ぶと、1on1 などの記録を見たり書いたりできます(基本情報・目標と評価・スキルと資格は読むだけ)。"}
           </p>
         </div>
         {actor.employee ? (

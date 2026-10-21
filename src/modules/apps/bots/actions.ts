@@ -11,7 +11,7 @@ import { MANAGE_PERMISSION, manifest } from "./manifest";
 import { sendTrial } from "./run";
 import { BOT_KINDS, botsBots } from "./schema";
 
-// Bot の作成・変更・削除・試しの送信(docs/DESIGN.md 38 章)。画面以外からも呼べるため、毎回
+// Bot の作成・変更・削除・試しの送信(docs/DESIGN.md 39 章)。画面以外からも呼べるため、毎回
 // bots.manage(全社)で本判定し、引数を zod で検証し、変更は監査ログと同じトランザクションで記録する。
 
 export type BotFormState = { error?: string; success?: string } | undefined;

@@ -22,7 +22,8 @@ const timestamps = () => ({
 
 /**
  * 社員ごとの記録(面談・話したこと / 指導・注意 / ほめ / 異動の理由)。人(employee)に付く業務履歴なので employee_id に紐づける。
- * 本人に見せるのは visibility = 'employee' の行だけ。読み書きの判定は logic.ts(hr.records.manage + 対象の社員の今日の所属)。
+ * 本人に見せるのは visibility = 'employee' と 'personal' の行、上司(31.4)には 'employee' と 'supervisors'。
+ * 読み書きの判定は logic.ts(hr.records.manage + 対象の社員の今日の所属、または上司と部下の関係)。
  */
 export const hrRecords = hr.table(
   "records",
@@ -41,7 +42,7 @@ export const hrRecords = hr.table(
   },
   (t) => [
     check("records_kind_check", sql`${t.kind} in ('talk', 'caution', 'praise', 'transfer')`),
-    check("records_visibility_check", sql`${t.visibility} in ('employee', 'managers')`),
+    check("records_visibility_check", sql`${t.visibility} in ('employee', 'supervisors', 'personal', 'managers')`),
     index("records_employee_id_occurred_on_idx").on(t.employeeId, t.occurredOn),
   ],
 );
@@ -57,6 +58,8 @@ export const hrProfiles = hr.table(
       .primaryKey()
       .references(() => employees.id, { onDelete: "restrict" }),
     // 1. 基本情報(生年月日は社員マスタ core.employees.birth_date に持つ。docs/DESIGN.md 37 章)
+    /** 直属の上司(31.4)。上司は、この社員と、その下にたどれる部下のページを本人と同じ範囲で見られる。 */
+    supervisorEmployeeId: uuid("supervisor_employee_id").references(() => employees.id, { onDelete: "restrict" }),
     gender: text("gender").$type<Gender>(),
     /** 在宅勤務比率(%) */
     remoteRatio: smallint("remote_ratio"),
@@ -85,6 +88,8 @@ export const hrProfiles = hr.table(
     ...timestamps(),
   },
   (t) => [
+    check("profiles_supervisor_not_self", sql`${t.supervisorEmployeeId} is null or ${t.supervisorEmployeeId} <> ${t.employeeId}`),
+    index("profiles_supervisor_employee_id_idx").on(t.supervisorEmployeeId),
     check("profiles_gender_check", sql`${t.gender} is null or ${t.gender} in ('male', 'female', 'other')`),
     check("profiles_remote_ratio_check", sql`${t.remoteRatio} is null or ${t.remoteRatio} between 0 and 100`),
     check("profiles_overtime_check", sql`${t.overtimeHours} is null or ${t.overtimeHours} >= 0`),

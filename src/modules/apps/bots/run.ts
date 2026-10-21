@@ -6,7 +6,7 @@ import { BOT_KIND_DEFS, type Composed } from "./kinds";
 import { fetchJmaForecast } from "./rain";
 import { botsBots, botsRuns, type Bot, type BotRunStatus } from "./schema";
 
-// Bot の実行(docs/DESIGN.md 38 章)。定時の実行(cron)と、画面の「試しに送る」から呼ぶ。サーバー側専用。
+// Bot の実行(docs/DESIGN.md 39 章)。定時の実行(cron)と、画面の「試しに送る」から呼ぶ。サーバー側専用。
 
 export type RunOutcome = { botId: string; name: string; status: Exclude<BotRunStatus, "running">; message: string };
 
