@@ -2,9 +2,11 @@ import Link from "next/link";
 import { requireGlobalPermission } from "@/modules/core/access";
 import { requireAppAccess } from "@/modules/core/apps";
 import { LINK_CLASS, PageHeading } from "@/modules/core/shared/ui/form";
+import { googleDocId } from "../logic";
 import { MANAGE_PERMISSION, manifest } from "../manifest";
 import { listBooksAdmin } from "../queries";
 import { BookForm } from "./book-form";
+import { SyncButton } from "./sync-button";
 
 const dateTime = new Intl.DateTimeFormat("ja-JP", {
   timeZone: "Asia/Tokyo",
@@ -12,7 +14,10 @@ const dateTime = new Intl.DateTimeFormat("ja-JP", {
   timeStyle: "short",
 });
 
-/** 教科書の管理(公開・見られる人・表示)。kyokasho.books.manage(全社)が必要。中身の取り込みはコマンドで行う。 */
+/**
+ * 教科書の管理(公開・見られる人・表示)。kyokasho.books.manage(全社)が必要。
+ * 中身は、元の Google ドキュメントから毎日自動で取り込む(「今すぐ取り込む」もできる)。新しい教科書はコマンドで取り込む。
+ */
 export async function ManagePage() {
   await requireAppAccess(manifest.appKey);
   await requireGlobalPermission(MANAGE_PERMISSION);
@@ -22,7 +27,7 @@ export async function ManagePage() {
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-8 px-4 py-8 md:px-8 md:py-10">
       <PageHeading
         title="教科書の管理"
-        description="教科書ごとに、公開するか・見られる人・一覧での表示を決めます。中身は Google ドキュメントから取り込みます(取り込み直すと、ここの設定はそのまま残ります)。"
+        description="教科書ごとに、公開するか・見られる人・一覧での表示を決めます。中身は、元の Google ドキュメントが変わっていれば、毎朝 3 時ごろに自動で取り込み直します(ここの設定とツッコミはそのまま残ります)。"
         aside={
           <Link href="/apps/kyokasho" className={LINK_CLASS}>
             ‹ 教科書の一覧へ
@@ -45,6 +50,20 @@ export async function ManagePage() {
                 <p className="text-brand04 text-xs">
                   {book.slug} ・ 全 {book.chapterCount} 章 ・ 取り込み {dateTime.format(book.importedAt)}
                 </p>
+              </div>
+              <div className="bg-bg01 flex flex-col gap-2 p-3 text-sm">
+                {googleDocId(book.sourceUrl) ? (
+                  <>
+                    <p className="text-brand04 text-xs">
+                      元の Google ドキュメントと毎日同期しています。直してすぐに載せたいときは、次のボタンで取り込めます。
+                    </p>
+                    <SyncButton bookId={book.id} />
+                  </>
+                ) : (
+                  <p className="text-brand04 text-xs">
+                    下の「元の Google ドキュメントの URL」を入れて保存すると、毎日自動で取り込むようになります。
+                  </p>
+                )}
               </div>
               <BookForm book={book} audiences={audiences} />
             </li>
