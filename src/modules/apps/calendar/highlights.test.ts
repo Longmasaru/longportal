@@ -4,6 +4,7 @@ import { addDays, diffDays } from "@/modules/core/shared/date";
 import { dailyNote } from "./daily-notes";
 import {
   anniversaryDate,
+  birthdaysOn,
   anniversaryYears,
   nextLongHoliday,
   nextWorkday,
@@ -104,4 +105,23 @@ test("今日のひとこと: 決まった日の行事と、どの日にも何か
   for (let d = "2026-01-01"; d.startsWith("2026"); d = addDays(d, 1)) {
     assert.ok(dailyNote(d).length > 0, d);
   }
+});
+
+test("誕生日: 本人は「お誕生日おめでとう」、ほかの人は名前で(2/29 生まれは平年 2/28)", () => {
+  const others = [
+    { employeeId: "a", name: "山田 太郎", birthDate: "1990-10-21" },
+    { employeeId: "b", name: "佐藤 花子", birthDate: "1985-10-21" },
+    { employeeId: "c", name: "鈴木 一郎", birthDate: "2000-02-29" },
+  ];
+  assert.deepEqual(birthdaysOn(others, "2026-10-21").map((p) => p.employeeId), ["a", "b"]);
+  assert.deepEqual(birthdaysOn(others, "2026-02-28").map((p) => p.employeeId), ["c"]);
+  assert.deepEqual(birthdaysOn(others, "2028-02-29").map((p) => p.employeeId), ["c"]);
+  assert.deepEqual(birthdaysOn(others, "2028-02-28"), []);
+
+  assert.deepEqual(todaysHighlights("2026-10-21", { birthDate: "1980-10-21", others }), [
+    { kind: "birthday" },
+    { kind: "birthdays", names: ["山田 太郎", "佐藤 花子"] },
+  ]);
+  // 権限のない人(others を渡さない)には、ほかの人の誕生日は出ない
+  assert.deepEqual(todaysHighlights("2026-10-21", { birthDate: "1980-01-01" }), []);
 });

@@ -15,6 +15,10 @@ export function highlightText(h: Highlight): string {
     }
     case "anniversary":
       return `今日で入社${h.years}年です。いつもありがとうございます。`;
+    case "birthday":
+      return "お誕生日おめでとうございます。";
+    case "birthdays":
+      return `今日は ${h.names.map((n) => `${n}さん`).join("・")} の誕生日です。`;
     case "payday":
       return "今日は給料日です。";
   }
@@ -40,7 +44,15 @@ export function HighlightList({ items }: { items: Highlight[] }) {
           <span
             className={`shrink-0 px-1.5 text-xs leading-5 font-bold text-white ${isImportant(h) ? "bg-brand03" : "bg-brand01"}`}
           >
-            {h.kind === "anniversary" ? "周年" : h.kind === "payday" ? "給料日" : isImportant(h) ? "出勤日" : "連休"}
+            {h.kind === "anniversary"
+              ? "周年"
+              : h.kind === "birthday" || h.kind === "birthdays"
+                ? "誕生日"
+                : h.kind === "payday"
+                  ? "給料日"
+                  : isImportant(h)
+                    ? "出勤日"
+                    : "連休"}
           </span>
           <span className="text-brand01 font-bold">{highlightText(h)}</span>
         </li>

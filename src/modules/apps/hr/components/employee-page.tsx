@@ -72,7 +72,7 @@ function Summary({
 }) {
   const primary = profile.assignments[0];
   const tenure = tenureOn(profile.hiredOn, today);
-  const birth = sheet.profile?.birthDate;
+  const birth = sheet.birthDate;
   const latest = sheet.conditions[0];
   const expired = sheet.qualifications.filter((q) => q.expiresOn && q.expiresOn < today).length;
 
