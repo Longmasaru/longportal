@@ -2,6 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { and, count, eq, gt, isNull, sql } from "drizzle-orm";
 import { db } from "@/db/client";
 import { appBaseUrl, sendMail } from "../mail";
+import { canSkipCurrentPassword } from "./password-policy";
 import { TOKEN_TTL_MINUTES, maskEmail } from "./recovery-policy";
 import { authTokens, users, type AuthTokenPurpose } from "./schema";
 
@@ -59,11 +60,15 @@ export async function consumeToken(
   return row ?? null;
 }
 
-/** トークンが今使えるか(使用済みにはしない。再設定の画面を出す前の確認用)。 */
-export async function peekToken(token: string, purpose: AuthTokenPurpose): Promise<boolean> {
+/**
+ * トークンが今使えるなら、その人のログイン ID を返す(使用済みにはしない。再設定の画面を出す前の確認用)。
+ * ログイン ID は、ブラウザのパスワード保存が、どのアカウントのパスワードかを知るために使う。
+ */
+export async function peekToken(token: string, purpose: AuthTokenPurpose): Promise<string | null> {
   const [row] = await db
-    .select({ id: authTokens.id })
+    .select({ loginId: users.loginId })
     .from(authTokens)
+    .innerJoin(users, eq(users.id, authTokens.userId))
     .where(
       and(
         eq(authTokens.tokenHash, hashToken(token)),
@@ -72,7 +77,7 @@ export async function peekToken(token: string, purpose: AuthTokenPurpose): Promi
         gt(authTokens.expiresAt, sql`now()`),
       ),
     );
-  return Boolean(row);
+  return row?.loginId ?? null;
 }
 
 /** 直近 1 時間に発行した、同じ目的のトークンの数(送りすぎの防止)。 */
@@ -162,4 +167,11 @@ export async function getEmailStatus(userId: string): Promise<{ email: string | 
     .from(users)
     .where(eq(users.id, userId));
   return { email: row?.email ?? null, verified: Boolean(row?.email && row.verifiedAt) };
+}
+
+/** パスワードの変更で、現在のパスワードを聞かなくてよいか(初回ログインの直後。password-policy の規則)。 */
+export async function canSkipCurrentPasswordFor(userId: string, mustChangePassword: boolean): Promise<boolean> {
+  if (!mustChangePassword) return false;
+  const [row] = await db.select({ lastLoginAt: users.lastLoginAt }).from(users).where(eq(users.id, userId));
+  return canSkipCurrentPassword(mustChangePassword, row?.lastLoginAt ?? null);
 }

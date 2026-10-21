@@ -7,5 +7,5 @@ export { LoginForm } from "./components/login-form";
 export { PasswordForm } from "./components/password-form";
 export { AuthShell } from "./components/auth-shell";
 export { ForgotPasswordForm, ResetPasswordForm, EmailSettingsForm } from "./components/recovery-forms";
-export { getEmailStatus, peekToken, verifyEmailToken } from "./recovery";
+export { canSkipCurrentPasswordFor, getEmailStatus, peekToken, verifyEmailToken } from "./recovery";
 export { tokenSchema } from "./recovery-policy";

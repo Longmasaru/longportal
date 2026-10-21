@@ -4,12 +4,12 @@ import { AuthShell, ResetPasswordForm, peekToken, tokenSchema } from "@/modules/
 export default async function ResetPasswordPage(props: PageProps<"/reset-password">) {
   const { token } = await props.searchParams;
   const parsed = tokenSchema.safeParse(token);
-  const usable = parsed.success && (await peekToken(parsed.data, "password_reset"));
+  const loginId = parsed.success ? await peekToken(parsed.data, "password_reset") : null;
 
   return (
     <AuthShell title="パスワードの再設定">
-      {usable ? (
-        <ResetPasswordForm token={parsed.data} />
+      {parsed.success && loginId ? (
+        <ResetPasswordForm token={parsed.data} loginId={loginId} />
       ) : (
         <div className="flex flex-col gap-5 text-sm">
           <p className="text-brand01 leading-relaxed">

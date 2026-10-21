@@ -54,12 +54,12 @@ export function FormNotice({
     info: "border-link bg-bg01",
   }[tone];
   return (
-    <p
+    <div
       role={tone === "error" ? "alert" : "status"}
       className={`text-brand01 border-l-4 px-3 py-2 text-sm ${style}`}
     >
       {children}
-    </p>
+    </div>
   );
 }
 
