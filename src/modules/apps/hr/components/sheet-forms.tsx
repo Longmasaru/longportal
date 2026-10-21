@@ -73,6 +73,7 @@ function ErrorText({ state }: { state: RecordFormState }) {
 /**
  * 章のカード。見る表示(view)と、管理する人だけの「編集」(章の項目をまとめて保存)を切り替える。
  * fields を渡さなければ編集ボタンを出さない。section が "abilities" のときは能力の 5 項目を保存する。
+ * editHeader は、編集中もフォームの上に出しておく表示(ここでは変えない項目。誰を編集しているかわかるように)。
  */
 export function SectionCard({
   id,
@@ -82,12 +83,14 @@ export function SectionCard({
   employeeId,
   section,
   fields,
+  editHeader,
   children,
 }: {
   id: string;
   title: string;
   note?: string;
   view: ReactNode;
+  editHeader?: ReactNode;
   employeeId: string;
   section: string;
   fields?: FieldSpec[];
@@ -113,6 +116,7 @@ export function SectionCard({
           </button>
         ) : null}
       </div>
+      {editing && fields && editHeader ? <div className="bg-bg01 p-3">{editHeader}</div> : null}
       {editing && fields ? (
         <form action={action} className="flex flex-col gap-4">
           <input type="hidden" name="employeeId" value={employeeId} />
