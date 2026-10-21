@@ -970,7 +970,7 @@ migration `0021_calendar_company_events` を本番 DB に適用 → `sync:manife
   - **定時のお知らせ**(`notice`): 選んだ曜日に、決めた文を送る。
 - **送り方**: LINE WORKS の Bot は、今ある「LONG PORTAL」(35 章の `core/lineworks`、鍵は `LINEWORKS_*`)を共用する。送り先は Bot ごとの channelId(`npm run lineworks:setup` で部屋を作って表示された値を、画面に入れる)。画面の「試しに送る」で、その場で 1 通送って確かめられる(本文の頭に【試し】。記録には残さない)。
 - **定時の実行**: `vercel.json` の cron が毎朝 6 時(JST。`0 21 * * *` UTC)に `/api/cron/bots` を呼ぶ(`CRON_SECRET` で保護。30 章と同じ)。有効な Bot を 1 つずつ実行し、`bots.runs` に結果(sent / skipped / failed)を残す。`(bot_id, run_date)` は一意で、同じ日に 2 回送らない(先に行を入れて、入れられたときだけ送る)。Vercel の Hobby プランの cron は 1 日 1 回・時刻は 1 時間の幅があるので、送る時刻は Bot ごとに選べない(Pro にしたら、時刻の設定を足す)。
-- **テーブル**(`pgSchema("bots")`、migration `0023_bots_app`): `bots.bots`(名前・種類・channelId・設定(jsonb)・有効・作った人・作成/更新日時)、`bots.runs`(Bot・実行日(JST)・結果・送った本文かエラー・日時)。
+- **テーブル**(`pgSchema("bots")`、migration `0025_bots_app`): `bots.bots`(名前・種類・channelId・設定(jsonb)・有効・作った人・作成/更新日時)、`bots.runs`(Bot・実行日(JST)・結果・送った本文かエラー・日時)。
 - **監査ログ**: Bot の作成・変更・削除を、同じトランザクションで記録する(`bots.bot.create` / `update` / `delete`)。
 - **まだしないこと**: 話しかけると答える Bot(LINE WORKS からの受け取り口 `callback`。`X-WORKS-Signature` の確認が要る)、Bot ごとの別の LINE WORKS Bot(名前・アイコンを分ける)、送る時刻の設定。
-- **本番に出すとき**: migration `0023_bots_app` を本番に適用 → `sync:manifests`(アプリと権限 `bots.manage`) → コードを main に入れる → `/admin/apps` で「Bot」を有効にし、見せる相手を Bot 管理者に限る → ロール「Bot 管理者」を作って 3 人に割り当てる → 雨予報の部屋の channelId を入れて「試しに送る」。
+- **本番に出すとき**: migration `0025_bots_app` を本番に適用 → `sync:manifests`(アプリと権限 `bots.manage`) → コードを main に入れる → `/admin/apps` で「Bot」を有効にし、見せる相手を Bot 管理者に限る → ロール「Bot 管理者」を作って 3 人に割り当てる → 雨予報の部屋の channelId を入れて「試しに送る」。
