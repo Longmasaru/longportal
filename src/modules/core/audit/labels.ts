@@ -33,6 +33,7 @@ export const AUDIT_ACTION_LABEL: Record<string, string> = {
   "app.update": "アプリの設定の変更",
   "app.delete": "アプリの登録の削除",
   "arigato.card.delete": "ありがとうカードの削除(管理)",
+  "meyasubako.post.delete": "目安箱の投稿の削除(管理)",
   "calendar.event.create": "会社カレンダー: 全社の予定の登録",
   "calendar.event.update": "会社カレンダー: 全社の予定の変更",
   "calendar.event.delete": "会社カレンダー: 全社の予定の削除",

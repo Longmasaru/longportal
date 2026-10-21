@@ -95,7 +95,8 @@
 4. **ありがとうカード**(2026-10-15 実装。DESIGN.md 34 章。`/apps/arigato`、集計は `/apps/arigato/stats`。「育てて、育つ。」を風土として根づかせる最初の参加型アプリ): 2026-10-17 に「ありがとう番付」(`/apps/arigato/banzuke`。四股名・年六場所・白星・昇進・伝達式・今週の一枚スタンプカード)を追加し、テーブル `arigato.shikona`・`arigato.banzuke` も同じ migration に含めた。2026-10-17 に main(0018 まで)へそろえ、migration は `0019_arigato_cards` に作り直した。本番に出すときは、コードを `main` に送る前に migration `0019_arigato_cards` を本番 DB に適用し、`npm run sync:manifests`(権限 `arigato.stats.view`・`arigato.cards.manage` とアプリの登録)を実行してから、`/admin/apps` で有効にする。集計・削除の権限は、管理画面でロールに付ける(system_admin には sync で自動付与)。
 5. **会社カレンダー 第 2 弾**(2026-10-21 実装。PR #29。DESIGN.md 38 章。全社の予定・参加の呼びかけ): 開発 DB に migration `0021_calendar_company_events` を適用 → `npm run sync:manifests`(権限 `calendar.events.manage`)→ 担当の人のロールに権限を付ける → 動作確認。本番は、**コードを `main` に入れる前に** 0021 を本番 DB に適用し、`npm run sync:manifests` を実行する(0021 はテーブルの追加だけで、既存のデータは変えない)。
 6. **TODO の依頼**(2026-10-21 実装。ブランチ `claude/todo-requests`。DESIGN.md 41 章): TODO アプリから、ほかの社員に TODO を頼む(相手の「自分のタスク」に「○○さんから」で入る。完了・お返し(ひとこと任意)。頼んだ人は「頼んだこと」で状態(未完了・完了・お返し)を見て、完了するまで変更・取り下げ・頼み直し)。見られるのは頼んだ人と頼まれた人だけ(管理者も見ない)。頼まれた人のホームの一番上に「○○さんから依頼が届きました」(確認・完了・お返しまで)。本人の TODO と頼まれた依頼の期限を、本人の会社カレンダーに表示。メール・LINE WORKS の通知はなし。専用の権限なし。migration `0026_todo_requests`(`todo.todos` に列を足すだけ。既存のデータは変えない)。手順: 開発 DB に 0026 を適用 → `npm run sync:manifests` → 動作確認。本番は、**コードを `main` に入れる前に** 0026 を本番 DB に適用し、`npm run sync:manifests` を実行する。TODO アプリは本番のアプリ管理でまだ「無効」なので、使い始めるときに有効にし、表示する相手を決める。
-7. 以後: 教育・スキル、改善提案、出し直し管理、マニュアル、設備管理など。
+7. **目安箱**(2026-10-21 実装。DESIGN.md 42 章。`/apps/meyasubako`): 要望・ヒヤリハット・困りごと・欲しいものなどを、スマホから音声入力・写真つきで送る。公開範囲(みんなに見えてOK / 管理者だけ)とカテゴリは必ず選ぶ。全投稿は `meyasubako.posts.manage`(system_admin に自動付与)、リーダー宛ては `meyasubako.leader.respond`(部署・拠点のスコープ)。本番 DB に適用・`sync:manifests` 済み(2026-10-21。本番では 0026 の名前で適用。SQL と日時は同じ)。残り: `/admin/apps` で有効にする。
+8. 以後: 教育・スキル、改善提案、出し直し管理、マニュアル、設備管理など。
 
 ### 社員にアカウントを配る前のチェック(未了)
 - ~~見本データの除去~~(2026-10-14 に完了)。お知らせ・アプリ・社内リンクの実装(手順 6・7)。
