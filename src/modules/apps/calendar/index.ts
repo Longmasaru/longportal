@@ -5,3 +5,4 @@ export { getHomeWeek } from "./home-week";
 export { CalendarEventsPage, CalendarEventPage } from "./components/events-pages";
 export { manifest } from "./manifest";
 export { parseMonth } from "./logic";
+export type { ExtraDayItem } from "./types";

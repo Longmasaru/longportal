@@ -2,7 +2,7 @@
 
 別の環境(デスクトップ版の Claude など)や新しいセッションで、これまでの作業を**途切れなく**続けるための文書。
 設計の正は `docs/DESIGN.md`、こちらは「経緯・約束事・運用手順・落とし穴・現在地」をまとめたもの。
-最終更新: 2026-10-18(本人によるパスワード再設定(メール)まで。それ以前の経緯は 4 章)。
+最終更新: 2026-10-21(TODO の依頼まで。それ以前の経緯は 4 章)。
 
 ---
 
@@ -55,7 +55,7 @@
 | ログイン強化 | 入力長の上限(ID 50 / PW 200)、失敗回数の制限(ID は 15 分 5 回、接続元は 15 分 50 回。`core.login_attempts`)、セキュリティヘッダー |
 | ファイル保管 | Cloudflare R2 の基盤(`core/storage`、署名付き URL、接続確認 `npm run r2:check`、CORS 設定済み) |
 | 最初の業務アプリ | `apps/sodatsu`(人事ポリシー「育てて、育つ。」の紹介。`/apps/sodatsu`、閲覧のみ・DB なし・専用権限なし。記入欄とふりかえりは端末のブラウザにだけ保存)。サイドバーへの表示は、手順 6 までは `queries.ts` の `listVisibleApps` が固定で返している |
-| 会社カレンダー | `apps/calendar`(`/apps/calendar`。会社の休日・出勤日の月表示、今日・次の休み・残りの出勤日数、年間のまとめ。休日データは `company-calendar.ts` にコードで持つ(2026 年分のみ。紙のカレンダーを写したもので、`logic.test.ts` で照合)。本人だけのメモ・予定は `calendar.entries`(migration `0011_calendar_entries`、`user_id` でスコープ)。専用権限なし。アプリの登録簿(`sync:manifests`)に登録し、入場は `requireAppAccess`。本番で使うには、アプリ管理(`/admin/apps`)で有効にし、表示する相手を決める。2026-10-17 に第 1 弾(連休のカウントダウン・出勤土曜の前日・明日から連休・本人の入社の周年・給料日(毎月 29 日、休みなら前の出勤日)・今日のひとこと。ホームの一番上にも出す。DESIGN.md 33 章。DB の変更なし)。2026-10-21 に誕生日(生年月日を社員マスタ `core.employees.birth_date` に移し、本人には当日のお祝い、権限 `calendar.birthdays.view` の人には全社員の誕生日。DESIGN.md 37 章、migration 0020、一括登録 `npm run db:import-birth-dates`。本番反映済み)。同日、第 2 弾をブランチ `claude/calendar-round2`(PR #29)で実装(DESIGN.md 38 章): 全社の予定(一斉有給取得日・臨時休業は休みとして数える(一斉有給は「休み + 有給の印」で通知なし)、行事・予定)、参加の呼びかけ(名指し・Audience、参加/不参加の返事、ホームとカレンダーに返事のお願い)。権限 `calendar.events.manage`、migration `0021_calendar_company_events`(テーブルの追加だけ。本番は未適用) |
+| 会社カレンダー | `apps/calendar`(`/apps/calendar`。会社の休日・出勤日の月表示、今日・次の休み・残りの出勤日数、年間のまとめ。休日データは `company-calendar.ts` にコードで持つ(2026 年分のみ。紙のカレンダーを写したもので、`logic.test.ts` で照合)。本人だけのメモ・予定は `calendar.entries`(migration `0011_calendar_entries`、`user_id` でスコープ)。専用権限なし。アプリの登録簿(`sync:manifests`)に登録し、入場は `requireAppAccess`。本番で使うには、アプリ管理(`/admin/apps`)で有効にし、表示する相手を決める。2026-10-17 に第 1 弾(連休のカウントダウン・出勤土曜の前日・明日から連休・本人の入社の周年・給料日(毎月 29 日、休みなら前の出勤日)・今日のひとこと。ホームの一番上にも出す。DESIGN.md 33 章。DB の変更なし)。2026-10-21 に誕生日(生年月日を社員マスタ `core.employees.birth_date` に移し、本人には当日のお祝い、権限 `calendar.birthdays.view` の人には全社員の誕生日。DESIGN.md 37 章、migration 0020、一括登録 `npm run db:import-birth-dates`。本番反映済み)。同日、第 2 弾をブランチ `claude/calendar-round2`(PR #29)で実装(DESIGN.md 38 章): 全社の予定(一斉有給取得日・臨時休業は休みとして数える(一斉有給は「休み + 有給の印」で通知なし)、行事・予定)、参加の呼びかけ(名指し・Audience、参加/不参加の返事、ホームとカレンダーに返事のお願い)。権限 `calendar.events.manage`、migration `0021_calendar_company_events`(テーブルの追加だけ。本番は未適用)。同日、TODO の依頼(DESIGN.md 39 章、ブランチ `claude/todo-requests`)で、本人の TODO と頼まれた依頼の期限を、本人のカレンダーに出すようにした(`src/app` のルートが `extraDayItems` で渡す。カレンダーは TODO を参照しない) |
 
 ### 社員データ(2026-10-14)
 - 社内サーバーの `社員名簿.xls`(「名簿 (2)」シート)から、在籍 54 人を**開発 DB に取り込み済み**(`npm run db:import-employees`、DESIGN.md 21 章)。**本番は未実施**。
@@ -94,7 +94,8 @@
 3. ~~**手順 8**~~(2026-10-16 完了・本番反映済み。DESIGN.md 25 章。`/apps/todo`。カテゴリは仕事向け 9 種、Claude Haiku 5.5 で自動分類、添付は 25MB まで。本番のアプリ管理ではまだ「無効」。Vercel Production に `ANTHROPIC_API_KEY`(Sensitive)、手元の `.env.local` にも同名のキーを登録済み): TODO アプリの移植(TODOSample から。TODO は `user_id` に紐づく個人データ。Claude による自動分類、R2 添付ファイルも含む)。添付のメタ情報テーブル(ファイル名・サイズ・所有者)は、このときに migration で追加する。
 4. **ありがとうカード**(2026-10-15 実装。DESIGN.md 34 章。`/apps/arigato`、集計は `/apps/arigato/stats`。「育てて、育つ。」を風土として根づかせる最初の参加型アプリ): 2026-10-17 に「ありがとう番付」(`/apps/arigato/banzuke`。四股名・年六場所・白星・昇進・伝達式・今週の一枚スタンプカード)を追加し、テーブル `arigato.shikona`・`arigato.banzuke` も同じ migration に含めた。2026-10-17 に main(0018 まで)へそろえ、migration は `0019_arigato_cards` に作り直した。本番に出すときは、コードを `main` に送る前に migration `0019_arigato_cards` を本番 DB に適用し、`npm run sync:manifests`(権限 `arigato.stats.view`・`arigato.cards.manage` とアプリの登録)を実行してから、`/admin/apps` で有効にする。集計・削除の権限は、管理画面でロールに付ける(system_admin には sync で自動付与)。
 5. **会社カレンダー 第 2 弾**(2026-10-21 実装。PR #29。DESIGN.md 38 章。全社の予定・参加の呼びかけ): 開発 DB に migration `0021_calendar_company_events` を適用 → `npm run sync:manifests`(権限 `calendar.events.manage`)→ 担当の人のロールに権限を付ける → 動作確認。本番は、**コードを `main` に入れる前に** 0021 を本番 DB に適用し、`npm run sync:manifests` を実行する(0021 はテーブルの追加だけで、既存のデータは変えない)。
-6. 以後: 教育・スキル、改善提案、出し直し管理、マニュアル、設備管理など。
+6. **TODO の依頼**(2026-10-21 実装。ブランチ `claude/todo-requests`。DESIGN.md 41 章): TODO アプリから、ほかの社員に TODO を頼む(相手の「自分のタスク」に「○○さんから」で入る。完了・お返し(ひとこと任意)。頼んだ人は「頼んだこと」で状態(未完了・完了・お返し)を見て、完了するまで変更・取り下げ・頼み直し)。見られるのは頼んだ人と頼まれた人だけ(管理者も見ない)。頼まれた人のホームの一番上に「○○さんから依頼が届きました」(確認・完了・お返しまで)。本人の TODO と頼まれた依頼の期限を、本人の会社カレンダーに表示。メール・LINE WORKS の通知はなし。専用の権限なし。migration `0026_todo_requests`(`todo.todos` に列を足すだけ。既存のデータは変えない)。手順: 開発 DB に 0026 を適用 → `npm run sync:manifests` → 動作確認。本番は、**コードを `main` に入れる前に** 0026 を本番 DB に適用し、`npm run sync:manifests` を実行する。TODO アプリは本番のアプリ管理でまだ「無効」なので、使い始めるときに有効にし、表示する相手を決める。
+7. 以後: 教育・スキル、改善提案、出し直し管理、マニュアル、設備管理など。
 
 ### 社員にアカウントを配る前のチェック(未了)
 - ~~見本データの除去~~(2026-10-14 に完了)。お知らせ・アプリ・社内リンクの実装(手順 6・7)。

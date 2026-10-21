@@ -2,10 +2,20 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { BUTTON_PRIMARY, BUTTON_SECONDARY, FIELD_CLASS, LABEL_CLASS, StatusTag } from "@/modules/core/shared/ui/form";
-import { createTodoAction, deleteTodoAction, restoreTodoAction, updateTodoAction } from "../actions";
-import type { CategoryRow, TodoRow } from "../queries";
+import {
+  acknowledgeRequestAction,
+  createTodoAction,
+  deleteTodoAction,
+  restoreTodoAction,
+  returnRequestAction,
+  updateTodoAction,
+} from "../actions";
+import type { AssigneeOption, CategoryRow, SentRequestRow, TodoRow } from "../queries";
+import { RETURN_REASON_MAX, personLabel } from "../requests";
 import type { TodoPriority } from "../schema";
 import { Attachments } from "./attachments";
+import { DUE_TONE_CLASS, describeDueDate } from "./format";
+import { RequestPanel } from "./request-panel";
 
 // TODO の画面(TODOSample の機能を、ポータルのデザインで作り直したもの。docs/DESIGN.md 25 章)。
 
@@ -16,32 +26,10 @@ const FALLBACK_CATEGORY: CategoryRow = { code: "other", label: "その他", icon
 type SortKey = "added" | "due" | "priority";
 const SORT_LABEL: Record<SortKey, string> = { added: "追加順", due: "期限順", priority: "優先度" };
 
+type Tab = "mine" | "sent";
+
 type ToastTone = "success" | "error";
 type Toast = { id: number; message: string; tone: ToastTone; undo?: () => void | Promise<void> };
-type DueTone = "overdue" | "today" | "soon" | "normal";
-const DUE_TONE_CLASS: Record<DueTone, string> = {
-  overdue: "text-brand03 font-bold",
-  today: "text-brand01 font-bold",
-  soon: "text-brand04",
-  normal: "text-brand04",
-};
-
-/** 暦日どうしの差(日)。`YYYY-MM-DD` を UTC の日付として比べる(時差の影響を受けない)。 */
-function diffDays(from: string, to: string): number {
-  const ms = (d: string) => Date.UTC(Number(d.slice(0, 4)), Number(d.slice(5, 7)) - 1, Number(d.slice(8, 10)));
-  return Math.round((ms(to) - ms(from)) / 86_400_000);
-}
-
-/** 期限を「3日超過」「今日」のような表記と、強調の度合いにする(今日は JST)。 */
-function describeDueDate(dueDate: string, today: string): { label: string; tone: DueTone } {
-  const d = diffDays(today, dueDate);
-  if (d < 0) return { label: `${-d}日超過`, tone: "overdue" };
-  if (d === 0) return { label: "今日", tone: "today" };
-  if (d === 1) return { label: "明日", tone: "soon" };
-  if (d <= 7) return { label: `あと${d}日`, tone: "soon" };
-  return { label: dueDate.replaceAll("-", "."), tone: "normal" };
-}
-
 function Heading({ en, ja }: { en: string; ja: string }) {
   return (
     <h2 className="flex items-baseline gap-3">
@@ -55,16 +43,28 @@ export function TodoBoard({
   initialTodos,
   categories,
   today,
+  initialSent,
+  assignees,
 }: {
   initialTodos: TodoRow[];
   categories: CategoryRow[];
   today: string;
+  /** 本人が頼んだ依頼(docs/DESIGN.md 41 章) */
+  initialSent: SentRequestRow[];
+  /** 依頼の相手の候補 */
+  assignees: AssigneeOption[];
 }) {
+  const [tab, setTab] = useState<Tab>("mine");
+  const [sent, setSent] = useState<SentRequestRow[]>(initialSent);
+  const sentOpen = sent.filter((r) => r.state !== "done").length;
   const [todos, setTodos] = useState<TodoRow[]>(initialTodos);
+  const [returning, setReturning] = useState<TodoRow | null>(null);
+  const [returnReason, setReturnReason] = useState("");
+  const [returnPending, setReturnPending] = useState(false);
   const [input, setInput] = useState("");
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [draft, setDraft] = useState<Omit<TodoRow, "id" | "done">>({
+  const [draft, setDraft] = useState<Omit<TodoRow, "id" | "done" | "request">>({
     text: "",
     description: "",
     priority: "medium",
@@ -109,7 +109,9 @@ export function TodoBoard({
     const target = todos.find((t) => t.id === id);
     if (!target) return;
     const done = !target.done;
-    setTodos((prev) => prev.map((t) => (t.id === id ? { ...t, done } : t)));
+    // 頼まれた依頼は、何か操作すると「確認しました」も付く(サーバー側と同じ)
+    const ack = (t: TodoRow): TodoRow => (t.request ? { ...t, request: { ...t.request, acknowledged: true } } : t);
+    setTodos((prev) => prev.map((t) => (t.id === id ? ack({ ...t, done }) : t)));
     showToast(done ? "完了しました" : "未完了に戻しました");
     try {
       await updateTodoAction(id, { done });
@@ -137,9 +139,8 @@ export function TodoBoard({
     }
     showToast("削除しました", "success", async () => {
       try {
-        const { id: _omit, ...rest } = removed;
-        void _omit;
-        const restored = await restoreTodoAction(rest);
+        const { text, done, description, priority, category, dueDate } = removed;
+        const restored = await restoreTodoAction({ text, done, description, priority, category, dueDate });
         setTodos((prev) => {
           const next = [...prev];
           next.splice(index, 0, restored);
@@ -153,7 +154,13 @@ export function TodoBoard({
 
   const openDetails = (t: TodoRow) => {
     setEditingId(t.id);
-    setDraft({ text: t.text, description: t.description, priority: t.priority, category: t.category, dueDate: t.dueDate });
+    setDraft({
+      text: t.text,
+      description: t.description,
+      priority: t.priority,
+      category: t.category,
+      dueDate: t.dueDate,
+    });
   };
   const closeDetails = () => setEditingId(null);
 
@@ -161,9 +168,12 @@ export function TodoBoard({
     if (editingId === null) return;
     const text = draft.text.trim();
     if (!text) return;
-    const fields = { ...draft, text };
     const before = todos.find((t) => t.id === editingId);
-    setTodos((prev) => prev.map((t) => (t.id === editingId ? { ...t, ...fields } : t)));
+    // 頼まれた依頼は、カテゴリと優先度だけを変えられる(タスク名・詳細・期限は頼んだ人のもの)
+    const fields = before?.request ? { priority: draft.priority, category: draft.category } : { ...draft, text };
+    const apply = (t: TodoRow): TodoRow =>
+      t.request ? { ...t, ...fields, request: { ...t.request, acknowledged: true } } : { ...t, ...fields };
+    setTodos((prev) => prev.map((t) => (t.id === editingId ? apply(t) : t)));
     const id = editingId;
     closeDetails();
     showToast("保存しました");
@@ -172,6 +182,43 @@ export function TodoBoard({
     } catch {
       if (before) setTodos((prev) => prev.map((t) => (t.id === id ? before : t)));
       showToast("保存に失敗しました", "error");
+    }
+  };
+
+  const acknowledge = async (id: string) => {
+    setTodos((prev) =>
+      prev.map((t) => (t.id === id && t.request ? { ...t, request: { ...t.request, acknowledged: true } } : t)),
+    );
+    try {
+      const result = await acknowledgeRequestAction(id);
+      if (!result.ok) showToast(result.error, "error");
+    } catch {
+      showToast("更新に失敗しました", "error");
+    }
+  };
+
+  const openReturn = (t: TodoRow) => {
+    setReturning(t);
+    setReturnReason("");
+  };
+
+  const submitReturn = async () => {
+    if (!returning || returnPending) return;
+    setReturnPending(true);
+    try {
+      const result = await returnRequestAction(returning.id, returnReason);
+      if (!result.ok) {
+        showToast(result.error, "error");
+        return;
+      }
+      const id = returning.id;
+      setTodos((prev) => prev.filter((t) => t.id !== id));
+      showToast(`${personLabel(returning.request?.fromName)}にお返ししました`);
+      setReturning(null);
+    } catch {
+      showToast("お返しできませんでした", "error");
+    } finally {
+      setReturnPending(false);
     }
   };
 
@@ -238,9 +285,39 @@ export function TodoBoard({
                   {due.label}
                 </span>
               ) : null}
+              {t.request ? (
+                <span className="border-brand01 text-brand01 border px-1 text-xs leading-5 font-bold whitespace-nowrap">
+                  {personLabel(t.request.fromName)}から
+                </span>
+              ) : null}
+              {t.request && !t.request.acknowledged && !t.done ? (
+                <span className="bg-brand03 px-1 text-xs leading-5 font-bold whitespace-nowrap text-white">
+                  新しい依頼
+                </span>
+              ) : null}
             </div>
             {t.description ? (
               <p className="text-brand04 mt-1 text-sm leading-relaxed whitespace-pre-wrap">{t.description}</p>
+            ) : null}
+            {t.request && !t.done ? (
+              <div className="mt-1.5 flex gap-4 text-sm">
+                {!t.request.acknowledged ? (
+                  <button
+                    type="button"
+                    onClick={() => void acknowledge(t.id)}
+                    className="text-brand01 hover:text-brand03 font-bold transition-colors"
+                  >
+                    確認しました
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => openReturn(t)}
+                  className="text-brand04 hover:text-brand03 font-bold transition-colors"
+                >
+                  お返しする
+                </button>
+              </div>
             ) : null}
           </div>
           <button
@@ -252,15 +329,20 @@ export function TodoBoard({
           >
             ✎
           </button>
-          <button
-            type="button"
-            onClick={() => deleteTodo(t.id)}
-            aria-label="削除"
-            title="削除"
-            className="text-brand01 hover:text-brand03 shrink-0 p-1.5 transition-colors"
-          >
-            ✕
-          </button>
+          {t.request ? (
+            // 依頼は削除しない(やらない場合は「お返しする」)
+            <span className="w-7 shrink-0" aria-hidden />
+          ) : (
+            <button
+              type="button"
+              onClick={() => deleteTodo(t.id)}
+              aria-label="削除"
+              title="削除"
+              className="text-brand01 hover:text-brand03 shrink-0 p-1.5 transition-colors"
+            >
+              ✕
+            </button>
+          )}
         </div>
       </li>
     );
@@ -274,87 +356,120 @@ export function TodoBoard({
           <span className="text-brand04 text-sm tracking-[0.2em]">タスク管理</span>
         </h1>
         <p className="text-brand04 mt-1 text-sm">
-          あなただけのタスクです(ほかの人には見えません)。追加すると、自動でカテゴリに分けます。
+          自分のタスクは、あなたにしか見えません。追加すると、自動でカテゴリに分けます。ほかの人に頼んだこと・頼まれたことは、頼んだ人と頼まれた人の
+          2 人だけが見られます。
         </p>
       </div>
 
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          void addTodo();
-        }}
-        className="bg-bg01 flex flex-col gap-3 p-4 sm:flex-row"
-      >
-        <input
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          maxLength={200}
-          placeholder="タスクを追加"
-          aria-label="タスクを追加"
-          className={`${FIELD_CLASS} bg-white sm:flex-1`}
-        />
-        <button type="submit" disabled={adding || !input.trim()} className={`${BUTTON_PRIMARY} sm:w-40`}>
-          {adding ? "追加中…" : "追加する"}
-        </button>
-      </form>
-
-      <section aria-labelledby="todo-tasks" className="flex flex-col gap-4">
-        <div id="todo-tasks">
-          <Heading en="TASKS" ja="タスク一覧" />
-        </div>
-        {todos.length > 0 ? (
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex flex-wrap items-center gap-1.5">
-              <button type="button" onClick={() => setFilterCategory(null)} className={chip(filterCategory === null)}>
-                すべて
-              </button>
-              {usedCategories.map((c) => (
-                <button
-                  key={c.code}
-                  type="button"
-                  onClick={() => setFilterCategory(filterCategory === c.code ? null : c.code)}
-                  className={chip(filterCategory === c.code)}
-                  title={c.label}
-                >
-                  {c.icon} {c.label}
-                </button>
-              ))}
-            </div>
-            <div className="flex items-center gap-1.5">
-              {(Object.keys(SORT_LABEL) as SortKey[]).map((k) => (
-                <button key={k} type="button" onClick={() => setSortKey(k)} className={chip(sortKey === k)}>
-                  {SORT_LABEL[k]}
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : null}
-        {active.length === 0 ? (
-          <p className="bg-bg01 text-brand04 px-6 py-12 text-center text-sm">
-            {filterCategory ? `「${categoryOf(filterCategory).label}」のタスクはありません` : "タスクはありません"}
-          </p>
-        ) : (
-          <ul>{active.map(renderItem)}</ul>
-        )}
-      </section>
-
-      {done.length > 0 ? (
-        <section aria-label="完了したタスク" className="bg-bg01 p-4">
+      <div className="border-brand01/20 flex gap-1 border-b" role="tablist" aria-label="表示の切り替え">
+        {(
+          [
+            ["mine", "自分のタスク"],
+            ["sent", `頼んだこと${sentOpen > 0 ? `(${sentOpen})` : ""}`],
+          ] as const
+        ).map(([key, label]) => (
           <button
+            key={key}
             type="button"
-            onClick={() => setShowArchive((v) => !v)}
-            aria-expanded={showArchive}
-            className="group flex w-full items-center justify-between text-left"
+            role="tab"
+            aria-selected={tab === key}
+            onClick={() => setTab(key)}
+            className={`-mb-px border-b-4 px-4 py-2 text-sm font-bold transition-colors ${
+              tab === key ? "border-brand01 text-brand01" : "text-brand04 hover:text-brand03 border-transparent"
+            }`}
           >
-            <Heading en="ARCHIVE" ja={`完了したタスク(${done.length})`} />
-            <span className="text-brand01 group-hover:text-brand03 text-xl transition-colors">
-              {showArchive ? "⌃" : "⌄"}
-            </span>
+            {label}
           </button>
-          {showArchive ? <ul className="mt-4 bg-white px-3">{done.map(renderItem)}</ul> : null}
-        </section>
-      ) : null}
+        ))}
+      </div>
+
+      {tab === "sent" ? (
+        <RequestPanel sent={sent} setSent={setSent} assignees={assignees} today={today} onMessage={showToast} />
+      ) : (
+        <>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              void addTodo();
+            }}
+            className="bg-bg01 flex flex-col gap-3 p-4 sm:flex-row"
+          >
+            <input
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              maxLength={200}
+              placeholder="タスクを追加"
+              aria-label="タスクを追加"
+              className={`${FIELD_CLASS} bg-white sm:flex-1`}
+            />
+            <button type="submit" disabled={adding || !input.trim()} className={`${BUTTON_PRIMARY} sm:w-40`}>
+              {adding ? "追加中…" : "追加する"}
+            </button>
+          </form>
+
+          <section aria-labelledby="todo-tasks" className="flex flex-col gap-4">
+            <div id="todo-tasks">
+              <Heading en="TASKS" ja="タスク一覧" />
+            </div>
+            {todos.length > 0 ? (
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setFilterCategory(null)}
+                    className={chip(filterCategory === null)}
+                  >
+                    すべて
+                  </button>
+                  {usedCategories.map((c) => (
+                    <button
+                      key={c.code}
+                      type="button"
+                      onClick={() => setFilterCategory(filterCategory === c.code ? null : c.code)}
+                      className={chip(filterCategory === c.code)}
+                      title={c.label}
+                    >
+                      {c.icon} {c.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex items-center gap-1.5">
+                  {(Object.keys(SORT_LABEL) as SortKey[]).map((k) => (
+                    <button key={k} type="button" onClick={() => setSortKey(k)} className={chip(sortKey === k)}>
+                      {SORT_LABEL[k]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            {active.length === 0 ? (
+              <p className="bg-bg01 text-brand04 px-6 py-12 text-center text-sm">
+                {filterCategory ? `「${categoryOf(filterCategory).label}」のタスクはありません` : "タスクはありません"}
+              </p>
+            ) : (
+              <ul>{active.map(renderItem)}</ul>
+            )}
+          </section>
+
+          {done.length > 0 ? (
+            <section aria-label="完了したタスク" className="bg-bg01 p-4">
+              <button
+                type="button"
+                onClick={() => setShowArchive((v) => !v)}
+                aria-expanded={showArchive}
+                className="group flex w-full items-center justify-between text-left"
+              >
+                <Heading en="ARCHIVE" ja={`完了したタスク(${done.length})`} />
+                <span className="text-brand01 group-hover:text-brand03 text-xl transition-colors">
+                  {showArchive ? "⌃" : "⌄"}
+                </span>
+              </button>
+              {showArchive ? <ul className="mt-4 bg-white px-3">{done.map(renderItem)}</ul> : null}
+            </section>
+          ) : null}
+        </>
+      )}
 
       {editing ? (
         <div
@@ -372,21 +487,36 @@ export function TodoBoard({
               <span className="font-heading text-brand01 text-2xl font-black tracking-wider">EDIT</span>
               <span className="text-brand04 text-sm tracking-[0.2em]">タスクを編集</span>
             </h2>
-            <div className="mt-6 flex flex-col gap-5">
-              <div>
-                <label htmlFor="todo-edit-text" className={LABEL_CLASS}>
-                  タスク名<span className="bg-brand03 ml-2 px-1 text-xs font-normal text-white">必須</span>
-                </label>
-                <input
-                  id="todo-edit-text"
-                  type="text"
-                  value={draft.text}
-                  onChange={(e) => setDraft((d) => ({ ...d, text: e.target.value }))}
-                  maxLength={200}
-                  autoFocus
-                  className={FIELD_CLASS}
-                />
+            {editing.request ? (
+              <div className="bg-bg01 mt-6 flex flex-col gap-1 p-4 text-sm">
+                <p className="text-brand04">
+                  {personLabel(editing.request.fromName)}
+                  からの依頼です。内容と期限は、頼んだ人だけが変えられます。カテゴリと優先度は、自分用に変えられます。
+                </p>
+                <p className="text-brand01 mt-2 font-bold [overflow-wrap:anywhere]">{editing.text}</p>
+                {editing.dueDate ? <p className="text-brand01">期限 {editing.dueDate.replaceAll("-", ".")}</p> : null}
+                {editing.description ? (
+                  <p className="text-brand01 whitespace-pre-wrap [overflow-wrap:anywhere]">{editing.description}</p>
+                ) : null}
               </div>
+            ) : null}
+            <div className="mt-6 flex flex-col gap-5">
+              {!editing.request ? (
+                <div>
+                  <label htmlFor="todo-edit-text" className={LABEL_CLASS}>
+                    タスク名<span className="bg-brand03 ml-2 px-1 text-xs font-normal text-white">必須</span>
+                  </label>
+                  <input
+                    id="todo-edit-text"
+                    type="text"
+                    value={draft.text}
+                    onChange={(e) => setDraft((d) => ({ ...d, text: e.target.value }))}
+                    maxLength={200}
+                    autoFocus
+                    className={FIELD_CLASS}
+                  />
+                </div>
+              ) : null}
               <div>
                 <p className={LABEL_CLASS}>カテゴリー</p>
                 <div className="flex flex-wrap gap-1.5">
@@ -419,33 +549,37 @@ export function TodoBoard({
                   ))}
                 </div>
               </div>
-              <div>
-                <label htmlFor="todo-edit-due" className={LABEL_CLASS}>
-                  期限
-                </label>
-                <input
-                  id="todo-edit-due"
-                  type="date"
-                  value={draft.dueDate}
-                  onChange={(e) => setDraft((d) => ({ ...d, dueDate: e.target.value }))}
-                  className={FIELD_CLASS}
-                />
-              </div>
-              <div>
-                <label htmlFor="todo-edit-desc" className={LABEL_CLASS}>
-                  詳細
-                </label>
-                <textarea
-                  id="todo-edit-desc"
-                  value={draft.description}
-                  onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))}
-                  maxLength={5000}
-                  rows={4}
-                  placeholder="詳細を入力"
-                  className={`${FIELD_CLASS} resize-none leading-relaxed`}
-                />
-              </div>
-              <Attachments todoId={editing.id} onMessage={showToast} />
+              {!editing.request ? (
+                <>
+                  <div>
+                    <label htmlFor="todo-edit-due" className={LABEL_CLASS}>
+                      期限
+                    </label>
+                    <input
+                      id="todo-edit-due"
+                      type="date"
+                      value={draft.dueDate}
+                      onChange={(e) => setDraft((d) => ({ ...d, dueDate: e.target.value }))}
+                      className={FIELD_CLASS}
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="todo-edit-desc" className={LABEL_CLASS}>
+                      詳細
+                    </label>
+                    <textarea
+                      id="todo-edit-desc"
+                      value={draft.description}
+                      onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))}
+                      maxLength={5000}
+                      rows={4}
+                      placeholder="詳細を入力"
+                      className={`${FIELD_CLASS} resize-none leading-relaxed`}
+                    />
+                  </div>
+                  <Attachments todoId={editing.id} onMessage={showToast} />
+                </>
+              ) : null}
             </div>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-end">
               <button type="button" onClick={closeDetails} className={BUTTON_SECONDARY}>
@@ -453,6 +587,60 @@ export function TodoBoard({
               </button>
               <button type="button" onClick={saveDetails} disabled={!draft.text.trim()} className={BUTTON_PRIMARY}>
                 保存する
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {returning ? (
+        <div
+          className="bg-brand01/50 fixed inset-0 z-50 flex items-center justify-center px-4 py-8"
+          onClick={() => setReturning(null)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="todo-return-title"
+            className="border-brand01 max-h-full w-full max-w-xl overflow-y-auto border-t-8 bg-white p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 id="todo-return-title" className="flex items-baseline gap-3">
+              <span className="font-heading text-brand01 text-2xl font-black tracking-wider">RETURN</span>
+              <span className="text-brand04 text-sm tracking-[0.2em]">依頼をお返しする</span>
+            </h2>
+            <p className="text-brand01 mt-4 text-sm">
+              「<span className="font-bold [overflow-wrap:anywhere]">{returning.text}</span>」を
+              {personLabel(returning.request?.fromName)}にお返しします。あなたの TODO
+              からは消え、頼んだ人の画面に「お返し」と出ます。
+            </p>
+            <div className="mt-4">
+              <label htmlFor="todo-return-reason" className={LABEL_CLASS}>
+                ひとこと
+                <span className="text-brand04 ml-2 text-xs font-normal">(任意・{RETURN_REASON_MAX}文字まで)</span>
+              </label>
+              <textarea
+                id="todo-return-reason"
+                value={returnReason}
+                onChange={(e) => setReturnReason(e.target.value)}
+                maxLength={RETURN_REASON_MAX}
+                rows={2}
+                autoFocus
+                placeholder="例: 今週は手が回らないので、○○さんにお願いできますか"
+                className={`${FIELD_CLASS} resize-none leading-relaxed`}
+              />
+            </div>
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
+              <button type="button" onClick={() => setReturning(null)} className={BUTTON_SECONDARY}>
+                キャンセル
+              </button>
+              <button
+                type="button"
+                onClick={() => void submitReturn()}
+                disabled={returnPending}
+                className={BUTTON_PRIMARY}
+              >
+                {returnPending ? "送信中…" : "お返しする"}
               </button>
             </div>
           </div>
