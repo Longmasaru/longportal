@@ -214,6 +214,27 @@ const eslintConfig = defineConfig([
     },
   },
   {
+    // 業務アプリ同士は直接依存しない(apps/nippo から他のアプリを参照しない)
+    files: ["src/modules/apps/nippo/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["@/app", "@/app/*"],
+              message: "modules から src/app(ルーティング層)を参照しないでください。",
+            },
+            {
+              group: ["@/modules/apps/*", "!@/modules/apps/nippo", "!@/modules/apps/nippo/*"],
+              message: "業務アプリ同士は直接参照しないでください(core を経由する)。",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     // 業務アプリ同士は直接依存しない(apps/bots から他のアプリを参照しない)
     files: ["src/modules/apps/bots/**/*.{ts,tsx}"],
     rules: {

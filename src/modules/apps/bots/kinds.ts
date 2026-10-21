@@ -2,7 +2,7 @@ import { z } from "zod";
 import { RAIN_AREAS, rainReport } from "./rain";
 import type { BotKind } from "./schema";
 
-// Bot の種類(docs/DESIGN.md 39 章)。種類ごとに「設定の形」と「その日に何を送るか」を持つ。
+// Bot の種類(docs/DESIGN.md 40 章)。種類ごとに「設定の形」と「その日に何を送るか」を持つ。
 // 新しい種類は、ここに 1 つ足す(schema.ts の BOT_KINDS と、DB の check 制約にも足す)。
 // DB や LINE WORKS には触れない(天気の取得は ctx から受け取る)ので、テストで確かめられる。
 

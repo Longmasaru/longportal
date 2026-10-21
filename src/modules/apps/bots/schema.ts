@@ -2,7 +2,7 @@ import { sql } from "drizzle-orm";
 import { boolean, check, date, index, jsonb, pgSchema, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { users } from "@/modules/core/auth/schema";
 
-// LINE WORKS の Bot のテーブル(docs/DESIGN.md 39 章)。種類(kind)ごとの中身はコード(kinds.ts)が持つ。
+// LINE WORKS の Bot のテーブル(docs/DESIGN.md 40 章)。種類(kind)ごとの中身はコード(kinds.ts)が持つ。
 export const bots = pgSchema("bots");
 
 export const BOT_KINDS = ["rain", "notice"] as const;
