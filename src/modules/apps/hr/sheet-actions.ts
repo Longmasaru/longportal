@@ -17,12 +17,14 @@ import {
   TEXT_MAX,
   TRAINING_KINDS,
 } from "./labels";
+import { wouldCreateCycle } from "./logic";
 import { manifest } from "./manifest";
+import { getSupervisorMap } from "./queries";
 import { hrAbilities, hrConditionChecks, hrProfiles, hrQualifications, hrSkills, hrTrainings } from "./schema";
 import type { RecordFormState } from "./types";
 
 // 人事管理シート(1〜5 章)の Server Action。docs/DESIGN.md 31.1。
-// 毎回、対象の社員を管理できるか(managerFor)を判定する。本人は書けない。監査ログには項目名だけを残す。
+// 毎回、対象の社員を管理できるか(managerFor)を判定する。本人・上司は書けない。監査ログには項目名(と上司の社員 ID)だけを残す。
 
 const idSchema = z.uuid();
 
@@ -52,6 +54,7 @@ const SECTION_SCHEMAS = {
       .trim()
       .refine((v) => v === "" || (/^\d+$/.test(v) && Number(v) <= 100), "在宅勤務比率は 0〜100 で入力してください。")
       .transform((v) => (v === "" ? null : Number(v))),
+    supervisorEmployeeId: z.union([z.uuid("上司を選び直してください。"), z.literal("")]).transform((v) => (v === "" ? null : v)),
   }),
   goals: z.object(Object.fromEntries(PROFILE_TEXT_FIELDS.goals.map((f) => [f.key, text(f.label)]))),
   skills: z.object(Object.fromEntries(PROFILE_TEXT_FIELDS.skills.map((f) => [f.key, text(f.label)]))),
@@ -93,6 +96,18 @@ export async function saveSectionAction(_prev: RecordFormState, formData: FormDa
   ) {
     return { error: "取得日数が付与日数より多くなっています。" };
   }
+  if (section === "basic" && values.supervisorEmployeeId) {
+    const supervisorId = values.supervisorEmployeeId as string;
+    const [candidate] = await db
+      .select({ status: employees.status })
+      .from(employees)
+      .where(eq(employees.id, supervisorId))
+      .limit(1);
+    if (!candidate || candidate.status === "retired") return { error: "上司に選べない社員です。" };
+    if (wouldCreateCycle(employeeId.data, supervisorId, await getSupervisorMap())) {
+      return { error: "本人や、本人の部下は上司に選べません。" };
+    }
+  }
 
   // 生年月日は社員マスタ(core.employees)に持つ。docs/DESIGN.md 37 章。
   const { birthDate, ...profileValues } = values;
@@ -109,7 +124,11 @@ export async function saveSectionAction(_prev: RecordFormState, formData: FormDa
       action: "hr.profile.update",
       targetType: "hr_profile",
       targetId: employeeId.data,
-      after: { section, fields: Object.keys(values) },
+      after: {
+        section,
+        fields: Object.keys(values),
+        ...(section === "basic" ? { supervisorEmployeeId: values.supervisorEmployeeId } : {}),
+      },
     });
   });
   revalidatePath(manifest.route, "layout");

@@ -1,13 +1,15 @@
 import { getArigatoPendingItems } from "@/modules/apps/arigato";
-import { CalendarHomeNotice } from "@/modules/apps/calendar";
+import { CalendarHomeNotice, getHomeWeek } from "@/modules/apps/calendar";
 import { PortalHome } from "@/modules/core/portal";
 
-// core は apps を参照できないので、アプリからのお知らせ(会社カレンダー)と要対応(ありがとうカード)はここで渡す。docs/DESIGN.md 33 章。
+// core は apps を参照できないので、アプリからのお知らせ・今週の予定(会社カレンダー)と要対応(ありがとうカード)は
+// ここで渡す。docs/DESIGN.md 33 章。
 export default async function HomePage() {
+  const [appPendingItems, week] = await Promise.all([getArigatoPendingItems(), getHomeWeek()]);
   return (
     <>
       <CalendarHomeNotice />
-      <PortalHome appPendingItems={await getArigatoPendingItems()} />
+      <PortalHome appPendingItems={appPendingItems} week={week} />
     </>
   );
 }

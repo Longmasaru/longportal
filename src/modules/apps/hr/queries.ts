@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, gte, inArray, isNull, lte, max, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, inArray, isNotNull, isNull, lte, max, ne, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db/client";
 import type { Actor } from "@/modules/core/access";
@@ -8,7 +8,7 @@ import { employeeAssignments, employees } from "@/modules/core/employees/schema"
 import { employmentTypes } from "@/modules/core/employment-types/schema";
 import { locations } from "@/modules/core/locations/schema";
 import { positions } from "@/modules/core/positions/schema";
-import { canManageEmployee, pageMode, type NameParts, type PageMode } from "./logic";
+import { canManageEmployee, pageMode, reportsOf, visibilitiesFor, type NameParts, type PageMode, type SupervisorMap } from "./logic";
 import { HR_RECORDS_MANAGE } from "./manifest";
 import {
   hrAbilities,
@@ -78,18 +78,37 @@ export async function getEmployeeProfile(employeeId: string, today: string): Pro
   return { ...row, assignments };
 }
 
+/** 社員 → 直属の上司(31.4)。 */
+export async function getSupervisorMap(): Promise<Map<string, string>> {
+  const rows = await db
+    .select({ employeeId: hrProfiles.employeeId, supervisorId: hrProfiles.supervisorEmployeeId })
+    .from(hrProfiles)
+    .where(isNotNull(hrProfiles.supervisorEmployeeId));
+  return new Map(rows.map((r) => [r.employeeId, r.supervisorId!]));
+}
+
+/** 見る人の部下全員(直属とその下)。社員が紐づいていなければ空。 */
+export async function reportsOfActor(actor: Actor, supervisors?: SupervisorMap): Promise<Set<string>> {
+  if (!actor.employee) return new Set();
+  return reportsOf(actor.employee.id, supervisors ?? (await getSupervisorMap()));
+}
+
 /** 見る人と社員の関係から、ページの見え方を決める(対象の社員の今日の所属でスコープを判定)。 */
-export function modeFor(actor: Actor, profile: EmployeeProfile): PageMode {
+export async function modeFor(actor: Actor, profile: EmployeeProfile): Promise<PageMode> {
   const canManage = canManageEmployee(actor.grants, HR_RECORDS_MANAGE, profile.assignments);
-  return pageMode(actor.employee?.id ?? null, profile.id, canManage);
+  const isSupervisor = !canManage && (await reportsOfActor(actor)).has(profile.id);
+  return pageMode(actor.employee?.id ?? null, profile.id, canManage, isSupervisor);
 }
 
 export type EmployeeListRow = EmployeeProfile & { recordCount: number; lastRecordOn: string | null };
 
-/** 管理する人の一覧(スコープ内の社員だけ。本人も含む)。退職者は includeRetired のときだけ。 */
+/**
+ * 一覧に出す社員(自分・管理できる社員・部下。31.4)。退職者は includeRetired のときだけ。
+ * 記録の件数・最新の日付は、見る人に見える記録だけで数える(自分の行は「本人に公開」、管理できない部下の行は「上司まで」も)。
+ */
 export async function listManagedEmployees(
   actor: Actor,
-  options: { q?: string; includeRetired?: boolean },
+  options: { q?: string; includeRetired?: boolean; reports: Set<string> },
 ): Promise<EmployeeListRow[]> {
   const rows = await db
     .select(profileColumns)
@@ -98,8 +117,18 @@ export async function listManagedEmployees(
     .leftJoin(employmentTypes, eq(employees.employmentTypeId, employmentTypes.id))
     .orderBy(asc(employees.employeeNumber));
   const assignmentMap = await currentAssignments(actor.today);
+  const isPublic = sql`${hrRecords.visibility} in ('employee', 'personal')`;
+  const isForSupervisors = sql`${hrRecords.visibility} in ('employee', 'supervisors')`;
   const counts = await db
-    .select({ employeeId: hrRecords.employeeId, n: count(), last: max(hrRecords.occurredOn) })
+    .select({
+      employeeId: hrRecords.employeeId,
+      n: count(),
+      last: max(hrRecords.occurredOn),
+      publicN: sql<number>`(count(*) filter (where ${isPublic}))::int`,
+      publicLast: sql<string | null>`max(${hrRecords.occurredOn}) filter (where ${isPublic})`,
+      supN: sql<number>`(count(*) filter (where ${isForSupervisors}))::int`,
+      supLast: sql<string | null>`max(${hrRecords.occurredOn}) filter (where ${isForSupervisors})`,
+    })
     .from(hrRecords)
     .groupBy(hrRecords.employeeId);
   const countMap = new Map(counts.map((c) => [c.employeeId, c]));
@@ -108,7 +137,8 @@ export async function listManagedEmployees(
   return rows
     .map((r) => ({ ...r, assignments: assignmentMap.get(r.id) ?? [] }))
     .filter((r) => options.includeRetired || r.status !== "retired")
-    .filter((r) => r.id === actor.employee?.id || canManageEmployee(actor.grants, HR_RECORDS_MANAGE, r.assignments))
+    .map((r) => ({ ...r, canManage: canManageEmployee(actor.grants, HR_RECORDS_MANAGE, r.assignments) }))
+    .filter((r) => r.id === actor.employee?.id || r.canManage || options.reports.has(r.id))
     .filter(
       (r) =>
         !q ||
@@ -116,16 +146,28 @@ export async function listManagedEmployees(
         (r.nameKana ?? "").toLowerCase().includes(q) ||
         r.employeeNumber.toLowerCase().includes(q),
     )
-    .map((r) => ({
-      ...r,
-      recordCount: countMap.get(r.id)?.n ?? 0,
-      lastRecordOn: countMap.get(r.id)?.last ?? null,
-    }));
+    .map(({ canManage, ...r }) => {
+      const c = countMap.get(r.id);
+      // 自分の行も、本人に見える記録だけで数える(自分のページは本人の見え方のため)。数え方は visibilitiesFor と同じ。
+      const mode = pageMode(actor.employee?.id ?? null, r.id, canManage, options.reports.has(r.id));
+      const [n, last] =
+        mode === "manager" ? [c?.n, c?.last] : mode === "supervisor" ? [c?.supN, c?.supLast] : [c?.publicN, c?.publicLast];
+      return { ...r, recordCount: n ?? 0, lastRecordOn: last ?? null };
+    });
+}
+
+/** 上司を選ぶ欄の候補(退職者を除く全社員。31.4)。 */
+export async function listSupervisorCandidates(): Promise<{ id: string; name: string; employeeNumber: string }[]> {
+  return db
+    .select({ id: employees.id, name: employees.name, employeeNumber: employees.employeeNumber })
+    .from(employees)
+    .where(ne(employees.status, "retired"))
+    .orderBy(asc(employees.employeeNumber));
 }
 
 const authorEmployees = alias(employees, "author_employees");
 
-/** 社員の記録(新しい順)。本人の見え方では、公開の記録だけを DB から読む。 */
+/** 社員の記録(新しい順)。見え方で見られる公開範囲の記録だけを DB から読む。 */
 export async function listRecords(employeeId: string, mode: Exclude<PageMode, "none">): Promise<HrRecord[]> {
   return db
     .select({
@@ -135,6 +177,7 @@ export async function listRecords(employeeId: string, mode: Exclude<PageMode, "n
       title: hrRecords.title,
       body: hrRecords.body,
       visibility: hrRecords.visibility,
+      authorUserId: hrRecords.authorUserId,
       authorName: authorEmployees.name,
       authorLoginId: users.loginId,
       updatedAt: hrRecords.updatedAt,
@@ -145,7 +188,7 @@ export async function listRecords(employeeId: string, mode: Exclude<PageMode, "n
     .where(
       and(
         eq(hrRecords.employeeId, employeeId),
-        mode === "self" ? eq(hrRecords.visibility, "employee") : undefined,
+        inArray(hrRecords.visibility, [...visibilitiesFor(mode)]),
       ),
     )
     .orderBy(desc(hrRecords.occurredOn), desc(hrRecords.createdAt));
@@ -174,7 +217,7 @@ export async function getRecord(id: string) {
 
 /** 人事管理シートの 1〜5 章(31.1)。章の出し分けは画面側(SECTION_VISIBLE_TO_SELF)で行う。 */
 export async function getSheet(employeeId: string): Promise<HrSheet> {
-  const [[profile], [master], qualifications, skills, trainings, conditions, abilityRows] = await Promise.all([
+  const [[profile], [master], qualifications, skills, trainings, conditions, abilityRows, directReports] = await Promise.all([
     db.select().from(hrProfiles).where(eq(hrProfiles.employeeId, employeeId)).limit(1),
     db.select({ birthDate: employees.birthDate }).from(employees).where(eq(employees.id, employeeId)).limit(1),
     db
@@ -205,8 +248,31 @@ export async function getSheet(employeeId: string): Promise<HrSheet> {
       .where(eq(hrConditionChecks.employeeId, employeeId))
       .orderBy(desc(hrConditionChecks.checkedOn), desc(hrConditionChecks.createdAt)),
     db.select({ axis: hrAbilities.axis, level: hrAbilities.level }).from(hrAbilities).where(eq(hrAbilities.employeeId, employeeId)),
+    db
+      .select({ id: employees.id, name: employees.name })
+      .from(hrProfiles)
+      .innerJoin(employees, eq(hrProfiles.employeeId, employees.id))
+      .where(and(eq(hrProfiles.supervisorEmployeeId, employeeId), ne(employees.status, "retired")))
+      .orderBy(asc(employees.employeeNumber)),
   ]);
+  const supervisor = profile?.supervisorEmployeeId
+    ? ((await db
+        .select({ id: employees.id, name: employees.name })
+        .from(employees)
+        .where(eq(employees.id, profile.supervisorEmployeeId))
+        .limit(1))[0] ?? null)
+    : null;
   const abilities: HrSheet["abilities"] = {};
   for (const a of abilityRows) abilities[a.axis] = a.level;
-  return { profile: profile ?? null, birthDate: master?.birthDate ?? null, qualifications, skills, trainings, conditions, abilities };
+  return {
+    profile: profile ?? null,
+    birthDate: master?.birthDate ?? null,
+    qualifications,
+    skills,
+    trainings,
+    conditions,
+    abilities,
+    supervisor,
+    directReports,
+  };
 }

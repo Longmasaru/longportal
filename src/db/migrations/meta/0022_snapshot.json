@@ -1,5 +1,5 @@
 {
-  "id": "7f64d24c-6be0-4f88-b863-33b2d4ff8bc1",
+  "id": "b56e6a26-f19b-4e99-b9e9-67380e4173f7",
   "prevId": "60c78d5b-8cc8-4c2f-8c5a-d4348f609a4d",
   "version": "7",
   "dialect": "postgresql",
@@ -198,18 +198,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
-        },
-        "reply": {
-          "name": "reply",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "replied_at": {
-          "name": "replied_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
         }
       },
       "indexes": {
@@ -334,10 +322,6 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {
-        "cards_reply_check": {
-          "name": "cards_reply_check",
-          "value": "\"arigato\".\"cards\".\"reply\" is null or \"arigato\".\"cards\".\"reply\" in ('glad', 'likewise', 'welcome', 'anytime')"
-        },
         "cards_tag_check": {
           "name": "cards_tag_check",
           "value": "\"arigato\".\"cards\".\"tag\" in ('taught', 'helped', 'challenged', 'systemized')"
@@ -1939,6 +1923,12 @@
           "primaryKey": true,
           "notNull": true
         },
+        "supervisor_employee_id": {
+          "name": "supervisor_employee_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
         "gender": {
           "name": "gender",
           "type": "text",
@@ -2080,7 +2070,23 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "profiles_supervisor_employee_id_idx": {
+          "name": "profiles_supervisor_employee_id_idx",
+          "columns": [
+            {
+              "expression": "supervisor_employee_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "profiles_employee_id_employees_id_fk": {
           "name": "profiles_employee_id_employees_id_fk",
@@ -2089,6 +2095,20 @@
           "schemaTo": "core",
           "columnsFrom": [
             "employee_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "profiles_supervisor_employee_id_employees_id_fk": {
+          "name": "profiles_supervisor_employee_id_employees_id_fk",
+          "tableFrom": "profiles",
+          "tableTo": "employees",
+          "schemaTo": "core",
+          "columnsFrom": [
+            "supervisor_employee_id"
           ],
           "columnsTo": [
             "id"
@@ -2115,6 +2135,10 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {
+        "profiles_supervisor_not_self": {
+          "name": "profiles_supervisor_not_self",
+          "value": "\"hr\".\"profiles\".\"supervisor_employee_id\" is null or \"hr\".\"profiles\".\"supervisor_employee_id\" <> \"hr\".\"profiles\".\"employee_id\""
+        },
         "profiles_gender_check": {
           "name": "profiles_gender_check",
           "value": "\"hr\".\"profiles\".\"gender\" is null or \"hr\".\"profiles\".\"gender\" in ('male', 'female', 'other')"
@@ -2356,7 +2380,7 @@
         },
         "records_visibility_check": {
           "name": "records_visibility_check",
-          "value": "\"hr\".\"records\".\"visibility\" in ('employee', 'managers')"
+          "value": "\"hr\".\"records\".\"visibility\" in ('employee', 'supervisors', 'personal', 'managers')"
         }
       },
       "isRLSEnabled": false

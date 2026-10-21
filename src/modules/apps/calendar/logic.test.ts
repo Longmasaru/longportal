@@ -8,6 +8,7 @@ import {
   nextOffDay,
   parseMonth,
   remainingWorkdays,
+  weekDates,
   yearSummary,
 } from "./logic";
 
@@ -75,4 +76,22 @@ test("月の表と月の計算", () => {
   assert.equal(parseMonth("2026-10"), "2026-10");
   assert.equal(parseMonth("2026-13"), null);
   assert.equal(parseMonth(undefined), null);
+});
+
+test("weekDates: 今日を含む月曜〜日曜", () => {
+  // 2026-10-21 は水曜
+  assert.deepEqual(weekDates("2026-10-21"), [
+    "2026-10-19",
+    "2026-10-20",
+    "2026-10-21",
+    "2026-10-22",
+    "2026-10-23",
+    "2026-10-24",
+    "2026-10-25",
+  ]);
+  // 日曜は、その週の最後の日
+  assert.equal(weekDates("2026-10-25")[0], "2026-10-19");
+  // 月曜は、その週の最初の日。月・年をまたぐ週
+  assert.equal(weekDates("2026-12-28")[0], "2026-12-28");
+  assert.equal(weekDates("2027-01-01")[0], "2026-12-28");
 });

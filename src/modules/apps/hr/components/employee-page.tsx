@@ -18,9 +18,9 @@ import {
   type RecordKind,
   type Tab,
 } from "../labels";
-import { ageOn, tenureOn } from "../logic";
+import { ageOn, tenureOn, writableVisibilities } from "../logic";
 import { HR_RECORDS_MANAGE, manifest } from "../manifest";
-import { getEmployeeProfile, getSheet, listRecords, modeFor } from "../queries";
+import { getEmployeeProfile, getSheet, listRecords, listSupervisorCandidates, modeFor } from "../queries";
 import type { EmployeeProfile, HrRecord, HrSheet } from "../types";
 import { AbilityRadar } from "./ability-radar";
 import { KindTag, NewRecordPanel, RecordList } from "./record-forms";
@@ -162,12 +162,19 @@ export async function EmployeeRecordsView({
 }) {
   const profile = await getEmployeeProfile(employeeId, actor.today);
   if (!profile) notFound();
-  const mode = modeFor(actor, profile);
+  const mode = await modeFor(actor, profile);
   if (mode === "none") notFound();
 
-  const [all, sheet] = await Promise.all([listRecords(profile.id, mode), getSheet(profile.id)]);
   const isSelf = mode === "self";
-  const tabs = TABS.filter((t) => t === "records" || !isSelf || SECTION_VISIBLE_TO_SELF[t]);
+  // 本人・上司は読むだけで、本人に見せる範囲だけ(31.4)。
+  const readOnly = mode !== "manager";
+  const [all, sheet, candidates] = await Promise.all([
+    listRecords(profile.id, mode),
+    getSheet(profile.id),
+    readOnly ? Promise.resolve([]) : listSupervisorCandidates(),
+  ]);
+  const writable = writableVisibilities(mode);
+  const tabs = TABS.filter((t) => t === "records" || !readOnly || SECTION_VISIBLE_TO_SELF[t]);
   const current: Tab = tabs.includes(tab) ? tab : "records";
   const records = kind ? all.filter((r) => r.kind === kind) : all;
   const base = isSelf && profile.id === actor.employee?.id ? manifest.route : `${manifest.route}/${profile.id}`;
@@ -177,21 +184,25 @@ export async function EmployeeRecordsView({
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-8 md:px-8 md:py-10">
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
-          {!isSelf || canInAnyScope(actor, HR_RECORDS_MANAGE) ? (
+          {!isSelf || canInAnyScope(actor, HR_RECORDS_MANAGE) || sheet.directReports.length > 0 ? (
             <Link href={manifest.route} className="text-brand04 hover:text-brand03 text-sm font-bold transition-colors">
               ‹ 社員の一覧へ
             </Link>
           ) : null}
-          <h1 className="text-brand01 mt-1 text-xl font-bold">{isSelf ? "自分の人事管理シート" : "人事管理シート"}</h1>
+          <h1 className="text-brand01 mt-1 text-xl font-bold">
+            {isSelf ? "自分の人事管理シート" : mode === "supervisor" ? "人事管理シート(部下)" : "人事管理シート"}
+          </h1>
         </div>
         <p className="text-brand04 text-xs">
           {isSelf
             ? "上司が書いた、面談・注意・ほめの記録などを見られます。"
-            : "本人も自分のページで見られます(記録・基本情報・目標と評価・スキルと資格)。"}
+            : mode === "supervisor"
+              ? "上司として、本人が見られる範囲と「上司まで」の記録を見られます。記録は書けます(シートの章は読むだけ)。"
+              : "本人も自分のページで見られます(記録・基本情報・目標と評価・スキルと資格)。"}
         </p>
       </div>
 
-      <Summary profile={profile} sheet={sheet} records={all} isSelf={isSelf} today={actor.today} base={base} />
+      <Summary profile={profile} sheet={sheet} records={all} isSelf={readOnly} today={actor.today} base={base} />
 
       <nav aria-label="シートの章" className="border-brand01/20 -mb-2 flex flex-wrap gap-x-1 border-b">
         {tabs.map((t) => (
@@ -207,7 +218,7 @@ export async function EmployeeRecordsView({
           >
             {TAB_LABEL[t]}
             {t === "records" ? <span className="ml-1 font-normal">{all.length}</span> : null}
-            {!isSelf && (t === "character" || t === "condition") ? <span className="ml-1 text-[10px] font-normal">(非公開)</span> : null}
+            {!readOnly && (t === "character" || t === "condition") ? <span className="ml-1 text-[10px] font-normal">(非公開)</span> : null}
           </Link>
         ))}
       </nav>
@@ -226,17 +237,25 @@ export async function EmployeeRecordsView({
               ))}
             </nav>
           </div>
-          {!isSelf ? <NewRecordPanel employeeId={profile.id} today={actor.today} /> : null}
-          <RecordList records={records} editable={!isSelf} employeeId={profile.id} today={actor.today} />
+          {writable.length > 0 ? <NewRecordPanel employeeId={profile.id} today={actor.today} visibilities={writable} /> : null}
+          <RecordList
+            records={records}
+            edit={mode === "manager" ? "all" : mode === "supervisor" ? "mine" : "none"}
+            viewerUserId={actor.userId}
+            visibilities={writable}
+            employeeId={profile.id}
+            today={actor.today}
+          />
         </section>
       ) : (
         <SheetSection
           section={current}
           profile={profile}
           sheet={sheet}
-          editable={!isSelf}
-          isSelf={isSelf}
+          editable={!readOnly}
+          isSelf={readOnly}
           today={actor.today}
+          supervisorCandidates={candidates.filter((c) => c.id !== profile.id)}
         />
       )}
     </div>

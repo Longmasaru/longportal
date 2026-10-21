@@ -1,5 +1,5 @@
 import { grantAllows, hasGlobalGrant, type Grant } from "@/modules/core/access/grants";
-import type { RecordVisibility } from "./labels";
+import { RECORD_VISIBILITIES, type RecordVisibility } from "./labels";
 
 // 人事管理アプリの見え方の判定(DB・セッションに依存しない純粋関数)。docs/DESIGN.md 31 章。
 
@@ -15,19 +15,90 @@ export function canManageEmployee(grants: Grant[], code: string, assignments: Ta
   return assignments.some((a) => grantAllows(grants, code, a));
 }
 
-/** 社員のページの見え方。self = 本人(公開の記録だけ・書けない)、manager = 管理(すべて・書ける)、none = 見られない。 */
-export type PageMode = "self" | "manager" | "none";
+/**
+ * 社員のページの見え方。self = 本人(公開の記録だけ・書けない)、supervisor = 上司(本人と同じ範囲・書けない。31.4)、
+ * manager = 管理(すべて・書ける)、none = 見られない。
+ */
+export type PageMode = "self" | "supervisor" | "manager" | "none";
 
-export function pageMode(viewerEmployeeId: string | null, targetEmployeeId: string, canManage: boolean): PageMode {
+export function pageMode(
+  viewerEmployeeId: string | null,
+  targetEmployeeId: string,
+  canManage: boolean,
+  isSupervisor = false,
+): PageMode {
   // 自分のページは、権限があっても本人と同じ見え方にする(自分についてのメモは見えず、書けない)。
   if (viewerEmployeeId === targetEmployeeId) return "self";
-  return canManage ? "manager" : "none";
+  if (canManage) return "manager";
+  return isSupervisor ? "supervisor" : "none";
+}
+
+/** その見え方で見える記録の公開範囲。 */
+export function visibilitiesFor(mode: PageMode): readonly RecordVisibility[] {
+  if (mode === "manager") return RECORD_VISIBILITIES;
+  if (mode === "supervisor") return ["employee", "supervisors"];
+  if (mode === "self") return ["employee", "personal"];
+  return [];
 }
 
 /** その見え方で、記録が見えるか。 */
 export function recordVisibleTo(mode: PageMode, visibility: RecordVisibility): boolean {
+  return visibilitiesFor(mode).includes(visibility);
+}
+
+/**
+ * 記録を書ける公開範囲(31.4)。管理する人はすべて。上司は「本人に公開」「上司まで」だけ
+ * (ほかを選ぶと、書いた上司自身も読めなくなるため)。本人は書けない。
+ */
+export function writableVisibilities(mode: PageMode): readonly RecordVisibility[] {
+  if (mode === "manager") return RECORD_VISIBILITIES;
+  if (mode === "supervisor") return ["employee", "supervisors"];
+  return [];
+}
+
+/** 記録を直せる・消せるか。管理する人はすべて、上司は自分が書いて、まだ自分に見える記録だけ。 */
+export function canEditRecord(
+  mode: PageMode,
+  record: { authorUserId: string | null; visibility: RecordVisibility },
+  viewerUserId: string,
+): boolean {
   if (mode === "manager") return true;
-  if (mode === "self") return visibility === "employee";
+  return mode === "supervisor" && record.authorUserId === viewerUserId && writableVisibilities(mode).includes(record.visibility);
+}
+
+// ---- 上司と部下(31.4) ----
+
+/** 社員 → 直属の上司(上司の指定がある社員だけ)。 */
+export type SupervisorMap = ReadonlyMap<string, string>;
+
+/** 上司から下にたどれる部下全員(直属とその下。本人は含まない)。 */
+export function reportsOf(supervisorId: string, supervisors: SupervisorMap): Set<string> {
+  const children = new Map<string, string[]>();
+  for (const [employeeId, sup] of supervisors) {
+    const list = children.get(sup) ?? [];
+    list.push(employeeId);
+    children.set(sup, list);
+  }
+  const result = new Set<string>();
+  const queue = [supervisorId];
+  while (queue.length > 0) {
+    for (const child of children.get(queue.shift()!) ?? []) {
+      if (child === supervisorId || result.has(child)) continue;
+      result.add(child);
+      queue.push(child);
+    }
+  }
+  return result;
+}
+
+/** employeeId の上司を supervisorId にすると、自分自身か輪になるか(上司の上をたどって employeeId に戻るか)。 */
+export function wouldCreateCycle(employeeId: string, supervisorId: string, supervisors: SupervisorMap): boolean {
+  const seen = new Set<string>();
+  for (let cur: string | undefined = supervisorId; cur !== undefined; cur = supervisors.get(cur)) {
+    if (cur === employeeId) return true;
+    if (seen.has(cur)) return false;
+    seen.add(cur);
+  }
   return false;
 }
 

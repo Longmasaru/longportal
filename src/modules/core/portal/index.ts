@@ -3,6 +3,8 @@ export { PortalShell } from "./components/portal-shell";
 export { PortalHome } from "./components/portal-home";
 export { ComingSoon } from "./components/coming-soon";
 export type {
+  HomeWeek,
+  HomeWeekDay,
   Navigation,
   NavLeaf,
   NavSection,

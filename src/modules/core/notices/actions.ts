@@ -10,7 +10,7 @@ import { audiences } from "../audience/schema";
 import { writeAuditLog } from "../audit";
 import { employees } from "../employees/schema";
 import { isIsoDate } from "../shared/date";
-import { getNoticeForActor } from "./queries";
+import { getNoticeForActor, recordNoticeRead } from "./queries";
 import {
   NOTICE_KINDS,
   NOTICE_PRIORITIES,
@@ -240,4 +240,15 @@ export async function acknowledgeNoticeAction(_prev: NoticeFormState, formData: 
     });
   revalidatePath("/", "layout");
   return { success: "確認しました。" };
+}
+
+/**
+ * ホームのお知らせで「続きを読む」を開いたときに、既読にする(詳細を開いたときと同じ扱い)。
+ * 届いていないお知らせは何もしない。一覧の並びが急に変わらないよう、ここでは再描画しない。
+ */
+export async function markNoticeReadAction(id: string): Promise<void> {
+  const actor = await requireActor();
+  if (!z.uuid().safeParse(id).success) return;
+  const notice = await getNoticeForActor(actor, id);
+  if (notice && !notice.isRead) await recordNoticeRead(actor, notice.id);
 }

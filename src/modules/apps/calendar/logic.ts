@@ -135,3 +135,9 @@ export function yearSummary(
 export function shortDate(date: string): string {
   return `${date.slice(5, 7)}.${date.slice(8, 10)}(${WEEKDAY_LABELS[weekdayOf(date)]})`;
 }
+
+/** 今日を含む週(月曜〜日曜)の 7 日。ホームの「今週の予定」に使う。 */
+export function weekDates(today: string): string[] {
+  const monday = addDays(today, -((weekdayOf(today) + 6) % 7));
+  return Array.from({ length: 7 }, (_, i) => addDays(monday, i));
+}

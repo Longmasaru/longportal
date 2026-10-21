@@ -1,13 +1,12 @@
 import Link from "next/link";
-import { formatDateDot } from "../../../shared/format";
 import { NOTICE_KIND_LABEL } from "../../notices";
 import type { Notice } from "../../types";
-import { Icon } from "../icons";
 import { SectionHeading } from "../section-heading";
+import { NoticeItem } from "./notice-item";
 
 const LINK_CLASS = "text-brand01 hover:text-brand03 font-bold transition-colors";
 
-/** あなたへのお知らせ(個人宛・全社宛の、未読と要対応)。ホームを、お知らせの入口にする。 */
+/** あなたへのお知らせ(個人宛・全社宛の、未読と要対応)。ホームを、お知らせの入口にする。本文の先頭も見せる。 */
 export function PersonalNotices({
   notices,
   hiddenCount,
@@ -47,53 +46,7 @@ export function PersonalNotices({
       ) : (
         <ul className="mt-4">
           {notices.map((notice) => (
-            <li key={notice.id} className="border-brand04/40 border-b first:border-t">
-              <Link href={notice.href} className="group flex items-start gap-3 py-3.5 md:gap-5">
-                <time
-                  dateTime={notice.publishedOn}
-                  className="font-heading text-brand04 w-[5.5rem] shrink-0 pt-0.5 text-sm tracking-[0.05em] md:w-24"
-                >
-                  {formatDateDot(notice.publishedOn)}
-                </time>
-                <div className="min-w-0 flex-1">
-                  <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                    {notice.target === "company" ? (
-                      <span className="border-brand01 text-brand01 border px-1.5 text-xs leading-[1.125rem] font-bold">
-                        全社
-                      </span>
-                    ) : null}
-                    {notice.priority !== "normal" ? (
-                      <span className="bg-brand03/15 text-brand03 px-1.5 text-xs leading-5 font-bold">
-                        {notice.priority === "urgent" ? "緊急" : "重要"}
-                      </span>
-                    ) : null}
-                    {notice.requiresAction ? (
-                      <span className="bg-brand03 px-1.5 text-xs leading-5 font-bold text-white">
-                        要対応
-                      </span>
-                    ) : null}
-                    <span className="bg-field text-brand04 px-1.5 text-xs leading-5">
-                      {NOTICE_KIND_LABEL[notice.kind]}
-                    </span>
-                    {!notice.isRead ? (
-                      <span className="text-link flex items-center gap-1 text-xs font-bold">
-                        <span aria-hidden="true" className="bg-link size-1.5 rounded-full" />
-                        未読
-                      </span>
-                    ) : null}
-                  </p>
-                  <p className="text-brand01 group-hover:text-brand03 mt-1 font-bold transition-colors">
-                    {notice.title}
-                  </p>
-                  <p className="text-brand04 mt-0.5 line-clamp-1 text-sm">{notice.summary}</p>
-                </div>
-                <Icon
-                  name="chevron-right"
-                  size={18}
-                  className="text-brand04 group-hover:text-brand03 mt-1 shrink-0 transition-colors"
-                />
-              </Link>
-            </li>
+            <NoticeItem key={notice.id} notice={notice} kindLabel={NOTICE_KIND_LABEL[notice.kind]} />
           ))}
         </ul>
       )}

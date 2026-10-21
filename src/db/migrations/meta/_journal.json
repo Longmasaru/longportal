@@ -159,8 +159,15 @@
     {
       "idx": 22,
       "version": "7",
+      "when": 1792565862890,
+      "tag": "0022_hr_supervisor",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
       "when": 1792569797770,
-      "tag": "0022_arigato_reply",
+      "tag": "0023_arigato_reply",
       "breakpoints": true
     }
   ]
