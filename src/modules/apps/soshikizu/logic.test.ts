@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { buildOrgBoxes, compareMembers, isOnRoster } from "./logic";
+import { buildOrgBoxes, buildOrgChart, compareMembers, isExecutive, isOnRoster } from "./logic";
 import type { OrgMember, OrgUnit } from "./types";
 
 const DEPTS: OrgUnit[] = [
@@ -89,14 +89,21 @@ test("isOnRoster: 在籍判定", () => {
   assert.equal(isOnRoster({ status: "retired", hiredOn: "2020-04-01", leftOn: "2026-01-01" }, today), false);
 });
 
-test("buildOrgBoxes: includeEmpty なら人のいない部署も出す(ドラッグの落とし先)", () => {
-  const boxes = buildOrgBoxes([member({ employeeId: "a" })], DEPTS, null, { includeEmpty: true });
-  assert.deepEqual(
-    boxes.map((b) => [b.department?.name, b.count]),
+test("buildOrgChart: 社長・専務・常務・工場長は上に分け、箱に入れない。空になった部署の箱は出さない", () => {
+  const { executives, boxes } = buildOrgChart(
     [
-      ["総務部", 1],
-      ["技術部", 0],
-      ["人のいない部", 0],
+      member({ employeeId: "pres", positionName: "代表取締役社長", positionRank: 100, departmentId: "d-soumu" }),
+      member({ employeeId: "jomu", positionName: "常務", positionRank: 80, departmentId: "d-soumu" }),
+      member({ employeeId: "kojo", positionName: "工場長", positionRank: 70, departmentId: "d-gijutsu", locationId: "l-b" }),
+      member({ employeeId: "a", positionName: "主任", positionRank: 40, departmentId: "d-gijutsu" }),
     ],
+    DEPTS,
+    null,
   );
+  assert.deepEqual(executives.map((m) => m.employeeId), ["pres", "jomu", "kojo"]);
+  assert.deepEqual(boxes.map((b) => [b.department?.name, b.count]), [["技術部", 1]]);
+  // 拠点で絞ると、経営もその拠点の人だけ
+  assert.deepEqual(buildOrgChart([member({ employeeId: "kojo", positionName: "工場長", locationId: "l-b" })], DEPTS, "l-honsha").executives, []);
+  assert.equal(isExecutive({ positionName: "部長" }), false);
+  assert.equal(isExecutive({ positionName: null }), false);
 });

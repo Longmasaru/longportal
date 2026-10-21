@@ -7,6 +7,7 @@ import { canGlobally } from "@/modules/core/access";
 import { requireAppAccess } from "@/modules/core/apps";
 import { writeAuditLog } from "@/modules/core/audit";
 import {
+  ARIGATO_REPLIES,
   ARIGATO_TAGS,
   ARIGATO_VISIBILITIES,
   DAILY_SEND_LIMIT,
@@ -84,6 +85,22 @@ export async function toggleLikeAction(idInput: string): Promise<{ liked: boolea
   }
   const after = await getCard(actor.userId, id);
   return { liked: after?.likedByMe ?? false, likeCount: after?.likeCount ?? 0 };
+}
+
+/** もらった人が返事のスタンプを付ける・変える・外す(reply = null で外す)。 */
+export async function replyCardAction(idInput: string, replyInput: string | null): Promise<CardRow> {
+  const actor = await requireAppAccess(manifest.appKey);
+  const id = Id.parse(idInput);
+  const reply = z.enum(ARIGATO_REPLIES).nullable().parse(replyInput);
+  const [row] = await db
+    .update(arigatoCards)
+    .set({ reply, repliedAt: reply ? new Date() : null })
+    .where(and(eq(arigatoCards.id, id), eq(arigatoCards.toUserId, actor.userId)))
+    .returning({ id: arigatoCards.id });
+  if (!row) throw new Error("返事できるのは、カードをもらった人だけです。");
+  const card = await getCard(actor.userId, id);
+  if (!card) throw new Error("カードが見つかりません。");
+  return card;
 }
 
 /**

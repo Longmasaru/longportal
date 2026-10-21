@@ -45,6 +45,7 @@ async function listVisibleNotices(actor: Actor): Promise<Notice[]> {
     id: n.id,
     title: n.title,
     summary: n.summary,
+    body: n.body,
     kind: n.kind,
     priority: n.priority,
     target: n.target,

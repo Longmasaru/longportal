@@ -166,8 +166,15 @@
     {
       "idx": 23,
       "version": "7",
+      "when": 1792569797770,
+      "tag": "0023_arigato_reply",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
       "when": 1792570319361,
-      "tag": "0023_nippo_app",
+      "tag": "0024_nippo_app",
       "breakpoints": true
     }
   ]
