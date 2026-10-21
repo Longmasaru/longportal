@@ -2,8 +2,16 @@
 
 import { useState, useTransition } from "react";
 import { BUTTON_PRIMARY, FIELD_CLASS, LABEL_CLASS } from "@/modules/core/shared/ui/form";
-import { deleteCardAction, sendCardAction, toggleLikeAction } from "../actions";
-import { ARIGATO_TAGS, ARIGATO_TAG_LABEL, MESSAGE_MAX_LENGTH, type ArigatoTag } from "../constants";
+import { deleteCardAction, replyCardAction, sendCardAction, toggleLikeAction } from "../actions";
+import {
+  ARIGATO_REPLIES,
+  ARIGATO_REPLY_LABEL,
+  ARIGATO_TAGS,
+  ARIGATO_TAG_LABEL,
+  MESSAGE_MAX_LENGTH,
+  type ArigatoReply,
+  type ArigatoTag,
+} from "../constants";
 import type { CardRow, Recipient, WeekStatus } from "../queries";
 
 // ありがとうカードの画面(docs/DESIGN.md 34 章)。「みんな」「送る」「自分あて」の 3 つのタブ。
@@ -36,12 +44,20 @@ function CardItem({
   const [pending, startTransition] = useTransition();
   const [confirming, setConfirming] = useState(false);
   const isMine = card.fromUserId === viewerId;
+  const isToMe = card.toUserId === viewerId;
   const canDelete = isMine || canManage;
 
   function like() {
     startTransition(async () => {
       const r = await toggleLikeAction(card.id);
       onChange({ ...card, likedByMe: r.liked, likeCount: r.likeCount });
+    });
+  }
+
+  // 同じスタンプをもう一度押すと、返事を外す。
+  function reply(r: ArigatoReply) {
+    startTransition(async () => {
+      onChange(await replyCardAction(card.id, card.reply === r ? null : r));
     });
   }
 
@@ -66,6 +82,35 @@ function CardItem({
         ) : null}
       </p>
       <p className="text-brand01 break-words whitespace-pre-wrap">{card.message}</p>
+      {isToMe ? (
+        <div className="flex flex-wrap items-center gap-1.5 text-xs">
+          <span className="text-brand04">{card.reply ? "返事しました:" : "返事をする:"}</span>
+          {ARIGATO_REPLIES.map((r) => (
+            <button
+              key={r}
+              type="button"
+              onClick={() => reply(r)}
+              disabled={pending}
+              aria-pressed={card.reply === r}
+              className={
+                "rounded-full border px-2.5 py-0.5 transition-colors " +
+                (card.reply === r
+                  ? "bg-brand03 border-brand03 font-bold text-white"
+                  : "border-brand01/20 text-brand01 hover:border-brand03")
+              }
+            >
+              {ARIGATO_REPLY_LABEL[r]}
+            </button>
+          ))}
+        </div>
+      ) : card.reply ? (
+        <p className="text-brand01 text-sm">
+          <span className="text-brand04 text-xs">{card.toName}さんから返事:</span>
+          <span className="border-brand03 text-brand03 ml-2 inline-block rounded-full border px-2.5 text-xs leading-5 font-bold">
+            {ARIGATO_REPLY_LABEL[card.reply]}
+          </span>
+        </p>
+      ) : null}
       <div className="text-brand04 flex items-center gap-3 text-xs">
         <time dateTime={card.createdAt}>{TIME_FORMAT.format(new Date(card.createdAt))}</time>
         <span className="flex-1" />
