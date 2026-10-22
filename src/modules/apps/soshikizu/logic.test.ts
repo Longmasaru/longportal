@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { buildOrgBoxes, buildOrgChart, compareMembers, isExecutive, isOnRoster } from "./logic";
+import { buildOrgBoxes, buildOrgChart, compareMembers, isExecutive, isOnRoster, lineWorksTalkUrl } from "./logic";
 import type { OrgMember, OrgUnit } from "./types";
 
 const DEPTS: OrgUnit[] = [
@@ -110,4 +110,11 @@ test("buildOrgChart: 社長・専務・常務・工場長は上に分け、箱�
   assert.equal(isExecutive({ positionName: null, name: "長井　将" }), true);
   assert.equal(isExecutive({ positionName: "部長", name: "長井 将" }), true);
   assert.equal(isExecutive({ positionName: null, name: "長井　将太" }), false);
+});
+
+test("lineWorksTalkUrl: 1 対 1 のトークを開く App Link", () => {
+  assert.equal(
+    lineWorksTalkUrl("yamada@example.co.jp"),
+    "https://line.worksmobile.com/message/send?version=26&emailList=yamada%40example.co.jp",
+  );
 });

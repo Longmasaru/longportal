@@ -9,6 +9,7 @@ import { Avatar } from "./avatar";
 export type BoardOptions = {
   myId: string | null;
   showLocation: boolean;
+  /** LINE WORKS の連携がある環境だけ true。顔写真と、トークを開くボタンを出す。 */
   withPhoto: boolean;
   /** 所属を変えられる人(core.employees.manage を全社で持つ人)だけ true。札をドラッグできる。 */
   canEdit: boolean;
@@ -18,6 +19,32 @@ export type BoardOptions = {
 type Move = { member: OrgMember; to: OrgUnit; from: string };
 
 const DRAG_TYPE = "application/x-soshikizu-employee";
+
+/** その人との LINE WORKS のトークを開く(新しいタブ。スマホは LINE WORKS のアプリが開く)。 */
+function TalkLink({ m, compact }: { m: OrgMember; compact: boolean }) {
+  return (
+    <a
+      href={`/apps/soshikizu/talk/${m.employeeId}`}
+      target="_blank"
+      rel="noopener"
+      draggable={false}
+      // 札の開け閉めをさせない(押したらトークだけを開く)。
+      onClick={(e) => e.stopPropagation()}
+      aria-label={`${m.name} さんと LINE WORKS でトーク`}
+      title="LINE WORKS でトーク"
+      className={
+        compact
+          ? "text-brand01 hover:bg-brand01/10 hover:text-brand03 flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
+          : "bg-brand01 hover:bg-brand03 flex items-center justify-center gap-2 px-3 py-2 text-xs font-bold text-white"
+      }
+    >
+      <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1.1-4.6A8 8 0 1 1 21 12z" />
+      </svg>
+      {!compact && "LINE WORKS でトーク"}
+    </a>
+  );
+}
 
 /** 1 人分の札。押すと役職・拠点・入社年が開く。管理者は別の箱へドラッグでき、開いた中の選択欄からも部署を変えられる(スマホ用)。 */
 function MemberCard({
@@ -39,6 +66,7 @@ function MemberCard({
   const isMe = m.employeeId === opts.myId;
   // 主所属のない人は、部署だけを変えられない(拠点が決まらない)ので動かさない。経営の人もドラッグはしない(所属の画面で変える)。
   const movable = opts.canEdit && m.departmentId !== null && !executive;
+  const canTalk = opts.withPhoto && !isMe;
   return (
     <details
       draggable={movable}
@@ -59,6 +87,7 @@ function MemberCard({
           {m.positionName ?? ""}
           {opts.showLocation && m.locationName && <span className="block">{m.locationName}</span>}
         </span>
+        {canTalk && <TalkLink m={m} compact />}
       </summary>
       <dl className="border-brand01/10 text-brand04 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 border-t px-3 py-2 text-xs">
         <dt className="font-bold">役職</dt>
@@ -74,6 +103,11 @@ function MemberCard({
         <dt className="font-bold">入社</dt>
         <dd>{m.hiredOn.slice(0, 4)}年</dd>
       </dl>
+      {canTalk && (
+        <div className="border-brand01/10 border-t px-3 py-2">
+          <TalkLink m={m} compact={false} />
+        </div>
+      )}
       {movable && (
         <label className="border-brand01/10 text-brand04 flex items-center gap-2 border-t px-3 py-2 text-xs">
           <span className="font-bold">部署を変える</span>

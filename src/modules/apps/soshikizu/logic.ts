@@ -106,3 +106,14 @@ export function isOnRoster(
   if (e.hiredOn > today) return false;
   return e.leftOn === null || e.leftOn >= today;
 }
+
+/**
+ * LINE WORKS で、その人との 1 対 1 のトークを開く URL(App Link。スマホはアプリ、PC はアプリかブラウザで開く)。
+ * 宛先は LINE WORKS のアカウント(メールの形)。
+ */
+export function lineWorksTalkUrl(account: string): string {
+  const url = new URL("https://line.worksmobile.com/message/send");
+  url.searchParams.set("version", "26");
+  url.searchParams.set("emailList", account);
+  return url.toString();
+}

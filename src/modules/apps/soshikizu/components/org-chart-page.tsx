@@ -47,6 +47,7 @@ export async function OrgChartPage({ location }: { location: string | null }) {
         <h1 className="text-brand01 mt-2 text-2xl font-bold">組織図</h1>
         <p className="text-brand04 mt-1 text-sm">
           一番上が経営、その下は部署ごとに、今日の所属の人を役職の順に並べています。名前を押すと、くわしく見られます。
+          {opts.withPhoto && "吹き出しを押すと、その人と LINE WORKS でトークできます。"}
         </p>
       </div>
 
