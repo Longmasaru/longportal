@@ -1,6 +1,7 @@
 // 過去の日報の取り込み(Google ドキュメントの「日報まとめ」から)。docs/DESIGN.md 39 章。
 // 1 人分のドキュメントを、1 日 1 件の「提出済み」の日報にし、「指導者からのフィードバック」を指導者のコメントにする。
-// すでに日報がある日は、取り込まない(アプリで書いたものを上書きしない)。
+// すでに日報がある日は、取り込まない(アプリで書いたものを上書きしない)。ただし、提出済みでまだ指導者のコメントがなく、
+// ドキュメントにフィードバックがある日は、そのコメントだけを足す(取り込んだあとにドキュメントへ書いたフィードバック)。
 //
 // 実行(既定は確認だけで、DB に書き込まない):
 //   npm run db:import-nippo -- <テキストのパス> --employee <社員番号> --mentor <指導者のログインID> --actor <ログインID> [--apply]
@@ -53,18 +54,29 @@ async function main(): Promise<void> {
   const [actor] = await db.select({ id: users.id, status: users.status }).from(users).where(eq(users.loginId, actorLoginId));
   if (!actor || actor.status !== "active") throw new Error("--actor のアカウントが見つからないか、無効です。");
 
-  const existing = new Set(
+  const existing = new Map(
     (
       await db
-        .select({ reportDate: nippoReports.reportDate })
+        .select({ id: nippoReports.id, reportDate: nippoReports.reportDate, status: nippoReports.status })
         .from(nippoReports)
         .where(eq(nippoReports.employeeId, employee.id))
-    ).map((r) => r.reportDate),
+    ).map((r) => [r.reportDate, r]),
+  );
+  // 指導者(本人以外)のコメントがすでにある日報。
+  const reviewed = new Set(
+    (
+      await db
+        .selectDistinct({ reportId: nippoComments.reportId })
+        .from(nippoComments)
+        .innerJoin(nippoReports, eq(nippoComments.reportId, nippoReports.id))
+        .where(and(eq(nippoReports.employeeId, employee.id), eq(nippoComments.byOwner, false)))
+    ).map((r) => r.reportId),
   );
 
   const problems: string[] = [];
   const seen = new Set<string>();
   const toInsert: ParsedReport[] = [];
+  const toComment: { reportId: string; reportDate: string; body: string }[] = [];
   let already = 0;
   for (const r of reports) {
     // 「氏名」の欄が、取り込み先の社員の姓で始まっているか(別の人のドキュメントを取り違えないため)。
@@ -72,8 +84,16 @@ async function main(): Promise<void> {
       problems.push(`${r.reportDate}: 氏名の欄が社員番号 ${employeeNumber} の社員と一致しません`);
     } else if (r.reportDate > today) problems.push(`${r.reportDate}: 今日より後の日付です`);
     else if (seen.has(r.reportDate)) problems.push(`${r.reportDate}: 同じ日付の日報が 2 つあります`);
-    else if (existing.has(r.reportDate)) already++;
-    else toInsert.push(r);
+    else {
+      const e = existing.get(r.reportDate);
+      if (!e) toInsert.push(r);
+      else {
+        already++;
+        if (r.feedback && e.status === "submitted" && !reviewed.has(e.id)) {
+          toComment.push({ reportId: e.id, reportDate: r.reportDate, body: r.feedback });
+        }
+      }
+    }
     seen.add(r.reportDate);
   }
   const withFeedback = toInsert.filter((r) => r.feedback).length;
@@ -85,6 +105,9 @@ async function main(): Promise<void> {
   console.log(
     `[nippo] 取り込む: ${toInsert.length} 件(うちコメントつき ${withFeedback} 件)/ すでにある日: ${already} 件 / 問題: ${problems.length} 件`,
   );
+  if (toComment.length > 0) {
+    console.log(`[nippo] すでにある日に、指導者のコメントを足す: ${toComment.length} 件(${toComment.map((c) => c.reportDate).join("、")})`);
+  }
   if (unknown.length > 0) console.log(`[nippo] 決まった項目にない見出し(「自分で気づいたこと」に残す): ${unknown.join("、")}`);
   if (!owner) console.log("[nippo] この社員にはアカウントがありません(書いた人のアカウントは空で取り込みます)。");
   for (const p of problems) console.log(`  - ${p}`);
@@ -122,20 +145,31 @@ async function main(): Promise<void> {
         });
       }
     }
+    for (const c of toComment) {
+      const at = jstAt(c.reportDate, "18:00");
+      await tx.insert(nippoComments).values({
+        reportId: c.reportId,
+        authorUserId: mentor.id,
+        byOwner: false,
+        body: c.body,
+        createdAt: at,
+        updatedAt: at,
+      });
+    }
     // 監査ログには、日報の本文は残さない(誰の日報を何件取り込んだかだけ)。
     await writeAuditLog(tx, {
       actorUserId: actor.id,
       action: "nippo.report.import",
       targetType: "employee",
       targetId: employee.id,
-      after: { reports: toInsert.length, comments: withFeedback, source: "google_docs" },
+      after: { reports: toInsert.length, comments: withFeedback + toComment.length, source: "google_docs" },
     });
   });
   const count = await db
     .select({ id: nippoReports.id })
     .from(nippoReports)
     .where(and(eq(nippoReports.employeeId, employee.id), eq(nippoReports.status, "submitted")));
-  console.log(`[nippo] 取り込みました: ${toInsert.length} 件(この社員の提出済みの日報は全部で ${count.length} 件)`);
+  console.log(`[nippo] 取り込みました: ${toInsert.length} 件・足したコメント ${toComment.length} 件(この社員の提出済みの日報は全部で ${count.length} 件)`);
 }
 
 main()
