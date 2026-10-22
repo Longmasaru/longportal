@@ -3,9 +3,12 @@ import type { ReactNode } from "react";
 import { getPortalContext } from "../queries";
 import { PortalFrame } from "./portal-frame";
 
-/** ポータル共通レイアウト。ユーザーとメニューを取得して枠に渡す。 */
-export async function PortalShell({ children }: { children: ReactNode }) {
-  const { user, navigation } = await getPortalContext();
+/**
+ * ポータル共通レイアウト。ユーザーとメニューを取得して枠に渡す。
+ * appBadges はサイドバーのアプリの横に出す数(アプリ側が数える。core は apps を参照できないので src/app から渡す)。
+ */
+export async function PortalShell({ children, appBadges }: { children: ReactNode; appBadges?: Record<string, number> }) {
+  const { user, navigation } = await getPortalContext(appBadges);
   return (
     <PortalFrame user={user} navigation={navigation}>
       {user.emailStatus !== "verified" ? <EmailNotice status={user.emailStatus} /> : null}

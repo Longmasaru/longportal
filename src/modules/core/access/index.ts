@@ -6,3 +6,4 @@ export { grantAllows, hasAnyGrant, hasGlobalGrant, scopeFitsAssignments } from "
 export type { Grant, ScopeTarget } from "./grants";
 export { evaluateEmployeeAccess, evaluateUserAccess } from "./evaluate";
 export type { AccessDenyReason } from "./evaluate";
+export { listPermissionHolders, type PermissionHolder } from "./holders";

@@ -42,6 +42,8 @@ export const STATUS_LABEL: Record<MeyasubakoStatus, string> = {
 
 export const BODY_MAX = 2000;
 export const PLACE_MAX = 100;
+/** 「AIで整える」に必要な、書きかけの最低の字数。 */
+export const POLISH_MIN = 10;
 export const MESSAGE_MAX = 1000;
 export const PHOTO_MAX_COUNT = 4;
 export const PHOTO_MAX_BYTES = 10 * 1024 * 1024;

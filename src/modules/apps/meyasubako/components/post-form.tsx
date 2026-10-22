@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { DictationButton } from "@/modules/core/shared/ui/dictation";
 import { BUTTON_PRIMARY, FIELD_CLASS, LABEL_CLASS } from "@/modules/core/shared/ui/form";
 import { createPhotoUploadUrlAction, createPostAction } from "../actions";
+import { PolishAssist } from "./polish-assist";
 import {
   BODY_MAX,
   CATEGORY_LABEL,
@@ -224,6 +225,9 @@ export function PostForm() {
         <ErrorText id="meyasubako-error-content" show={show("content")}>
           内容を書くか、写真を1枚以上つけてください。
         </ErrorText>
+        <div className="mt-2">
+          <PolishAssist purpose="post" category={category} text={body} onChange={setBody} max={BODY_MAX} />
+        </div>
       </div>
 
       <div>

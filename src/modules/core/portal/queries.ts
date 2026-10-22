@@ -104,7 +104,7 @@ async function requirePortalActor(): Promise<Actor> {
 }
 
 /** レイアウト(ヘッダー・サイドバー)用。 */
-export async function getPortalContext(): Promise<PortalContext> {
+export async function getPortalContext(appBadges?: Record<string, number>): Promise<PortalContext> {
   const actor = await requirePortalActor();
   const adminItems = visibleAdminItems(actor);
   const [apps, notices, links, email] = await Promise.all([
@@ -120,7 +120,7 @@ export async function getPortalContext(): Promise<PortalContext> {
   );
   return {
     user,
-    navigation: buildNavigation({ adminItems, apps, notices, links }),
+    navigation: buildNavigation({ adminItems, apps, notices, links, appBadges }),
   };
 }
 
