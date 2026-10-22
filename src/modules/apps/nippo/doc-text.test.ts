@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { reportToDocText } from "./doc-text";
+import { findReportTab, newTabTitle, parseDocMap, reportToDocText, tabReportDate } from "./doc-text";
 import { parseNippoDocument } from "./import";
 import { emptyFields } from "./logic";
 
@@ -37,5 +37,45 @@ describe("reportToDocText", () => {
       assert.equal(back.fields[k], report[k], k);
     }
     assert.equal(back.feedback, "いいですね。\n次はここも。");
+  });
+});
+
+describe("ドキュメントのタブ", () => {
+  it("タブの名前から日付を読む(年なしは日報の年、「【日報】」で始まらないタブは読まない)", () => {
+    assert.equal(tabReportDate("【日報】10月21日（水）", 2026), "2026-10-21");
+    assert.equal(tabReportDate("【日報】2026年6月22日（月）", 2027), "2026-06-22");
+    assert.equal(tabReportDate("メモ 10月21日", 2026), null);
+  });
+
+  it("その日のタブを探す", () => {
+    const tabs = [
+      { tabId: "a", title: "【日報】10月20日（火）" },
+      { tabId: "b", title: "【日報】10月21日（水）" },
+    ];
+    assert.equal(findReportTab(tabs, "2026-10-21")?.tabId, "b");
+    assert.equal(findReportTab(tabs, "2026-10-22"), null);
+  });
+
+  it("新しいタブの名前は、最後の日報のタブに合わせて年をつける", () => {
+    assert.equal(newTabTitle("2026-10-22", ["【日報】10月21日（水）"]), "【日報】10月22日（木）");
+    assert.equal(newTabTitle("2026-10-22", ["【日報】2026年10月21日（水）", "メモ"]), "【日報】2026年10月22日（木）");
+    assert.equal(newTabTitle("2026-10-22", []), "【日報】10月22日（木）");
+  });
+
+  it("社員番号 → ドキュメントの対応を読む(URL も可。読めない値は捨てる)", () => {
+    const map = parseDocMap(
+      JSON.stringify({
+        "0052": "https://docs.google.com/document/d/1djebTYRj8pyErwioj9WoIuRNMTUitPlY72eVa7TzaR4/edit?usp=sharing",
+        "0053": "1NYzFf9RPYIBjUJ2hayx2tA0Lftj0blile8mAgNIFFC4",
+        "0054": "abc",
+        "0055": 1,
+      }),
+    );
+    assert.deepEqual([...map], [
+      ["0052", "1djebTYRj8pyErwioj9WoIuRNMTUitPlY72eVa7TzaR4"],
+      ["0053", "1NYzFf9RPYIBjUJ2hayx2tA0Lftj0blile8mAgNIFFC4"],
+    ]);
+    assert.equal(parseDocMap("{").size, 0);
+    assert.equal(parseDocMap(undefined).size, 0);
   });
 });

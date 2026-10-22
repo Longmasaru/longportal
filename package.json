@@ -30,6 +30,7 @@
     "db:import-kyokasho": "tsx --env-file=.env.local scripts/import-kyokasho.ts",
     "db:import-nippo": "tsx --env-file=.env.local scripts/import-nippo.ts",
     "r2:check": "tsx --env-file=.env.local scripts/r2-check.ts",
+    "gdocs:check": "tsx --env-file=.env.local scripts/check-google-docs-writer.ts",
     "lineworks:setup": "tsx --env-file=.env.local scripts/lineworks-setup.ts"
   },
   "dependencies": {

@@ -2,12 +2,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 import { requireAppAccess } from "@/modules/core/apps";
-import { reportToDocText } from "../doc-text";
 import { FIELD_DEF, TEXT_FIELDS, type TextField } from "../labels";
 import { manifest } from "../manifest";
 import { getNeighbors, getReportDetail, modeForReport } from "../queries";
 import { CommentForm, DeleteCommentButton } from "./comment-form";
-import { CopyDocButton } from "./copy-doc-button";
 import { DATE_TIME, dateWithWeekday, Score } from "./parts";
 
 const idSchema = z.uuid();
@@ -50,10 +48,6 @@ export async function NippoReportPage({ id }: { id: string }) {
   const prev = neighbors.prev ? `${manifest.route}/${neighbors.prev.id}` : null;
   const next = neighbors.next ? `${manifest.route}/${neighbors.next.id}` : null;
   const back = isOwner ? `${manifest.route}?tab=mine` : manifest.route;
-  const docText = reportToDocText({
-    ...report,
-    reviewerComments: report.comments.filter((c) => !c.byOwner).map((c) => c.body),
-  });
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-8 md:px-8 md:py-10">
@@ -103,7 +97,6 @@ export async function NippoReportPage({ id }: { id: string }) {
               直す
             </Link>
           ) : null}
-          <CopyDocButton text={docText} />
         </div>
       </header>
 

@@ -2,6 +2,7 @@
 
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { z } from "zod";
 import { db } from "@/db/client";
 import { requireAppAccess } from "@/modules/core/apps";
@@ -9,6 +10,7 @@ import { writeAuditLog } from "@/modules/core/audit";
 import { isIsoDate } from "@/modules/core/shared/date";
 import { COMMENT_MAX, FIELD_MAX, MEMO_MAX, MEMO_MIN, SCORE_MAX, SCORE_MIN, SCORE_NOTE_MAX, TEXT_FIELDS } from "./labels";
 import { submitProblem, type ReportFields } from "./logic";
+import { writeReviewerCommentToDoc, writeSubmittedReportToDoc } from "./google-doc";
 import { manifest } from "./manifest";
 import { getComment, getOwnReportByDate, getReportRow, modeForReport } from "./queries";
 import { nippoComments, nippoReports } from "./schema";
@@ -88,6 +90,8 @@ export async function saveReportAction(_prev: FormState, formData: FormData): Pr
       .returning({ id: nippoReports.id });
     id = row.id;
   }
+  // 初めて提出したら、Google ドキュメント「日報まとめ」にその日のタブを足す(43 章。設定がなければ何もしない)。
+  if (status === "submitted" && current?.status !== "submitted") after(() => writeSubmittedReportToDoc(id));
   revalidate();
   return { ok: Date.now(), savedAs: status, reportId: id };
 }
@@ -142,6 +146,8 @@ export async function addCommentAction(_prev: FormState, formData: FormData): Pr
     byOwner: mode === "owner",
     body: parsed.data.body,
   });
+  // 指導者のコメントは、ドキュメントの「指導者からのフィードバック」にも書き足す(43 章)。本人の返信は書かない。
+  if (mode !== "owner") after(() => writeReviewerCommentToDoc(report.id, parsed.data.body));
   revalidate();
   return { ok: Date.now() };
 }
