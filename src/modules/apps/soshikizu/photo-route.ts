@@ -1,4 +1,4 @@
-// 組織図の顔写真の入口(/apps/soshikizu/photos/<社員の id>)。LINE WORKS のアイコンを、組織図を見られる人にだけ返す。
+// 組織図の顔写真の入口(/apps/soshikizu/photos/<社員の id>)と、トークの入口(/apps/soshikizu/talk/<社員の id>)。組織図を見られる人だけが使える。
 // 写真はポータルに保存しない(DB・R2 の変更なし)。社員と LINE WORKS の利用者は、メール → 氏名の順で突き合わせる。
 import { eq } from "drizzle-orm";
 import { z } from "zod";
@@ -12,7 +12,7 @@ import {
   matchDirectoryUser,
   type LineWorksUser,
 } from "@/modules/core/lineworks";
-import { isOnRoster } from "./logic";
+import { isOnRoster, lineWorksTalkUrl } from "./logic";
 import { manifest } from "./manifest";
 
 const DIRECTORY_TTL_MS = 60 * 60 * 1000;
@@ -38,10 +38,9 @@ function directory(): Promise<LineWorksUser[] | null> {
 const NOT_FOUND = () =>
   new Response("Not Found", { status: 404, headers: { "Cache-Control": "private, max-age=3600" } });
 
-export async function handlePhotoRequest(id: string): Promise<Response> {
-  const actor = await requireAppAccess(manifest.appKey);
-  if (!z.uuid().safeParse(id).success) return NOT_FOUND();
-
+/** 組織図に載っている社員(在籍者)の LINE WORKS の利用者。見つからなければ null。 */
+async function findLineWorksUser(id: string, today: string): Promise<LineWorksUser | null> {
+  if (!z.uuid().safeParse(id).success) return null;
   const [e] = await db
     .select({
       familyName: employees.familyName,
@@ -57,14 +56,19 @@ export async function handlePhotoRequest(id: string): Promise<Response> {
     .leftJoin(users, eq(users.employeeId, employees.id))
     .where(eq(employees.id, id))
     .limit(1);
-  // 組織図に載っている人(在籍者)の写真だけを返す。
-  if (!e || !isOnRoster(e, actor.today)) return NOT_FOUND();
+  if (!e || !isOnRoster(e, today)) return null;
 
   const list = await directory();
-  if (!list) return NOT_FOUND();
+  if (!list) return null;
   const userId = matchDirectoryUser({ ...e, department: null }, list);
-  if (!userId) return NOT_FOUND();
-  const photo = await fetchLineWorksUserPhoto(userId);
+  return list.find((u) => u.userId === userId) ?? null;
+}
+
+export async function handlePhotoRequest(id: string): Promise<Response> {
+  const actor = await requireAppAccess(manifest.appKey);
+  const user = await findLineWorksUser(id, actor.today);
+  if (!user) return NOT_FOUND();
+  const photo = await fetchLineWorksUserPhoto(user.userId);
   if (!photo) return NOT_FOUND();
   return new Response(photo.data, {
     headers: {
@@ -73,5 +77,25 @@ export async function handlePhotoRequest(id: string): Promise<Response> {
       "Cache-Control": "private, max-age=86400",
       "X-Content-Type-Options": "nosniff",
     },
+  });
+}
+
+/**
+ * LINE WORKS のトークの入口(/apps/soshikizu/talk/<社員の id>)。その人との 1 対 1 のトークへ転送する。
+ * 宛先は LINE WORKS のアカウント(メール)。アカウントの一覧を画面に出さないよう、押されたときにだけ調べる。
+ */
+export async function handleTalkRequest(id: string): Promise<Response> {
+  const actor = await requireAppAccess(manifest.appKey);
+  const user = await findLineWorksUser(id, actor.today);
+  if (!user?.email) {
+    return new Response(
+      '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>組織図</title>' +
+        '<p style="font-family:sans-serif;padding:24px">この人の LINE WORKS のアカウントが見つかりませんでした。LINE WORKS のアプリから探してください。</p>',
+      { status: 404, headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" } },
+    );
+  }
+  return new Response(null, {
+    status: 302,
+    headers: { Location: lineWorksTalkUrl(user.email), "Cache-Control": "no-store" },
   });
 }
