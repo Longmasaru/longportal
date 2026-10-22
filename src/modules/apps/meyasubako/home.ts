@@ -1,8 +1,8 @@
-import { requireActor } from "@/modules/core/access";
+import { requireActor, resolveActor } from "@/modules/core/access";
 import { canAccessApp } from "@/modules/core/apps";
 import type { PendingItem } from "@/modules/core/portal";
 import { manifest } from "./manifest";
-import { countPending } from "./queries";
+import { countInboxPending, countPending, isResponder } from "./queries";
 
 /**
  * ホームの「要対応」に出す目安箱の項目(docs/DESIGN.md 42 章)。
@@ -32,4 +32,20 @@ export async function getMeyasubakoPendingItems(): Promise<PendingItem[]> {
     });
   }
   return items;
+}
+
+/**
+ * サイドバーの「目安箱」の横に出す数(返事をする側の未対応の件数。docs/DESIGN.md 42 章)。
+ * すべての画面のレイアウトで呼ばれるので、返事をしない人には DB を読まない。数えられなくても画面は止めない。
+ */
+export async function getMeyasubakoNavBadge(): Promise<number> {
+  try {
+    const r = await resolveActor();
+    if (!r.ok || r.actor.mustChangePassword || !isResponder(r.actor)) return 0;
+    if (!(await canAccessApp(r.actor, manifest.appKey))) return 0;
+    return await countInboxPending(r.actor);
+  } catch (e) {
+    console.error("目安箱: 未対応の件数を数えられませんでした", e);
+    return 0;
+  }
 }

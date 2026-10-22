@@ -250,6 +250,24 @@ export async function countPending(actor: Actor): Promise<{ inbox: number; repli
   };
 }
 
+/** 返事をする側の未対応の件数(サイドバー用。一覧より軽く、必要な列だけを読む)。 */
+export async function countInboxPending(actor: Actor): Promise<number> {
+  const manage = canManagePosts(actor);
+  if (!manage && !canInAnyScope(actor, LEADER_PERMISSION)) return 0;
+  const rows = await db
+    .select({
+      destination: meyasubakoPosts.destination,
+      locationId: meyasubakoPosts.locationId,
+      departmentId: meyasubakoPosts.departmentId,
+      status: meyasubakoPosts.status,
+      authorActivityAt: meyasubakoPosts.authorActivityAt,
+      responderReadAt: meyasubakoPosts.responderReadAt,
+    })
+    .from(meyasubakoPosts)
+    .where(manage ? undefined : eq(meyasubakoPosts.destination, "leader"));
+  return rows.filter((r) => needsResponder(r) && canRespondTo(actor, r)).length;
+}
+
 /** 写真の保存場所(投稿の削除のときに R2 から消すため)。 */
 export async function photoKeysOf(postIds: string[]): Promise<string[]> {
   if (postIds.length === 0) return [];

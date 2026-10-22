@@ -25,12 +25,15 @@ import {
   PHOTO_MAX_BYTES,
   PHOTO_MAX_COUNT,
   PLACE_MAX,
+  POLISH_MIN,
   VISIBILITY_LABEL,
   missingFields,
   postAccess,
   type MeyasubakoStatus,
 } from "./constants";
 import { manifest } from "./manifest";
+import { noticeNewPost } from "./notify";
+import { polishMeyasubako, type PolishResult } from "./polish";
 import { canManagePosts, canRespondTo, countPostedOn, getPostForAction, photoKeysOf } from "./queries";
 import { meyasubakoMessages, meyasubakoPhotos, meyasubakoPosts } from "./schema";
 
@@ -167,6 +170,20 @@ export async function createPostAction(input: {
     .filter(Boolean)
     .join("\n");
   after(() => sendLineWorksChannelText(process.env.MEYASUBAKO_LINEWORKS_CHANNEL_ID, message).then(() => undefined));
+  // 返事ができる人の「お知らせ → 個人」にも届ける。失敗しても投稿は取り消さない。
+  after(() =>
+    noticeNewPost({
+      postId: id,
+      authorUserId: actor.userId,
+      category: v.category,
+      destination: v.destination,
+      visibility: v.visibility,
+      locationId: primary?.locationId ?? null,
+      departmentId: primary?.departmentId ?? null,
+      today: actor.today,
+      origin: host ? `https://${host}` : null,
+    }).catch((e) => console.error("目安箱: お知らせを届けられませんでした", e)),
+  );
 
   return { ok: true, id };
 }
@@ -280,3 +297,27 @@ export async function deletePostAction(postId: string): Promise<ActionResult> {
   return { ok: true };
 }
 
+
+// ---- AIで整える --------------------------------------------------------------
+
+const PolishInput = z.object({
+  purpose: z.enum(["post", "reply"]),
+  category: z.enum(MEYASUBAKO_CATEGORIES).nullable(),
+  body: z
+    .string()
+    .trim()
+    .min(POLISH_MIN, `${POLISH_MIN}文字以上書いてから整えてください。`)
+    .max(BODY_MAX, `${BODY_MAX}文字以内にしてください。`),
+});
+
+/** 書きかけの投稿・返事を AI で読みやすく整えた案を返す(保存はしない)。目安箱を使える人だけ。 */
+export async function polishAction(input: {
+  purpose: "post" | "reply";
+  category: string | null;
+  body: string;
+}): Promise<PolishResult> {
+  await requireAppAccess(manifest.appKey);
+  const parsed = PolishInput.safeParse(input);
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "入力を確認してください。" };
+  return polishMeyasubako(parsed.data);
+}

@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { DictationButton } from "@/modules/core/shared/ui/dictation";
 import { BUTTON_PRIMARY, FIELD_CLASS } from "@/modules/core/shared/ui/form";
 import { addMessageAction, deletePostAction, markReadAction, setStatusAction } from "../actions";
+import { PolishAssist } from "./polish-assist";
 import { MESSAGE_MAX, MEYASUBAKO_STATUSES, STATUS_LABEL, type MeyasubakoStatus } from "../constants";
 
 // 投稿の詳細ページの操作(返事・書き足し、状況の変更、削除、開いたことの記録)。
@@ -64,6 +65,7 @@ export function ReplyForm({ postId, asResponder }: { postId: string; asResponder
         placeholder={asResponder ? "投稿した人への返事" : "補足や、その後のことなど"}
         className={`${FIELD_CLASS} resize-y`}
       />
+      <PolishAssist purpose="reply" text={body} onChange={setBody} max={MESSAGE_MAX} />
       {error ? (
         <p role="alert" className="text-brand03 text-sm font-bold">
           {error}

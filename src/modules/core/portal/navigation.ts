@@ -31,8 +31,10 @@ export function buildNavigation(input: {
   apps: PortalApp[];
   notices: Notice[];
   links: PortalLink[];
+  /** アプリの横に出す数(未対応の件数など)。core は apps を参照できないので、src/app から渡す。 */
+  appBadges?: Record<string, number>;
 }): Navigation {
-  const { adminItems, apps, notices, links } = input;
+  const { adminItems, apps, notices, links, appBadges } = input;
 
   const sections: Navigation["sections"] = [
     // 開いてまず確認したいのは自分宛・全社のお知らせなので、アプリより上に置く。
@@ -66,6 +68,7 @@ export function buildNavigation(input: {
         label: app.displayName,
         href: app.href,
         icon: app.icon,
+        badge: appBadges?.[app.appKey],
       })),
       emptyText: "利用できるアプリはまだありません",
     },
