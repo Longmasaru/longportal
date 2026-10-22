@@ -986,7 +986,8 @@ migration `0021_calendar_company_events` を本番 DB に適用 → `sync:manife
 - **種類(第 1 弾)**:
   - **雨予報**(`rain`): 気象庁の天気予報(`https://www.jma.go.jp/bosai/forecast/data/forecast/<府県>.json`。鍵なし。出典「気象庁」を本文に入れる)から、選んだ地域(石川県の加賀・能登)の今日の降水確率(6 時間ごと)と天気を読み、いちばん高い降水確率がしきい値(既定 50%)以上なら知らせる。しきい値未満の日は送らない(「雨が降らない日も送る」にすると毎日送る)。読み取りは純粋関数 `rainReport`(`rain.ts`)で、テストあり。
   - **定時のお知らせ**(`notice`): 選んだ曜日に、決めた文を送る。
-- **送り方**: LINE WORKS の Bot は、今ある「LONG PORTAL」(35 章の `core/lineworks`、鍵は `LINEWORKS_*`)を共用する。送り先は Bot ごとの channelId(`npm run lineworks:setup` で部屋を作って表示された値を、画面に入れる)。画面の「試しに送る」で、その場で 1 通送って確かめられる(本文の頭に【試し】。記録には残さない)。
+- **送り方**: LINE WORKS の Bot は、今ある「LONG PORTAL」(35 章の `core/lineworks`、鍵は `LINEWORKS_*`)を共用する。送り先は Bot ごとの channelId(下の「送り先の部屋を作る」で画面から作るか、`npm run lineworks:setup` で作って表示された値を入れる)。画面の「試しに送る」で、その場で 1 通送って確かめられる(本文の頭に【試し】。記録には残さない)。
+- **送り先の部屋を作る**(2026-10-22): Bot の画面の送り先の欄にある「部屋を新しく作る」で、部屋の名前と入れる社員(氏名・フリガナ・社員番号・部署で絞り込み、部署ごとにまとめて選べる)を選ぶと、「LONG PORTAL」Bot の入ったトークルームを作り、その channelId を欄に入れる(コマンドは要らない)。社員と LINE WORKS の利用者は、組織図と同じく、メール → 氏名・フリガナの順で突き合わせる(`matchDirectoryUser`。scope `user.read`)。1 人でも見つからない人がいれば作らず、名前を出す(外すか、LINE WORKS の名前を直してもらう)。候補は在籍中の社員(入社日・退職日・状態で判定)。作ると選んだ人の LINE WORKS に部屋ができ、あいさつが 1 通届くので、押す前に確認を出す。`bots.manage` で本判定し、監査ログ `bots.room.create`(部屋の名前・channelId・入れた社員の id)を残す。部屋そのものは DB に持たない(Bot の channelId だけ)。部屋に入れた人の出入りは LINE WORKS 側で行う。
 - **定時の実行**: `vercel.json` の cron が毎朝 6 時(JST。`0 21 * * *` UTC)に `/api/cron/bots` を呼ぶ(`CRON_SECRET` で保護。30 章と同じ)。有効な Bot を 1 つずつ実行し、`bots.runs` に結果(sent / skipped / failed)を残す。`(bot_id, run_date)` は一意で、同じ日に 2 回送らない(先に行を入れて、入れられたときだけ送る)。Vercel の Hobby プランの cron は 1 日 1 回・時刻は 1 時間の幅があるので、送る時刻は Bot ごとに選べない(Pro にしたら、時刻の設定を足す)。
 - **テーブル**(`pgSchema("bots")`、migration `0025_bots_app`): `bots.bots`(名前・種類・channelId・設定(jsonb)・有効・作った人・作成/更新日時)、`bots.runs`(Bot・実行日(JST)・結果・送った本文かエラー・日時)。
 - **監査ログ**: Bot の作成・変更・削除を、同じトランザクションで記録する(`bots.bot.create` / `update` / `delete`)。

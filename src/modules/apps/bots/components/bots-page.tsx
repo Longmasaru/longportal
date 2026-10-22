@@ -5,6 +5,7 @@ import { FormNotice, PageHeading, StatusTag } from "@/modules/core/shared/ui/for
 import { BOT_KIND_DEFS } from "../kinds";
 import { MANAGE_PERMISSION, manifest } from "../manifest";
 import { listBotsWithRuns } from "../queries";
+import { listRoomCandidates } from "../room-queries";
 import { BOT_KINDS, type BotRunStatus } from "../schema";
 import { BotButtons } from "./bot-buttons";
 import { BotForm } from "./bot-form";
@@ -26,8 +27,8 @@ const STATUS_TONE: Record<BotRunStatus, "neutral" | "info" | "attention" | "mute
 /** LINE WORKS の Bot の管理(bots.manage を全社で持つ人だけ。それ以外は 404)。docs/DESIGN.md 40 章。 */
 export async function BotsPage() {
   await requireAppAccess(manifest.appKey);
-  await requireGlobalPermission(MANAGE_PERMISSION);
-  const bots = await listBotsWithRuns();
+  const actor = await requireGlobalPermission(MANAGE_PERMISSION);
+  const [bots, candidates] = await Promise.all([listBotsWithRuns(), listRoomCandidates(actor.today)]);
   const kinds = BOT_KINDS.map((value) => ({
     value,
     label: BOT_KIND_DEFS[value].label,
@@ -51,7 +52,7 @@ export async function BotsPage() {
 
       <section className="border-brand01/15 flex flex-col gap-4 border bg-white p-4 md:p-6">
         <h2 className="text-brand01 font-bold">新しい Bot</h2>
-        <BotForm kinds={kinds} />
+        <BotForm kinds={kinds} candidates={candidates} />
       </section>
 
       {bots.length === 0 ? (
@@ -75,6 +76,7 @@ export async function BotsPage() {
                   settings: bot.settings,
                 }}
                 kinds={kinds}
+                candidates={candidates}
               />
               <BotButtons botId={bot.id} name={bot.name} />
               <div className="bg-bg01 flex flex-col gap-2 p-3">
