@@ -13,6 +13,8 @@ function member(over: Partial<OrgMember> & { employeeId: string }): OrgMember {
   return {
     employeeNumber: over.employeeId,
     name: "山田 太郎",
+    familyName: "山田",
+    givenName: "太郎",
     nameKana: null,
     positionName: null,
     isManagement: false,
