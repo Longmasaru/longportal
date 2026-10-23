@@ -1,12 +1,16 @@
 "use client";
 
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState, useTransition, type KeyboardEvent, type PointerEvent } from "react";
+import { moveSeatAction, resetSeatAction } from "../actions";
 import {
   FLOOR_AREAS,
+  areaAt,
   FLOOR_DOORS,
   FLOOR_MACHINES,
   FLOOR_MAP_SIZE,
   FLOOR_MARKS,
+  FLOOR_SEATS,
   FLOOR_TRUCK,
   FLOOR_WCS,
   type AreaKey,
@@ -17,7 +21,11 @@ import { TalkLink } from "./talk-link";
 
 /** 画面に渡す社員(必要なものだけ)。 */
 export type MapPerson = { id: string; name: string; nameKana: string | null; positionName: string | null };
-export type MapSeat = Omit<FloorSeat, "who"> & { index: number; member: MapPerson | null };
+/** moved: 管理者が動かした札(元の場所に戻せる)。 */
+export type MapSeat = Omit<FloorSeat, "who"> & { index: number; member: MapPerson | null; moved: boolean };
+
+type Point = { x: number; y: number };
+type Drag = { index: number; employeeId: string; start: Point; pos: Point; moved: boolean };
 
 type Selection = { kind: "seat"; index: number } | { kind: "area"; key: AreaKey } | null;
 
@@ -61,17 +69,29 @@ export function FloorMap({
   unplaced,
   myId,
   withPhoto,
+  canEdit,
 }: {
   seats: MapSeat[];
   unplaced: MapPerson[];
   myId: string | null;
   withPhoto: boolean;
+  /** 札を動かせる人(社員管理の権限を全社で持つ人)。 */
+  canEdit: boolean;
 }) {
+  const router = useRouter();
   const [sel, setSel] = useState<Selection>(null);
+  const [editing, setEditing] = useState(false);
+  const [drag, setDrag] = useState<Drag | null>(null);
+  /** 置き終わって、画面の更新を待っている札の場所(すぐに動いて見えるように)。 */
+  const [pending, setPending] = useState<Map<number, Point>>(new Map());
+  const [placing, setPlacing] = useState<MapPerson | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [saving, startSaving] = useTransition();
   const scrollRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
+  const posOf = (s: MapSeat): Point => (drag?.index === s.index ? drag.pos : (pending.get(s.index) ?? s.at));
   const lit = seats.filter((s) => (sel?.kind === "seat" ? s.index === sel.index : sel?.kind === "area" && s.area === sel.key));
 
   // 選んだ場所が見えるように、地図を横に動かす(スマホは地図が画面より広い)。
@@ -94,6 +114,85 @@ export function FloorMap({
     setSel({ kind: "seat", index: s.index });
     if (fromList) focusMap(s.at.x);
   };
+  /** 画面の座標 → 地図の座標(mm)。 */
+  const toMap = (e: { clientX: number; clientY: number }): Point | null => {
+    const svg = svgRef.current;
+    const ctm = svg?.getScreenCTM();
+    if (!svg || !ctm) return null;
+    const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(ctm.inverse());
+    return { x: p.x, y: p.y };
+  };
+
+  /** 札を新しい場所に置く(建物の外なら戻す)。 */
+  const save = (index: number | null, employeeId: string, p: Point) => {
+    if (!areaAt(p)) {
+      setNotice("建物の中に置いてください。");
+      return;
+    }
+    if (index !== null) setPending((m) => new Map(m).set(index, p));
+    setNotice(null);
+    startSaving(async () => {
+      const r = await moveSeatAction({ employeeId, x: p.x, y: p.y });
+      if (r.error) {
+        setNotice(r.error);
+        if (index !== null)
+          setPending((m) => {
+            const next = new Map(m);
+            next.delete(index);
+            return next;
+          });
+        return;
+      }
+      router.refresh();
+    });
+  };
+
+  const reset = (s: MapSeat) => {
+    if (!s.member) return;
+    const employeeId = s.member.id;
+    startSaving(async () => {
+      const r = await resetSeatAction({ employeeId });
+      if (r.error) setNotice(r.error);
+      else {
+        setSel(null);
+        router.refresh();
+      }
+    });
+  };
+
+  // 画面が新しくなったら(保存が反映されたら)、仮の場所は捨てる。
+  const [seenSeats, setSeenSeats] = useState(seats);
+  if (seenSeats !== seats) {
+    setSeenSeats(seats);
+    setPending(new Map());
+  }
+
+  const onSeatPointerDown = (e: PointerEvent, s: MapSeat) => {
+    if (!editing || !s.member || saving) return;
+    const p = toMap(e);
+    if (!p) return;
+    e.stopPropagation();
+    svgRef.current?.setPointerCapture(e.pointerId);
+    setDrag({ index: s.index, employeeId: s.member.id, start: p, pos: posOf(s), moved: false });
+  };
+  const onPointerMove = (e: PointerEvent) => {
+    if (!drag) return;
+    const p = toMap(e);
+    if (!p) return;
+    const seat = seats[drag.index];
+    const base = pending.get(drag.index) ?? seat.at;
+    const dx = p.x - drag.start.x;
+    const dy = p.y - drag.start.y;
+    setDrag({ ...drag, pos: { x: base.x + dx, y: base.y + dy }, moved: drag.moved || Math.hypot(dx, dy) > 1 });
+  };
+  const onPointerUp = () => {
+    if (!drag) return;
+    const d = drag;
+    setDrag(null);
+    if (d.moved) save(d.index, d.employeeId, d.pos);
+    else pickSeat(seats[d.index], false);
+  };
+
   const pickArea = (key: AreaKey, fromList: boolean) => {
     setSel({ kind: "area", key });
     const area = FLOOR_AREAS.find((a) => a.key === key);
@@ -130,7 +229,32 @@ export function FloorMap({
             サブリーダー
           </span>
           <span className="lg:hidden">地図は横に動かせます</span>
+          {canEdit && (
+            <button
+              type="button"
+              onClick={() => {
+                setEditing((v) => !v);
+                setPlacing(null);
+                setNotice(null);
+              }}
+              className={`ml-auto border px-3 py-1 text-xs font-bold ${
+                editing ? "border-brand03 bg-brand03 text-white" : "border-brand01/20 text-brand01 hover:border-brand03 hover:text-brand03 bg-white"
+              }`}
+            >
+              {editing ? "動かし終わる" : "札を動かす"}
+            </button>
+          )}
         </div>
+
+        {editing && (
+          <p className="border-brand03 bg-[#fff6f2] text-brand01 border px-3 py-2 text-xs" role="status">
+            {placing
+              ? `「${placing.name}」さんを置きたい所を、地図の上で押してください。`
+              : "札をドラッグすると、その人のよくいる場所を変えられます(建物の中に置く)。名簿の下の「配置図にまだいない人」は、名前を押してから地図を押すと置けます。"}
+            {saving && " 保存しています…"}
+            {notice && <span className="ml-1 font-bold text-red-700">{notice}</span>}
+          </p>
+        )}
 
         <div ref={scrollRef} className="border-brand01/15 overflow-x-auto border bg-white">
           <svg
@@ -140,7 +264,18 @@ export function FloorMap({
             role="img"
             aria-label="会社配置図"
             fontFamily="var(--font-body)"
-            onClick={() => setSel(null)}
+            onPointerMove={onPointerMove}
+            onPointerUp={onPointerUp}
+            onPointerCancel={() => setDrag(null)}
+            onClick={(e) => {
+              if (placing) {
+                const p = toMap(e);
+                if (p) save(null, placing.id, p);
+                setPlacing(null);
+                return;
+              }
+              setSel(null);
+            }}
           >
             <defs>
               <pattern id="fm-hatch" width="2" height="2" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
@@ -180,6 +315,7 @@ export function FloorMap({
                   strokeDasharray={a.open ? "1.5 1" : undefined}
                   className="cursor-pointer outline-none"
                   onClick={(e) => {
+                    if (placing) return;
                     e.stopPropagation();
                     pickArea(a.key, false);
                   }}
@@ -270,7 +406,7 @@ export function FloorMap({
 
             {/* 光る輪(札の下に書く) */}
             {lit.map((s) => (
-              <Beacon key={`b-${s.index}-${sel?.kind}`} x={s.at.x} y={s.at.y} size={sel?.kind === "seat" ? 9 : 5.5} />
+              <Beacon key={`b-${s.index}-${sel?.kind}`} x={posOf(s).x} y={posOf(s).y} size={sel?.kind === "seat" ? 9 : 5.5} />
             ))}
 
             {/* よくいる場所の札 */}
@@ -278,22 +414,31 @@ export function FloorMap({
               const { w, h } = seatBox(s);
               const on = lit.some((l) => l.index === s.index);
               const me = s.member !== null && s.member.id === myId;
-              const top = s.at.y - h / 2;
+              const at = posOf(s);
+              const top = at.y - h / 2;
+              const grabbing = drag?.index === s.index;
               return (
                 <g
                   key={`${s.index}-${on && sel?.kind === "seat" ? "on" : "off"}`}
                   role="button"
                   tabIndex={0}
                   aria-label={`${s.member?.name ?? s.label}(${AREA_NAME.get(s.area)})`}
-                  className={`cursor-pointer outline-none ${on && sel?.kind === "seat" ? "fm-pop" : ""}`}
+                  className={`outline-none ${editing && s.member ? (grabbing ? "cursor-grabbing" : "cursor-grab") : "cursor-pointer"} ${
+                    on && sel?.kind === "seat" && !editing ? "fm-pop" : ""
+                  }`}
+                  style={editing && s.member ? { touchAction: "none" } : undefined}
+                  opacity={grabbing ? 0.85 : 1}
+                  onPointerDown={(e) => onSeatPointerDown(e, s)}
                   onClick={(e) => {
+                    if (placing) return;
                     e.stopPropagation();
-                    pickSeat(s, false);
+                    // 動かす間は、押したときの選択を onPointerUp で行う。
+                    if (!(editing && s.member)) pickSeat(s, false);
                   }}
                   onKeyDown={(e) => isActivate(e) && pickSeat(s, false)}
                 >
                   <rect
-                    x={s.at.x - w / 2}
+                    x={at.x - w / 2}
                     y={top}
                     width={w}
                     height={h}
@@ -303,23 +448,23 @@ export function FloorMap({
                     strokeWidth={on || me ? 0.7 : 0.35}
                     strokeDasharray={s.member ? undefined : "1 0.6"}
                   />
-                  <text x={s.at.x} y={top + 2.7} fontSize={2.2} fill="#555" textAnchor="middle">
+                  <text x={at.x} y={top + 2.7} fontSize={2.2} fill="#555" textAnchor="middle">
                     {s.yomi}
                   </text>
-                  <text x={s.at.x} y={top + 6.8} fontSize={3.7} fontWeight="bold" fill="#222" textAnchor="middle">
+                  <text x={at.x} y={top + 6.8} fontSize={3.7} fontWeight="bold" fill="#222" textAnchor="middle">
                     {s.label}
                   </text>
                   {s.role && (
                     <>
                       <rect
-                        x={s.at.x - (textWidth(s.role.label, 2) + 1.6) / 2}
+                        x={at.x - (textWidth(s.role.label, 2) + 1.6) / 2}
                         y={top + 7.8}
                         width={textWidth(s.role.label, 2) + 1.6}
                         height={2.8}
                         rx={0.8}
                         fill={ROLE_COLOR[s.role.kind]}
                       />
-                      <text x={s.at.x} y={top + 9.8} fontSize={2} fill="#fff" textAnchor="middle">
+                      <text x={at.x} y={top + 9.8} fontSize={2} fill="#fff" textAnchor="middle">
                         {s.role.label}
                       </text>
                     </>
@@ -330,7 +475,14 @@ export function FloorMap({
           </svg>
         </div>
 
-        <InfoCard sel={sel} seats={seats} myId={myId} withPhoto={withPhoto} onPickSeat={(s) => pickSeat(s, true)} />
+        <InfoCard
+          sel={sel}
+          seats={seats}
+          myId={myId}
+          withPhoto={withPhoto}
+          onPickSeat={(s) => pickSeat(s, true)}
+          onReset={editing ? reset : null}
+        />
       </div>
 
       <div ref={listRef} className="border-brand01/15 flex flex-col border bg-white lg:max-h-[80vh] lg:overflow-y-auto">
@@ -392,9 +544,28 @@ export function FloorMap({
               配置図にまだいない人<span className="ml-2 text-xs font-normal">{unplaced.length}人</span>
             </p>
             <ul className="text-brand04 flex flex-col gap-1 px-3 py-2 text-xs">
-              {unplaced.map((p) => (
-                <li key={p.id}>{p.name}</li>
-              ))}
+              {unplaced.map((p) =>
+                editing ? (
+                  <li key={p.id}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPlacing(p);
+                        setNotice(null);
+                        scrollRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+                      }}
+                      className={`w-full border px-2 py-1 text-left font-bold ${
+                        placing?.id === p.id ? "border-brand03 text-brand03" : "border-brand01/20 text-brand01 hover:border-brand03"
+                      }`}
+                    >
+                      {p.name}
+                      <span className="text-brand04 ml-1 font-normal">を地図に置く</span>
+                    </button>
+                  </li>
+                ) : (
+                  <li key={p.id}>{p.name}</li>
+                ),
+              )}
             </ul>
           </section>
         )}
@@ -414,12 +585,15 @@ function InfoCard({
   myId,
   withPhoto,
   onPickSeat,
+  onReset,
 }: {
   sel: Selection;
   seats: MapSeat[];
   myId: string | null;
   withPhoto: boolean;
   onPickSeat: (s: MapSeat) => void;
+  /** 札を動かしている間だけ。動かした札を元の場所に戻す。 */
+  onReset: ((s: MapSeat) => void) | null;
 }) {
   if (!sel) {
     return (
@@ -475,6 +649,15 @@ function InfoCard({
         {!m && <p className="text-brand04 mt-1 text-xs">ポータルの社員に見つからない人です(名簿にいない、または名前のつづりが違う)。</p>}
       </div>
       {m && withPhoto && m.id !== myId && <TalkLink employeeId={m.id} name={m.name} compact={false} />}
+      {onReset && s.moved && (
+        <button
+          type="button"
+          onClick={() => onReset(s)}
+          className="border-brand01/20 text-brand01 hover:border-brand03 hover:text-brand03 border bg-white px-3 py-2 text-xs font-bold"
+        >
+          {s.index < FLOOR_SEATS.length ? "元の場所に戻す" : "配置図から外す"}
+        </button>
+      )}
     </div>
   );
 }

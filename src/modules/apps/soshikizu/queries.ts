@@ -4,7 +4,9 @@ import { departments } from "@/modules/core/departments/schema";
 import { employeeAssignments, employees } from "@/modules/core/employees/schema";
 import { locations } from "@/modules/core/locations/schema";
 import { positions } from "@/modules/core/positions/schema";
+import { isAreaKey, type SeatOverride } from "./floor-map";
 import { isOnRoster } from "./logic";
+import { soshikizuSeatPositions } from "./schema";
 import type { OrgMember, OrgUnit } from "./types";
 
 /** 有効な部署(箱の並び順つき)。 */
@@ -86,4 +88,18 @@ export async function listOrgMembers(today: string): Promise<OrgMember[]> {
         locationName: a?.locationName ?? null,
       };
     });
+}
+
+/** 配置図で管理者が動かした場所。 */
+export async function listSeatOverrides(): Promise<SeatOverride[]> {
+  const rows = await db
+    .select({
+      employeeId: soshikizuSeatPositions.employeeId,
+      area: soshikizuSeatPositions.area,
+      x: soshikizuSeatPositions.x,
+      y: soshikizuSeatPositions.y,
+    })
+    .from(soshikizuSeatPositions);
+  // コードから場所がなくなった行は使わない(元の場所に戻る)。
+  return rows.filter((r) => isAreaKey(r.area));
 }
