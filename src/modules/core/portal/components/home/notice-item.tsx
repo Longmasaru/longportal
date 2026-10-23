@@ -90,6 +90,9 @@ export function NoticeItem({ notice, kindLabel }: { notice: Notice; kindLabel: s
             <span className="bg-brand03 px-1.5 text-xs leading-5 font-bold text-white">要対応</span>
           ) : null}
           <span className="bg-field text-brand04 px-1.5 text-xs leading-5">{kindLabel}</span>
+          {notice.attachmentCount > 0 ? (
+            <span className="text-brand04 text-xs font-bold">📎 添付 {notice.attachmentCount}</span>
+          ) : null}
           {!read ? (
             <span className="text-link flex items-center gap-1 text-xs font-bold">
               <span aria-hidden="true" className="bg-link size-1.5 rounded-full" />

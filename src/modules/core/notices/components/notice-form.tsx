@@ -12,6 +12,10 @@ import {
   type NoticePriority,
   type NoticeTarget,
 } from "../constants";
+import { AttachmentsField, type ExistingAttachment } from "./attachments-field";
+import { BodyAssist } from "./body-assist";
+
+const BODY_MAX = 5000;
 
 export type NoticeFormValues = {
   id: string;
@@ -38,8 +42,11 @@ export function NoticeForm({
   employees,
   today,
   allowIndividual,
+  attachments = [],
 }: {
   notice?: NoticeFormValues;
+  /** 登録済みの添付ファイル(編集のとき)。 */
+  attachments?: ExistingAttachment[];
   audiences: { id: string; name: string }[];
   employees: RecipientOption[];
   today: string;
@@ -51,6 +58,9 @@ export function NoticeForm({
   const [priority, setPriority] = useState<NoticePriority>(notice?.priority ?? "normal");
   const [recipients, setRecipients] = useState<Set<string>>(new Set(notice?.recipientIds ?? []));
   const [filter, setFilter] = useState("");
+  const [title, setTitle] = useState(notice?.title ?? "");
+  const [body, setBody] = useState(notice?.body ?? "");
+  const [uploading, setUploading] = useState(false);
   const bannerAllowed = target === "company" && priority === "urgent";
   const shown = employees.filter((e) =>
     filter.trim() === "" ? true : `${e.name}${e.employeeNumber}${e.affiliation}`.includes(filter.trim()),
@@ -71,18 +81,30 @@ export function NoticeForm({
       {state?.error ? <FormNotice tone="error">{state.error}</FormNotice> : null}
 
       <Field label="タイトル" htmlFor="nf-title" required>
-        <input id="nf-title" name="title" required maxLength={100} defaultValue={notice?.title} className={FIELD_CLASS} />
+        <input
+          id="nf-title"
+          name="title"
+          required
+          maxLength={100}
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          className={FIELD_CLASS}
+        />
       </Field>
-      <Field label="本文" htmlFor="nf-body" hint="文章と改行が、そのまま表示されます(5000 文字まで)。">
+      <Field label="本文" htmlFor="nf-body" hint="文章と改行が、そのまま表示されます(5000 文字まで)。URL はリンクになります。">
         <textarea
           id="nf-body"
           name="body"
           rows={8}
-          maxLength={5000}
-          defaultValue={notice?.body}
+          maxLength={BODY_MAX}
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
           className={`${FIELD_CLASS} leading-relaxed`}
         />
       </Field>
+      <BodyAssist title={title} body={body} onChange={setBody} max={BODY_MAX} />
+
+      <AttachmentsField existing={attachments} onBusyChange={setUploading} />
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="種類" htmlFor="nf-kind" required>
@@ -248,10 +270,10 @@ export function NoticeForm({
       </div>
 
       <div className="flex flex-wrap gap-3">
-        <button type="submit" name="intent" value="publish" disabled={pending} className={BUTTON_PRIMARY}>
+        <button type="submit" name="intent" value="publish" disabled={pending || uploading} className={BUTTON_PRIMARY}>
           {pending ? "保存中…" : notice?.status === "published" ? "公開中のまま保存" : "公開する"}
         </button>
-        <button type="submit" name="intent" value="draft" disabled={pending} className={BUTTON_SECONDARY}>
+        <button type="submit" name="intent" value="draft" disabled={pending || uploading} className={BUTTON_SECONDARY}>
           下書きとして保存
         </button>
       </div>

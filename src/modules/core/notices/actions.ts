@@ -10,11 +10,15 @@ import { audiences } from "../audience/schema";
 import { writeAuditLog } from "../audit";
 import { employees } from "../employees/schema";
 import { isIsoDate } from "../shared/date";
+import { createDownloadUrl, createUploadUrl, currentKeyPrefix, deleteObject, headObject } from "../storage";
+import { MAX_NOTICE_ATTACHMENTS, NOTICE_POLISH_MIN, attachmentProblem } from "./constants";
+import { polishNotice, type PolishResult } from "./polish";
 import { getNoticeForActor, recordNoticeRead } from "./queries";
 import {
   NOTICE_KINDS,
   NOTICE_PRIORITIES,
   NOTICE_TARGETS,
+  announcementAttachments,
   announcementReads,
   announcementRecipients,
   announcements,
@@ -69,6 +73,31 @@ const noticeSchema = z
     }
   });
 
+/** 添付の欄(画面が JSON で送る)。keep = 残す登録済みの添付の id、add = 今回アップロードしたもの。 */
+const attachmentsFieldSchema = z.object({
+  keep: z.array(z.uuid()).max(MAX_NOTICE_ATTACHMENTS),
+  add: z
+    .array(z.object({ key: z.string().min(1).max(300), fileName: z.string().trim().min(1).max(200) }))
+    .max(MAX_NOTICE_ATTACHMENTS),
+});
+
+function parseAttachmentsField(formData: FormData) {
+  const raw = formData.get("attachments");
+  if (typeof raw !== "string" || raw === "") return { keep: [], add: [] };
+  try {
+    const parsed = attachmentsFieldSchema.safeParse(JSON.parse(raw));
+    return parsed.success ? parsed.data : null;
+  } catch {
+    return null;
+  }
+}
+
+/** お知らせの添付の保存先の頭(この環境の、この人がアップロードしたものだけを受け付ける)。 */
+function uploadKeyPrefix(userId: string): string {
+  return `${currentKeyPrefix()}${ATTACHMENT_APP_KEY}/${userId}/`;
+}
+const ATTACHMENT_APP_KEY = "notices";
+
 function parseNoticeForm(formData: FormData) {
   const text = (k: string) => {
     const v = formData.get(k);
@@ -112,6 +141,29 @@ export async function saveNoticeAction(_prev: NoticeFormState, formData: FormDat
   if (v.target === "individual" && !allowIndividual) return { error: "個人宛てのお知らせは出せません。" };
   if (id !== "" && !allowIndividual && (await isIndividualNotice(id))) return { error: "お知らせが見つかりません。" };
 
+  // 添付: 今回のアップロードは、この人がこの環境に置いたもので、実際に R2 にあるものだけを登録する。
+  const files = parseAttachmentsField(formData);
+  if (!files) return { error: "添付ファイルの情報が正しくありません。画面を読み込み直してください。" };
+  if (files.keep.length + files.add.length > MAX_NOTICE_ATTACHMENTS) {
+    return { error: `添付ファイルは ${MAX_NOTICE_ATTACHMENTS} 個までです。` };
+  }
+  const added: { objectKey: string; fileName: string; size: number; contentType: string }[] = [];
+  for (const f of files.add) {
+    if (!f.key.startsWith(uploadKeyPrefix(actor.userId)) || f.key.includes("..")) {
+      return { error: "添付ファイルの情報が正しくありません。画面を読み込み直してください。" };
+    }
+    const head = await headObject(f.key);
+    if (!head) return { error: `${f.fileName} のアップロードが終わっていません。もう一度添付してください。` };
+    const problem = attachmentProblem({ name: f.fileName, size: head.size });
+    if (problem) return { error: problem };
+    added.push({
+      objectKey: f.key,
+      fileName: f.fileName,
+      size: head.size,
+      contentType: head.contentType ?? "application/octet-stream",
+    });
+  }
+
   // 宛先の存在を確かめる(無効な Audience も選べない)。
   if (v.target === "audience") {
     const [a] = await db
@@ -141,6 +193,7 @@ export async function saveNoticeAction(_prev: NoticeFormState, formData: FormDat
     updatedBy: actor.userId,
   } as const;
 
+  const removedKeys: string[] = [];
   const savedId = await db.transaction(async (tx) => {
     let noticeId = id;
     if (id === "") {
@@ -172,9 +225,30 @@ export async function saveNoticeAction(_prev: NoticeFormState, formData: FormDat
         .insert(announcementRecipients)
         .values(recipientIds.map((employeeId) => ({ announcementId: noticeId, employeeId })));
     }
+    // 添付: 画面で外したものを消し(本体はあとで R2 から消す)、今回のアップロードを登録する。
+    const current = await tx
+      .select({ id: announcementAttachments.id, objectKey: announcementAttachments.objectKey })
+      .from(announcementAttachments)
+      .where(eq(announcementAttachments.announcementId, noticeId));
+    const removed = current.filter((c) => !files.keep.includes(c.id));
+    if (removed.length > 0) {
+      await tx.delete(announcementAttachments).where(
+        inArray(
+          announcementAttachments.id,
+          removed.map((r) => r.id),
+        ),
+      );
+    }
+    if (added.length > 0) {
+      await tx
+        .insert(announcementAttachments)
+        .values(added.map((f) => ({ ...f, announcementId: noticeId, uploadedBy: actor.userId })));
+    }
+    removedKeys.push(...removed.map((r) => r.objectKey));
     return noticeId;
   });
   if (!savedId) return { error: "お知らせが見つかりません。" };
+  await deleteObjects(removedKeys);
 
   revalidatePath("/", "layout");
   redirect(`/admin/notices/${savedId}?saved=${intent}`);
@@ -221,10 +295,16 @@ export async function deleteNoticeAction(_prev: NoticeFormState, formData: FormD
   if (!canGlobally(actor, NOTICES_INDIVIDUAL) && (await isIndividualNotice(parsed.data.id))) {
     return { error: "お知らせが見つかりません。" };
   }
+  const removedKeys: string[] = [];
   const error = await db.transaction(async (tx) => {
     const [before] = await tx.select().from(announcements).where(eq(announcements.id, parsed.data.id));
     if (!before) return "お知らせが見つかりません。";
     if (before.status === "published") return "公開中のお知らせは削除できません。先に下書きに戻してください。";
+    const files = await tx
+      .select({ objectKey: announcementAttachments.objectKey })
+      .from(announcementAttachments)
+      .where(eq(announcementAttachments.announcementId, before.id));
+    removedKeys.push(...files.map((f) => f.objectKey));
     await tx.delete(announcements).where(eq(announcements.id, before.id));
     await writeAuditLog(tx, {
       actorUserId: actor.userId,
@@ -236,6 +316,7 @@ export async function deleteNoticeAction(_prev: NoticeFormState, formData: FormD
     return null;
   });
   if (error) return { error };
+  await deleteObjects(removedKeys);
   revalidatePath("/", "layout");
   redirect("/admin/notices");
 }
@@ -270,4 +351,60 @@ export async function markNoticeReadAction(id: string): Promise<void> {
   if (!z.uuid().safeParse(id).success) return;
   const notice = await getNoticeForActor(actor, id);
   if (notice && !notice.isRead) await recordNoticeRead(actor, notice.id);
+}
+
+/** R2 から添付の本体を消す(DB から外したあと。失敗してもお知らせの操作は止めない)。 */
+async function deleteObjects(keys: string[]): Promise<void> {
+  await Promise.all(
+    keys.map((key) => deleteObject(key).catch((err) => console.error("[notices] 添付の削除に失敗しました", err))),
+  );
+}
+
+/** 添付のアップロード先(署名付き URL)。お知らせ管理の権限を持つ人だけ。 */
+export async function createNoticeUploadUrlAction(file: {
+  fileName: string;
+  size: number;
+  contentType: string;
+}): Promise<{ url: string; key: string } | { error: string }> {
+  const actor = await requireGlobalPermission("core.notices.manage");
+  const problem = attachmentProblem({ name: file.fileName, size: file.size });
+  if (problem) return { error: problem };
+  try {
+    const { url, key } = await createUploadUrl({ appKey: ATTACHMENT_APP_KEY, ownerId: actor.userId, file });
+    return { url, key };
+  } catch {
+    return { error: `${file.fileName} を添付できませんでした。` };
+  }
+}
+
+/**
+ * 添付のダウンロード(署名付き URL)。見られるのは、そのお知らせが届いている人と、お知らせ管理の人
+ * (個人宛ては、個人宛ての権限も要る)だけ。
+ */
+export async function getNoticeAttachmentUrlAction(idInput: string): Promise<{ url: string } | { error: string }> {
+  const actor = await requireActor();
+  if (!z.uuid().safeParse(idInput).success) return { error: "ファイルが見つかりません。" };
+  const [row] = await db
+    .select({
+      objectKey: announcementAttachments.objectKey,
+      fileName: announcementAttachments.fileName,
+      announcementId: announcementAttachments.announcementId,
+      target: announcements.target,
+    })
+    .from(announcementAttachments)
+    .innerJoin(announcements, eq(announcements.id, announcementAttachments.announcementId))
+    .where(eq(announcementAttachments.id, idInput));
+  if (!row) return { error: "ファイルが見つかりません。" };
+  const asManager =
+    canGlobally(actor, "core.notices.manage") && (row.target !== "individual" || canGlobally(actor, NOTICES_INDIVIDUAL));
+  if (!asManager && !(await getNoticeForActor(actor, row.announcementId))) return { error: "ファイルが見つかりません。" };
+  return { url: await createDownloadUrl({ key: row.objectKey, fileName: row.fileName }) };
+}
+
+/** 「AIで整える」。お知らせ管理の権限を持つ人だけ。案を返すだけで、保存はしない。 */
+export async function polishNoticeAction(input: { title: string; body: string }): Promise<PolishResult> {
+  await requireGlobalPermission("core.notices.manage");
+  const body = String(input.body ?? "").slice(0, 5000);
+  if (body.trim().length < NOTICE_POLISH_MIN) return { error: "もう少し書いてから整えてください。" };
+  return polishNotice({ title: String(input.title ?? "").slice(0, 100), body });
 }

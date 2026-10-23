@@ -6,8 +6,16 @@ import { formatDateDot } from "../../shared/format";
 import { LINK_CLASS, PageHeading, StatusTag } from "../../shared/ui/form";
 import { NOTICE_KIND_LABEL, NOTICE_PRIORITY_LABEL } from "../labels";
 import { splitBodyLinks } from "../logic";
-import { getNoticeForActor, listNoticesForActor, recordNoticeRead, type ViewerNotice } from "../queries";
+import {
+  countNoticeAttachments,
+  getNoticeForActor,
+  listNoticeAttachments,
+  listNoticesForActor,
+  recordNoticeRead,
+  type ViewerNotice,
+} from "../queries";
 import { AcknowledgeButton } from "./acknowledge-button";
+import { AttachmentList } from "./attachment-list";
 import { RefreshAfterRead } from "./refresh-after-read";
 
 const PAGE_CLASS = "mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-8 md:px-8 md:py-10";
@@ -34,12 +42,13 @@ const CHANNEL = {
   },
 } as const;
 
-function NoticeTags({ n }: { n: ViewerNotice }) {
+function NoticeTags({ n, attachments = 0 }: { n: ViewerNotice; attachments?: number }) {
   return (
     <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
       {n.requiresAction && !n.isAcknowledged ? <StatusTag tone="attention">要対応</StatusTag> : null}
       {n.priority !== "normal" ? <StatusTag tone="attention">{NOTICE_PRIORITY_LABEL[n.priority]}</StatusTag> : null}
       <StatusTag tone="neutral">{NOTICE_KIND_LABEL[n.kind]}</StatusTag>
+      {attachments > 0 ? <span className="text-brand04 text-xs font-bold">📎 添付 {attachments}</span> : null}
       {!n.isRead ? (
         <span className="text-link flex items-center gap-1 text-xs font-bold">
           <span aria-hidden="true" className="bg-link size-1.5 rounded-full" />
@@ -64,6 +73,7 @@ export async function NoticeListPage({ channel }: { channel: NoticeChannel }) {
       return b.publishedOn.localeCompare(a.publishedOn);
     });
   const c = CHANNEL[channel];
+  const attachmentCounts = await countNoticeAttachments(list.map((n) => n.id));
 
   return (
     <div className={PAGE_CLASS}>
@@ -82,7 +92,7 @@ export async function NoticeListPage({ channel }: { channel: NoticeChannel }) {
                   {formatDateDot(n.publishedOn)}
                 </time>
                 <div className="min-w-0 flex-1">
-                  <NoticeTags n={n} />
+                  <NoticeTags n={n} attachments={attachmentCounts.get(n.id) ?? 0} />
                   <p className="text-brand01 group-hover:text-brand03 mt-1 font-bold transition-colors">{n.title}</p>
                   {n.summary ? <p className="text-brand04 mt-0.5 line-clamp-1 text-sm">{n.summary}</p> : null}
                 </div>
@@ -101,6 +111,7 @@ export async function NoticeDetailPage({ id }: { id: string }) {
   if (!z.uuid().safeParse(id).success) notFound();
   const notice = await getNoticeForActor(actor, id);
   if (!notice) notFound();
+  const attachments = await listNoticeAttachments(notice.id);
   const justRead = !notice.isRead;
   if (justRead) await recordNoticeRead(actor, notice.id);
   const back = notice.target === "company" ? "/notices/company" : "/notices/personal";
@@ -136,6 +147,7 @@ export async function NoticeDetailPage({ id }: { id: string }) {
           )}
         </div>
       ) : null}
+      <AttachmentList files={attachments} />
       <p className="text-sm">
         <Link href={back} className={LINK_CLASS}>
           一覧へ戻る

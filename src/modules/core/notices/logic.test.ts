@@ -68,3 +68,12 @@ test("splitBodyLinks: 本文の URL をリンクに分け、文末の句読点�
   // javascript: などは URL として扱わない
   assert.deepEqual(splitBodyLinks("javascript:alert(1)"), [{ type: "text", text: "javascript:alert(1)" }]);
 });
+
+test("attachmentProblem: 実行できる形式・空・大きすぎるファイルを断る", async () => {
+  const { attachmentProblem } = await import("./constants");
+  assert.equal(attachmentProblem({ name: "資料.pdf", size: 1000 }), null);
+  assert.equal(attachmentProblem({ name: "写真.JPG", size: 1000 }), null);
+  assert.match(attachmentProblem({ name: "setup.exe", size: 1000 }) ?? "", /実行できる/);
+  assert.match(attachmentProblem({ name: "a.pdf", size: 0 }) ?? "", /空/);
+  assert.match(attachmentProblem({ name: "a.pdf", size: 26 * 1024 * 1024 }) ?? "", /25MB/);
+});

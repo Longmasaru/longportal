@@ -123,6 +123,8 @@ export type Notice = {
   summary: string;
   /** 本文(ホームのプレビューと「続きを読む」用) */
   body: string;
+  /** 添付ファイルの数 */
+  attachmentCount: number;
   kind: NoticeKind;
   priority: NoticePriority;
   target: NoticeTarget;
