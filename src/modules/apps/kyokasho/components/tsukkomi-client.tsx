@@ -31,7 +31,7 @@ import {
   postCommentAction,
   type TsukkomiFormState,
 } from "../tsukkomi-actions";
-import { TsukkomiBurst } from "./tsukkomi-burst";
+import { BURST_FONT, BURST_TEXT, TsukkomiBurst } from "./tsukkomi-burst";
 
 // ツッコミの入力まわり(docs/DESIGN.md 32 章)。見出しの横の「ツッコむ」・右下の「ツッコむ」・文を選んで「選んだ文にツッコむ」から、
 // 画面の横(スマホは下)に書く欄を出す(Google スプレッドシートのコメントのように)。ページは動かさず、ツッコむところに印を付けたまま書ける。
@@ -219,6 +219,8 @@ export function TsukkomiPanel({
       setQuote(p.quote ?? "");
       setOpen(true);
       mark(next);
+      // 送ったときの演出の書体を、先に読み込んでおく。
+      document.fonts?.load(`1em ${BURST_FONT}`, BURST_TEXT).catch(() => {});
       // 書く欄が描かれてから、場所を空ける・見えるところへ送る。
       requestAnimationFrame(() => {
         makeRoom(true, next);
