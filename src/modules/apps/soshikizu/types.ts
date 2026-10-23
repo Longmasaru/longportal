@@ -3,6 +3,9 @@ export type OrgMember = {
   employeeId: string;
   employeeNumber: string;
   name: string;
+  /** 姓と名(配置図で、名字だけの札を社員に当てるのに使う)。 */
+  familyName: string;
+  givenName: string | null;
   nameKana: string | null;
   positionName: string | null;
   isManagement: boolean;
