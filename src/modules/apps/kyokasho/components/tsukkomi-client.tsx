@@ -31,6 +31,7 @@ import {
   postCommentAction,
   type TsukkomiFormState,
 } from "../tsukkomi-actions";
+import { TsukkomiBurst } from "./tsukkomi-burst";
 
 // ツッコミの入力まわり(docs/DESIGN.md 32 章)。見出しの横の「ツッコむ」・右下の「ツッコむ」・文を選んで「選んだ文にツッコむ」から、
 // 画面の横(スマホは下)に書く欄を出す(Google スプレッドシートのコメントのように)。ページは動かさず、ツッコむところに印を付けたまま書ける。
@@ -261,8 +262,11 @@ export function TsukkomiPanel({
 
   // 送れたら中身を空にする(送った時刻が変わるたび。描画の中で一度だけ行う)。
   const [seenAt, setSeenAt] = useState<number | undefined>(undefined);
+  const [burst, setBurst] = useState(false);
+  const endBurst = useCallback(() => setBurst(false), []);
   if (state?.success && state.at !== seenAt) {
     setSeenAt(state.at);
+    setBurst(true);
     setBody("");
     setPrevious(null);
     setSuggestion(null);
@@ -290,6 +294,7 @@ export function TsukkomiPanel({
   return (
     <>
       <style>{`::highlight(${HIGHLIGHT}){background-color:rgb(255 213 79 / 0.6)}[data-tsukkomi-target]{background-color:rgb(255 213 79 / 0.35);box-shadow:-0.5rem 0 0 rgb(255 213 79 / 0.35),0.5rem 0 0 rgb(255 213 79 / 0.35)}`}</style>
+      {burst ? <TsukkomiBurst key={seenAt} onDone={endBurst} /> : null}
 
       {open ? null : (
         <button
