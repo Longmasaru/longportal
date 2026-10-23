@@ -41,7 +41,7 @@ export function PortalFrame({
         本文へ移動
       </a>
 
-      <header className="border-brand01/15 sticky top-0 z-30 flex h-14 shrink-0 items-center gap-3 border-b bg-white px-3 md:px-5">
+      <header className="border-brand01/15 print:hidden sticky top-0 z-30 flex h-14 shrink-0 items-center gap-3 border-b bg-white px-3 md:px-5">
         <button
           type="button"
           aria-label={navOpen ? "メニューを閉じる" : "メニューを開く"}
@@ -87,7 +87,7 @@ export function PortalFrame({
 
         <aside
           id="portal-sidebar"
-          className={`bg-bg01 fixed top-14 bottom-0 left-0 z-20 flex w-64 flex-col overflow-y-auto transition-transform duration-200 lg:sticky lg:top-14 lg:bottom-auto lg:h-[calc(100dvh-3.5rem)] lg:shrink-0 lg:translate-x-0 ${
+          className={`bg-bg01 print:hidden fixed top-14 bottom-0 left-0 z-20 flex w-64 flex-col overflow-y-auto transition-transform duration-200 lg:sticky lg:top-14 lg:bottom-auto lg:h-[calc(100dvh-3.5rem)] lg:shrink-0 lg:translate-x-0 ${
             navOpen ? "translate-x-0" : "-translate-x-full"
           }`}
         >
