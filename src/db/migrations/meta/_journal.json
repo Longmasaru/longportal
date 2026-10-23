@@ -204,6 +204,13 @@
       "when": 1792739622044,
       "tag": "0028_soshikizu_seat_positions",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1792741532498,
+      "tag": "0029_notice_attachments",
+      "breakpoints": true
     }
   ]
 }
