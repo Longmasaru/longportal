@@ -25,10 +25,12 @@ import {
   haisouSavedRoutes,
 } from "./schema";
 
-/** 画面に見せてよいエラー(それ以外は「処理できませんでした」にする)。 */
-export class UserError extends Error {}
+import { UserError } from "./errors";
+import { formatSaved } from "./format";
+import * as sheet from "./sheet-store";
+import { sheetConfigured } from "./sheets-api";
+export { UserError };
 
-const TIME_ZONE = "Asia/Tokyo";
 
 // ---- 取引先・配達者(ルート作成画面) -------------------------------------------------
 
@@ -48,6 +50,7 @@ export type ClientForRoute = {
 const activeClients = isNull(haisouClients.deletedAt);
 
 export async function getClients(): Promise<ClientForRoute[]> {
+  if (sheetConfigured()) return sheet.getClients();
   const rows = await db.select().from(haisouClients).where(activeClients).orderBy(asc(haisouClients.rowNo));
   return rows.map((c) => ({
     row: c.rowNo,
@@ -63,6 +66,7 @@ export async function getClients(): Promise<ClientForRoute[]> {
 }
 
 export async function getDrivers(): Promise<{ name: string; email: string }[]> {
+  if (sheetConfigured()) return sheet.getDrivers();
   return db
     .select({ name: haisouDrivers.name, email: haisouDrivers.email })
     .from(haisouDrivers)
@@ -97,6 +101,7 @@ export async function saveCompanyDefaults(
 
 /** 履歴から、会社ごとの「詳細」の候補(新しい順に、重複なしで 8 件まで)。 */
 export async function getHistoryDetailsByCompany(): Promise<Record<string, string[]>> {
+  if (sheetConfigured()) return sheet.getHistoryDetailsByCompany();
   const rows = await db
     .select({ name: haisouHistory.name, detail: haisouHistory.detail })
     .from(haisouHistory)
@@ -253,6 +258,7 @@ export function reschedule(result: RouteResult): RouteResult {
 // ---- 配達履歴 ------------------------------------------------------------------------
 
 export async function saveHistory(result: RouteResult, userId: string): Promise<string> {
+  if (sheetConfigured()) return sheet.saveHistory(result);
   const batchId = crypto.randomUUID();
   const url = result.links.map((l) => l.url).join("\n");
   const deliveryDate = parseDateLabel(result.dateRaw) ?? parseDateLabel(result.date);
@@ -312,6 +318,7 @@ export type HistoryRow = {
 
 /** 配達履歴(月ごと。配達者で絞り込める)。新しい日付が先、同じ日の中は保存した順。 */
 export async function listHistory(month: string, driver: string): Promise<HistoryRow[]> {
+  if (sheetConfigured()) return sheet.listHistory(month, driver);
   const [y, m] = month.split("-").map(Number);
   const from = `${y}-${String(m).padStart(2, "0")}-01`;
   const next = m === 12 ? `${y + 1}-01-01` : `${y}-${String(m + 1).padStart(2, "0")}-01`;
@@ -349,6 +356,7 @@ export async function listHistory(month: string, driver: string): Promise<Histor
 
 /** 実時間(元のシートの R 列。手入力)。 */
 export async function setHistoryActual(id: string, value: string): Promise<string> {
+  if (sheetConfigured()) return sheet.setHistoryActual(id, value);
   const [row] = await db
     .update(haisouHistory)
     .set({ actualTime: value })
@@ -360,6 +368,7 @@ export async function setHistoryActual(id: string, value: string): Promise<strin
 
 /** 1 つの便(同じ「履歴に保存」で入った行)をまとめて消す。二重に保存したときなどに使う。 */
 export async function deleteHistoryBatch(batchId: string): Promise<string> {
+  if (sheetConfigured()) return sheet.deleteHistoryBatch(batchId);
   const rows = await db.delete(haisouHistory).where(eq(haisouHistory.batchId, batchId)).returning({ id: haisouHistory.id });
   if (!rows.length) throw new UserError("履歴が見つかりません。読み込み直してください。");
   return `配達履歴から ${rows.length}件 削除しました`;
@@ -378,6 +387,7 @@ export async function saveRouteState(nameInput: string, payload: SavedPayload, u
   if (JSON.stringify(payload).length > ROUTE_SAVE_MAX_CHARS) {
     throw new UserError("データが大きすぎて保存できません(配達先の件数を減らしてください)");
   }
+  if (sheetConfigured()) return sheet.saveRouteState(name, payload);
   const amCount = Array.isArray(payload?.stops?.AM) ? payload.stops.AM.length : 0;
   const pmCount = Array.isArray(payload?.stops?.PM) ? payload.stops.PM.length : 0;
   const values = {
@@ -399,25 +409,11 @@ export async function saveRouteState(nameInput: string, payload: SavedPayload, u
   return `「${name}」を保存しました(AM ${amCount}件/PM ${pmCount}件)`;
 }
 
-const savedFormat = new Intl.DateTimeFormat("ja-JP", {
-  timeZone: TIME_ZONE,
-  month: "2-digit",
-  day: "2-digit",
-  hour: "2-digit",
-  minute: "2-digit",
-  hourCycle: "h23",
-});
-
-/** `MM/dd HH:mm`(JST) */
-function formatSaved(d: Date): string {
-  const p = Object.fromEntries(savedFormat.formatToParts(d).map((x) => [x.type, x.value]));
-  return `${p.month}/${p.day} ${p.hour}:${p.minute}`;
-}
-
 /** 保存一覧(新しい順)。 */
 export async function listRouteStates(): Promise<
   { name: string; saved: string; date: string; driver: string; am: number; pm: number }[]
 > {
+  if (sheetConfigured()) return sheet.listRouteStates();
   const rows = await db
     .select({
       name: haisouSavedRoutes.name,
@@ -441,6 +437,7 @@ export async function listRouteStates(): Promise<
 
 export async function loadRouteState(nameInput: string): Promise<unknown> {
   const name = String(nameInput || "").trim();
+  if (sheetConfigured()) return sheet.loadRouteState(name);
   const [row] = await db
     .select({ data: haisouSavedRoutes.data })
     .from(haisouSavedRoutes)
@@ -451,6 +448,7 @@ export async function loadRouteState(nameInput: string): Promise<unknown> {
 
 export async function deleteRouteState(nameInput: string): Promise<string> {
   const name = String(nameInput || "").trim();
+  if (sheetConfigured()) return sheet.deleteRouteState(name);
   const rows = await db
     .delete(haisouSavedRoutes)
     .where(eq(haisouSavedRoutes.name, name))
@@ -476,6 +474,7 @@ export type ClientInput = {
 
 /** 画面の一覧(値は文字列。滞在・緯度経度が無ければ空文字)。 */
 export async function cmListClients() {
+  if (sheetConfigured()) return sheet.cmListClients();
   const rows = await db.select().from(haisouClients).where(activeClients).orderBy(asc(haisouClients.rowNo));
   return rows.map((c) => ({
     row: c.rowNo,
@@ -548,6 +547,7 @@ async function locateClient(rowNo: number, originalName: string) {
 
 export async function cmAddClient(c: ClientInput, userId: string): Promise<{ row: number; message: string }> {
   const v = normalizeClient(c);
+  if (sheetConfigured()) return sheet.cmAddClient(v, !!c.allowDuplicate);
   if (!c.allowDuplicate && (await findActiveByName(v.name, 0))) {
     throw new UserError(`DUP:「${v.name}」はすでに登録されています`);
   }
@@ -570,6 +570,7 @@ export async function cmUpdateClient(
   c: ClientInput,
   userId: string,
 ): Promise<{ row: number; message: string }> {
+  if (sheetConfigured()) return sheet.cmUpdateClient(rowNo, originalName, normalizeClient(c), !!c.allowDuplicate);
   const cur = await locateClient(rowNo, originalName);
   const v = normalizeClient(c);
   if (!c.allowDuplicate && v.name !== originalName && (await findActiveByName(v.name, cur.rowNo))) {
@@ -583,6 +584,7 @@ export async function cmUpdateClient(
 }
 
 export async function cmDeleteClient(rowNo: number, originalName: string, userId: string): Promise<{ message: string }> {
+  if (sheetConfigured()) return sheet.cmDeleteClient(rowNo, originalName);
   const cur = await locateClient(rowNo, originalName);
   await db
     .update(haisouClients)
@@ -610,6 +612,7 @@ export async function cmGeocode(addressInput: string) {
 // ---- 配達者の管理(元: 配達者リストシートを直接編集していた) ---------------------------------
 
 export async function dmListDrivers(): Promise<{ id: string; name: string; email: string }[]> {
+  if (sheetConfigured()) return sheet.dmListDrivers();
   return db
     .select({ id: haisouDrivers.id, name: haisouDrivers.name, email: haisouDrivers.email })
     .from(haisouDrivers)
@@ -626,6 +629,7 @@ function normalizeDriver(d: { name: string; email: string }) {
 
 export async function dmAddDriver(d: { name: string; email: string }): Promise<string> {
   const v = normalizeDriver(d);
+  if (sheetConfigured()) return sheet.dmAddDriver(v);
   const [{ maxOrder }] = await db.select({ maxOrder: max(haisouDrivers.sortOrder) }).from(haisouDrivers);
   await db.insert(haisouDrivers).values({ ...v, sortOrder: (maxOrder ?? 0) + 1 });
   return `「${v.name}」を追加しました`;
@@ -633,12 +637,14 @@ export async function dmAddDriver(d: { name: string; email: string }): Promise<s
 
 export async function dmUpdateDriver(id: string, d: { name: string; email: string }): Promise<string> {
   const v = normalizeDriver(d);
+  if (sheetConfigured()) return sheet.dmUpdateDriver(id, v);
   const rows = await db.update(haisouDrivers).set(v).where(eq(haisouDrivers.id, id)).returning({ id: haisouDrivers.id });
   if (!rows.length) throw new UserError("配達者が見つかりません。読み込み直してください。");
   return `「${v.name}」を変更しました`;
 }
 
 export async function dmDeleteDriver(id: string): Promise<string> {
+  if (sheetConfigured()) return sheet.dmDeleteDriver(id);
   const rows = await db.delete(haisouDrivers).where(eq(haisouDrivers.id, id)).returning({ name: haisouDrivers.name });
   if (!rows.length) throw new UserError("配達者が見つかりません。読み込み直してください。");
   return `「${rows[0].name}」を削除しました(保存済みのルート表・履歴はそのまま残ります)`;
@@ -646,6 +652,7 @@ export async function dmDeleteDriver(id: string): Promise<string> {
 
 /** 並び順を 1 つ上下に動かす(ルート作成画面のプルダウンとカレンダーの色の順)。 */
 export async function dmMoveDriver(id: string, dir: -1 | 1): Promise<string> {
+  if (sheetConfigured()) return sheet.dmMoveDriver(id, dir);
   const list = await dmListDrivers();
   const i = list.findIndex((d) => d.id === id);
   const j = i + dir;
@@ -661,6 +668,7 @@ export async function dmMoveDriver(id: string, dir: -1 | 1): Promise<string> {
 
 /** 履歴画面の配達者の絞り込み用(配達者の一覧 + 履歴に出てくる名前)。 */
 export async function listHistoryDrivers(): Promise<string[]> {
+  if (sheetConfigured()) return sheet.listHistoryDrivers();
   const drivers = (await dmListDrivers()).map((d) => d.name);
   const rows = await db.selectDistinct({ driver: haisouHistory.driver }).from(haisouHistory);
   const extra = rows.map((r) => r.driver).filter((n) => n && !drivers.includes(n));
