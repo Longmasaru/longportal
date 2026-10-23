@@ -1,8 +1,9 @@
+import { canGlobally } from "@/modules/core/access";
 import { requireAppAccess } from "@/modules/core/apps";
 import { lineWorksConfig } from "@/modules/core/lineworks";
-import { FLOOR_MAP_AS_OF, FLOOR_SEATS, placeSeats } from "../floor-map";
+import { applySeatOverrides, FLOOR_MAP_AS_OF, FLOOR_SEATS, placeSeats } from "../floor-map";
 import { manifest } from "../manifest";
-import { listOrgMembers } from "../queries";
+import { listOrgMembers, listSeatOverrides } from "../queries";
 import type { OrgMember } from "../types";
 import { FloorMap, type MapPerson, type MapSeat } from "./floor-map";
 import { OrgTabs } from "./org-tabs";
@@ -20,8 +21,9 @@ const toPerson = (m: OrgMember): MapPerson => ({
  */
 export async function FloorMapPage() {
   const actor = await requireAppAccess(manifest.appKey);
-  const members = await listOrgMembers(actor.today);
-  const { seats, unplaced } = placeSeats(FLOOR_SEATS, members);
+  const [members, overrides] = await Promise.all([listOrgMembers(actor.today), listSeatOverrides()]);
+  // 管理者が動かした札は、コードの場所より優先する。
+  const { seats, unplaced } = applySeatOverrides(placeSeats(FLOOR_SEATS, members), overrides);
   // 当て方(who)は画面に要らないので渡さない。
   const mapSeats: MapSeat[] = seats.map((s) => ({
     index: s.index,
@@ -31,6 +33,7 @@ export async function FloorMapPage() {
     yomi: s.yomi,
     role: s.role,
     member: s.member ? toPerson(s.member) : null,
+    moved: s.moved,
   }));
   const [y, mo, d] = FLOOR_MAP_AS_OF.split("-").map(Number);
 
@@ -53,6 +56,7 @@ export async function FloorMapPage() {
         unplaced={unplaced.map(toPerson)}
         myId={actor.employee?.id ?? null}
         withPhoto={lineWorksConfig() !== null}
+        canEdit={canGlobally(actor, "core.employees.manage")}
       />
     </div>
   );

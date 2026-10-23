@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { FLOOR_AREAS, FLOOR_MAP_SIZE, FLOOR_SEATS, findSeatMember, placeSeats } from "./floor-map";
+import { FLOOR_AREAS, FLOOR_MAP_SIZE, FLOOR_SEATS, applySeatOverrides, areaAt, findSeatMember, placeSeats, seatLabelOf } from "./floor-map";
 
 const people = [
   { employeeId: "a", familyName: "長井", givenName: "隆" },
@@ -43,4 +43,33 @@ test("配置図のデータ: 札は図の中、どこかの場所に属し、同
     assert.ok(!seen.has(id), `${s.label} が 2 回`);
     seen.add(id);
   }
+});
+
+test("areaAt: 部屋が建物より先、外は null", () => {
+  assert.equal(areaAt({ x: 20, y: 90 }), "office");
+  assert.equal(areaAt({ x: 20, y: 200 }), "kojo1");
+  assert.equal(areaAt({ x: 150, y: 100 }), "kojo3");
+  assert.equal(areaAt({ x: 60, y: 30 }), null);
+});
+
+test("applySeatOverrides: 札のある人は動かし、札のない人には札を足す", () => {
+  const ms = [
+    { employeeId: "c", familyName: "平口", givenName: "裕二", nameKana: "ひらぐち ゆうじ" },
+    { employeeId: "v", familyName: "PHAM THI", givenName: "VAN", nameKana: "ファム・ティ・ヴァン" },
+    { employeeId: "n", familyName: "新人", givenName: "太郎", nameKana: "しんじん たろう" },
+  ];
+  const placed = placeSeats([{ area: "office", at: { x: 1, y: 1 }, label: "平口", yomi: "ひらぐち", who: { family: "平口" } }], ms);
+  const out = applySeatOverrides(placed, [
+    { employeeId: "c", area: "kojo3", x: 150, y: 100 },
+    { employeeId: "v", area: "soko", x: 160, y: 150 },
+  ]);
+  assert.deepEqual(
+    out.seats.map((s) => [s.index, s.label, s.yomi, s.area, s.at.x, s.moved]),
+    [
+      [0, "平口", "ひらぐち", "kojo3", 150, true],
+      [1, "VAN", "ヴァン", "soko", 160, true],
+    ],
+  );
+  assert.deepEqual(out.unplaced.map((m) => m.employeeId), ["n"]);
+  assert.deepEqual(seatLabelOf(ms[2]), { label: "新人", yomi: "しんじん" });
 });

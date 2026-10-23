@@ -275,3 +275,61 @@ export function placeSeats<M extends NameParts>(
   });
   return { seats: placed, unplaced: members.filter((m) => !used.has(m.employeeId)) };
 }
+
+/** 図の上の点がどの場所か(部屋 → 建物の順に見る)。どこでもなければ null。 */
+export function areaAt(p: Point): AreaKey | null {
+  for (const a of [...FLOOR_AREAS].reverse()) {
+    const r = a.rect;
+    if (p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h) return a.key;
+  }
+  return null;
+}
+
+export const isAreaKey = (v: string): v is AreaKey => FLOOR_AREAS.some((a) => a.key === v);
+
+/** 管理者が動かした場所(soshikizu.seat_positions の行)。 */
+export type SeatOverride = { employeeId: string; area: AreaKey; x: number; y: number };
+
+type KanaParts = NameParts & Pick<OrgMember, "nameKana">;
+
+/** 札のない人を地図に置くときの、札の名前とふりがな(日本の人は名字、英字の人は名)。 */
+export function seatLabelOf(m: KanaParts): { label: string; yomi: string } {
+  const latin = /^[\x20-\x7e]+$/.test(m.familyName);
+  const kana = (m.nameKana ?? "").split(/[\s　]+/).filter(Boolean);
+  return latin
+    ? { label: m.givenName ?? m.familyName, yomi: kana.at(-1)?.split("・").at(-1) ?? "" }
+    : { label: m.familyName, yomi: kana[0] ?? "" };
+}
+
+/**
+ * 動かした場所をかぶせる。札のある人はその札を動かし、札のない人には新しい札を足す(unplaced から外す)。
+ * moved は、管理者が動かした(元に戻せる)札。
+ */
+export function applySeatOverrides<M extends KanaParts>(
+  placed: { seats: PlacedSeat<M>[]; unplaced: M[] },
+  overrides: readonly SeatOverride[],
+): { seats: (PlacedSeat<M> & { moved: boolean })[]; unplaced: M[] } {
+  const byId = new Map(overrides.map((o) => [o.employeeId, o]));
+  const seatsOut = placed.seats.map((s) => {
+    const o = s.member ? byId.get(s.member.employeeId) : undefined;
+    return o ? { ...s, area: o.area, at: { x: o.x, y: o.y }, moved: true } : { ...s, moved: false };
+  });
+  const unplaced: M[] = [];
+  for (const m of placed.unplaced) {
+    const o = byId.get(m.employeeId);
+    if (!o) {
+      unplaced.push(m);
+      continue;
+    }
+    seatsOut.push({
+      ...seatLabelOf(m),
+      area: o.area,
+      at: { x: o.x, y: o.y },
+      who: { full: `${m.familyName}${m.givenName ?? ""}` },
+      index: seatsOut.length,
+      member: m,
+      moved: true,
+    });
+  }
+  return { seats: seatsOut, unplaced };
+}

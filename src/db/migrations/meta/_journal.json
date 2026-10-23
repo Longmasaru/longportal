@@ -197,6 +197,13 @@
       "when": 1792579688182,
       "tag": "0027_meyasubako_app",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1792739622044,
+      "tag": "0028_soshikizu_seat_positions",
+      "breakpoints": true
     }
   ]
 }
