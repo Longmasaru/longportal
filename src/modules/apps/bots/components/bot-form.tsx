@@ -5,6 +5,8 @@ import { BUTTON_PRIMARY, FIELD_CLASS, Field, FormNotice } from "@/modules/core/s
 import { createBotAction, updateBotAction, type BotFormState } from "../actions";
 import { WEEKDAY_LABELS } from "../kinds";
 import { RAIN_AREAS } from "../rain";
+import type { RoomCandidate } from "../rooms";
+import { RoomCreator } from "./room-creator";
 
 export type BotFormValues = {
   id: string;
@@ -77,12 +79,22 @@ function NoticeFields({ p, s }: { p: string; s: Record<string, unknown> }) {
 }
 
 /** Bot の作成(bot なし)と設定の変更。入力エラーのときに入力内容が消えないよう、フォームのリセットを起こさない送り方にする。 */
-export function BotForm({ bot, kinds }: { bot?: BotFormValues; kinds: KindOption[] }) {
+export function BotForm({
+  bot,
+  kinds,
+  candidates,
+}: {
+  bot?: BotFormValues;
+  kinds: KindOption[];
+  candidates: RoomCandidate[];
+}) {
   const [state, action, pending] = useActionState<BotFormState, FormData>(
     bot ? updateBotAction : createBotAction,
     undefined,
   );
   const [kind, setKind] = useState(bot?.kind ?? kinds[0]?.value ?? "rain");
+  const [name, setName] = useState(bot?.name ?? "");
+  const [channelId, setChannelId] = useState(bot?.channelId ?? "");
   const current = kinds.find((k) => k.value === kind);
   const settings = bot?.settings ?? current?.defaults ?? {};
   const p = `bot-${bot?.id ?? "new"}`;
@@ -101,7 +113,15 @@ export function BotForm({ bot, kinds }: { bot?: BotFormValues; kinds: KindOption
 
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="名前" htmlFor={`${p}-name`} required>
-          <input id={`${p}-name`} name="name" required maxLength={60} defaultValue={bot?.name ?? ""} className={FIELD_CLASS} />
+          <input
+            id={`${p}-name`}
+            name="name"
+            required
+            maxLength={60}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className={FIELD_CLASS}
+          />
         </Field>
         {bot ? (
           <input type="hidden" name="kind" value={bot.kind} />
@@ -122,7 +142,7 @@ export function BotForm({ bot, kinds }: { bot?: BotFormValues; kinds: KindOption
         label="送り先のトークルーム(channelId)"
         htmlFor={`${p}-ch`}
         required
-        hint="npm run lineworks:setup で、Bot の入った部屋を作ると表示されます。"
+        hint="下の「部屋を新しく作る」で作ると、自動で入ります。"
       >
         <input
           id={`${p}-ch`}
@@ -130,10 +150,12 @@ export function BotForm({ bot, kinds }: { bot?: BotFormValues; kinds: KindOption
           required
           maxLength={100}
           pattern="[A-Za-z0-9_\-]+"
-          defaultValue={bot?.channelId ?? ""}
+          value={channelId}
+          onChange={(e) => setChannelId(e.target.value)}
           className={FIELD_CLASS}
         />
       </Field>
+      <RoomCreator p={p} candidates={candidates} defaultTitle={name} onCreated={setChannelId} />
 
       {kind === "rain" ? <RainFields key={kind} p={p} s={settings} /> : null}
       {kind === "notice" ? <NoticeFields key={kind} p={p} s={settings} /> : null}
