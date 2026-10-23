@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { markNoticeReadAction } from "../../../notices/actions";
 import { splitBodyLinks } from "../../../notices/logic";
 import { formatDateDot } from "../../../shared/format";
@@ -15,19 +16,55 @@ function isLongBody(body: string): boolean {
 /**
  * ホームのお知らせの 1 件。本文の先頭(3 行まで)を見せ、「続きを読む」でその場で全文を開く。
  * 開いたら既読にする(詳細の画面を開いたときと同じ)。確認ボタンなどは、件名から開く詳細の画面にある。
+ * 既読にしたら、「閉じる」かホームを離れるときに画面を取り直し、サイドバーの未読の数も更新する
+ * (読んでいる途中で一覧から消えないよう、開いている間は取り直さない)。
  */
 export function NoticeItem({ notice, kindLabel }: { notice: Notice; kindLabel: string }) {
   const [open, setOpen] = useState(false);
   const [read, setRead] = useState(notice.isRead);
   const [, startTransition] = useTransition();
+  const router = useRouter();
   const long = isLongBody(notice.body);
   const bodyId = `notice-body-${notice.id}`;
+  /** ここで既読にした / その保存が済んだ / 閉じたので取り直したい / 取り直し済み */
+  const markedHere = useRef(false);
+  const saved = useRef(false);
+  const wantRefresh = useRef(false);
+  const refreshed = useRef(false);
+
+  const refreshOnce = () => {
+    if (refreshed.current) return;
+    refreshed.current = true;
+    router.refresh();
+  };
+
+  // ホームを離れるとき(この項目が消えるとき)に、既読にしていれば取り直す。
+  useEffect(
+    () => () => {
+      if (markedHere.current && !refreshed.current) {
+        refreshed.current = true;
+        router.refresh();
+      }
+    },
+    [router],
+  );
 
   const toggle = () => {
-    setOpen((v) => !v);
+    const next = !open;
+    setOpen(next);
     if (!read) {
       setRead(true);
-      startTransition(() => markNoticeReadAction(notice.id));
+      markedHere.current = true;
+      startTransition(async () => {
+        await markNoticeReadAction(notice.id);
+        saved.current = true;
+        if (wantRefresh.current) refreshOnce();
+      });
+    }
+    if (!next && markedHere.current) {
+      // 保存がまだなら、済んだときに取り直す
+      if (saved.current) refreshOnce();
+      else wantRefresh.current = true;
     }
   };
 

@@ -8,6 +8,7 @@ import { NOTICE_KIND_LABEL, NOTICE_PRIORITY_LABEL } from "../labels";
 import { splitBodyLinks } from "../logic";
 import { getNoticeForActor, listNoticesForActor, recordNoticeRead, type ViewerNotice } from "../queries";
 import { AcknowledgeButton } from "./acknowledge-button";
+import { RefreshAfterRead } from "./refresh-after-read";
 
 const PAGE_CLASS = "mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-8 md:px-8 md:py-10";
 
@@ -100,11 +101,13 @@ export async function NoticeDetailPage({ id }: { id: string }) {
   if (!z.uuid().safeParse(id).success) notFound();
   const notice = await getNoticeForActor(actor, id);
   if (!notice) notFound();
-  if (!notice.isRead) await recordNoticeRead(actor, notice.id);
+  const justRead = !notice.isRead;
+  if (justRead) await recordNoticeRead(actor, notice.id);
   const back = notice.target === "company" ? "/notices/company" : "/notices/personal";
 
   return (
     <div className={PAGE_CLASS}>
+      {justRead ? <RefreshAfterRead /> : null}
       <div>
         <NoticeTags n={{ ...notice, isRead: true }} />
         <h1 className="text-brand01 mt-2 text-2xl font-bold">{notice.title}</h1>
