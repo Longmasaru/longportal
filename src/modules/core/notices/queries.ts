@@ -202,11 +202,13 @@ async function userIdByEmployee(): Promise<Map<string, string>> {
   return new Map(rows.map((r) => [r.employeeId!, r.id]));
 }
 
-export async function listNoticesAdmin(today: string): Promise<AdminNoticeRow[]> {
+/** 管理画面の一覧。includeIndividual が false なら、個人宛てのお知らせは含めない(権限 core.notices.individual)。 */
+export async function listNoticesAdmin(today: string, includeIndividual: boolean): Promise<AdminNoticeRow[]> {
   const rows = await db
     .select({ notice: announcements, audienceName: audiences.name })
     .from(announcements)
     .leftJoin(audiences, eq(announcements.audienceId, audiences.id))
+    .where(includeIndividual ? undefined : sql`${announcements.target} <> 'individual'`)
     .orderBy(desc(announcements.publishedOn), desc(announcements.createdAt));
   if (rows.length === 0) return [];
 

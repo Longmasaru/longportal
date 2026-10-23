@@ -10,6 +10,10 @@ export const CORE_PERMISSIONS = [
   { code: "core.audiences.manage", description: "Audience(対象者条件)の管理(画面は手順5で追加)" },
   { code: "core.apps.manage", description: "アプリ登録(表示名・Audience・表示順など)の管理(画面は手順6で追加)" },
   { code: "core.notices.manage", description: "お知らせの作成・編集・公開と、既読・確認状況の閲覧" },
+  {
+    code: "core.notices.individual",
+    description: "個人宛て(社員を名指し)のお知らせの作成・閲覧。お知らせ管理とあわせて使う(持たない人には個人宛てが見えない)",
+  },
   { code: "core.links.manage", description: "社内リンクの登録・編集・並び順・有効/無効" },
 ] as const;
 

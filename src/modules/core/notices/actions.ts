@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { db } from "@/db/client";
-import { requireActor, requireGlobalPermission } from "../access";
+import { canGlobally, requireActor, requireGlobalPermission } from "../access";
 import { audiences } from "../audience/schema";
 import { writeAuditLog } from "../audit";
 import { employees } from "../employees/schema";
@@ -89,6 +89,14 @@ function parseNoticeForm(formData: FormData) {
   });
 }
 
+const NOTICES_INDIVIDUAL = "core.notices.individual";
+
+/** 個人宛てのお知らせか(権限のない人が、id を直接送って触れないようにする)。 */
+async function isIndividualNotice(id: string): Promise<boolean> {
+  const [row] = await db.select({ target: announcements.target }).from(announcements).where(eq(announcements.id, id));
+  return row?.target === "individual";
+}
+
 /** お知らせの作成・更新。intent = publish なら公開、draft なら下書きとして保存する。 */
 export async function saveNoticeAction(_prev: NoticeFormState, formData: FormData): Promise<NoticeFormState> {
   const actor = await requireGlobalPermission("core.notices.manage");
@@ -98,6 +106,11 @@ export async function saveNoticeAction(_prev: NoticeFormState, formData: FormDat
   const parsed = parseNoticeForm(formData);
   if (!parsed.success) return { error: firstIssue(parsed.error) };
   const v = parsed.data;
+
+  // 個人宛ては、権限 core.notices.individual を持つ人だけが作れる・直せる(docs/DESIGN.md 23 章)。
+  const allowIndividual = canGlobally(actor, NOTICES_INDIVIDUAL);
+  if (v.target === "individual" && !allowIndividual) return { error: "個人宛てのお知らせは出せません。" };
+  if (id !== "" && !allowIndividual && (await isIndividualNotice(id))) return { error: "お知らせが見つかりません。" };
 
   // 宛先の存在を確かめる(無効な Audience も選べない)。
   if (v.target === "audience") {
@@ -174,6 +187,9 @@ export async function unpublishNoticeAction(_prev: NoticeFormState, formData: Fo
   const actor = await requireGlobalPermission("core.notices.manage");
   const parsed = idSchema.safeParse({ id: formData.get("id") });
   if (!parsed.success) return { error: firstIssue(parsed.error) };
+  if (!canGlobally(actor, NOTICES_INDIVIDUAL) && (await isIndividualNotice(parsed.data.id))) {
+    return { error: "お知らせが見つかりません。" };
+  }
   const ok = await db.transaction(async (tx) => {
     const [before] = await tx.select().from(announcements).where(eq(announcements.id, parsed.data.id));
     if (!before) return false;
@@ -202,6 +218,9 @@ export async function deleteNoticeAction(_prev: NoticeFormState, formData: FormD
   const actor = await requireGlobalPermission("core.notices.manage");
   const parsed = idSchema.safeParse({ id: formData.get("id") });
   if (!parsed.success) return { error: firstIssue(parsed.error) };
+  if (!canGlobally(actor, NOTICES_INDIVIDUAL) && (await isIndividualNotice(parsed.data.id))) {
+    return { error: "お知らせが見つかりません。" };
+  }
   const error = await db.transaction(async (tx) => {
     const [before] = await tx.select().from(announcements).where(eq(announcements.id, parsed.data.id));
     if (!before) return "お知らせが見つかりません。";

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { z } from "zod";
-import { requireGlobalPermission } from "../../access";
+import { canGlobally, requireGlobalPermission, type Actor } from "../../access";
 import { evaluateEmployeeAccess } from "../../access/evaluate";
 import { listAudiences, loadPopulation } from "../../audience";
 import { formatDateDot } from "../../shared/format";
@@ -27,27 +27,40 @@ function StateTag({ status, publishedOn, expiresOn, today }: {
   return <StatusTag tone="muted">掲載終了</StatusTag>;
 }
 
-async function formOptions(today: string) {
-  const [audiences, population] = await Promise.all([listAudiences(), loadPopulation(today)]);
-  const employees: RecipientOption[] = population.contexts
+/** 個人宛てのお知らせを扱えるか(作成・閲覧・既読の状況)。持たない人には、個人宛ては一覧にも出さない。 */
+function canHandleIndividual(actor: Actor): boolean {
+  return canGlobally(actor, "core.notices.individual");
+}
+
+async function formOptions(today: string, allowIndividual: boolean) {
+  const [audiences, population] = await Promise.all([
+    listAudiences(),
+    allowIndividual ? loadPopulation(today) : Promise.resolve(null),
+  ]);
+  const employees: RecipientOption[] = (population?.contexts ?? [])
     .filter((c) => evaluateEmployeeAccess(c, today) === null)
     .map((c) => {
-      const i = population.info.get(c.employeeId)!;
+      const i = population!.info.get(c.employeeId)!;
       return { id: c.employeeId, employeeNumber: i.employeeNumber, name: i.name, affiliation: i.affiliation };
     });
   return { audiences: audiences.filter((a) => a.isActive).map((a) => ({ id: a.id, name: a.name })), employees };
 }
 
 export async function AdminNoticesPage() {
-  await requireGlobalPermission("core.notices.manage");
+  const actor = await requireGlobalPermission("core.notices.manage");
   const today = todayJst();
-  const rows = await listNoticesAdmin(today);
+  const allowIndividual = canHandleIndividual(actor);
+  const rows = await listNoticesAdmin(today, allowIndividual);
 
   return (
     <div className={PAGE_CLASS}>
       <PageHeading
         title="お知らせ管理"
-        description="お知らせを作成・公開します。宛先(全社・Audience・個人指定)に当てはまる社員にだけ表示されます。"
+        description={
+          allowIndividual
+            ? "お知らせを作成・公開します。宛先(全社・Audience・個人指定)に当てはまる社員にだけ表示されます。"
+            : "お知らせを作成・公開します。宛先(全社・Audience)に当てはまる社員にだけ表示されます。個人宛てのお知らせは、ここには出ません。"
+        }
         aside={
           <Link href="/admin/notices/new" className={`${BUTTON_PRIMARY} inline-block`}>
             お知らせを作成
@@ -112,9 +125,10 @@ export async function AdminNoticesPage() {
 }
 
 export async function AdminNoticeNewPage() {
-  await requireGlobalPermission("core.notices.manage");
+  const actor = await requireGlobalPermission("core.notices.manage");
   const today = todayJst();
-  const options = await formOptions(today);
+  const allowIndividual = canHandleIndividual(actor);
+  const options = await formOptions(today, allowIndividual);
   return (
     <div className={PAGE_CLASS}>
       <PageHeading
@@ -125,7 +139,12 @@ export async function AdminNoticeNewPage() {
           </Link>
         }
       />
-      <NoticeForm audiences={options.audiences} employees={options.employees} today={today} />
+      <NoticeForm
+        audiences={options.audiences}
+        employees={options.employees}
+        today={today}
+        allowIndividual={allowIndividual}
+      />
     </div>
   );
 }
@@ -136,11 +155,13 @@ const SAVED_MESSAGE: Record<string, string> = {
 };
 
 export async function AdminNoticeEditPage({ id, saved }: { id: string; saved?: string }) {
-  await requireGlobalPermission("core.notices.manage");
+  const actor = await requireGlobalPermission("core.notices.manage");
   if (!z.uuid().safeParse(id).success) notFound();
   const today = todayJst();
-  const [detail, options] = await Promise.all([getNoticeAdmin(id, today), formOptions(today)]);
-  if (!detail) notFound();
+  const allowIndividual = canHandleIndividual(actor);
+  const [detail, options] = await Promise.all([getNoticeAdmin(id, today), formOptions(today, allowIndividual)]);
+  // 個人宛ては、権限のない人には「ない」ものとして扱う(中身も既読の状況も見せない)。
+  if (!detail || (detail.notice.target === "individual" && !allowIndividual)) notFound();
   const { notice, addressees } = detail;
   const read = addressees.filter((a) => a.readAt).length;
   const acknowledged = addressees.filter((a) => a.acknowledgedAt).length;
@@ -188,6 +209,7 @@ export async function AdminNoticeEditPage({ id, saved }: { id: string; saved?: s
         audiences={audienceOptions}
         employees={options.employees}
         today={today}
+        allowIndividual={allowIndividual}
       />
 
       <section aria-labelledby="addressees-heading">

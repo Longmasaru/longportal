@@ -37,11 +37,14 @@ export function NoticeForm({
   audiences,
   employees,
   today,
+  allowIndividual,
 }: {
   notice?: NoticeFormValues;
   audiences: { id: string; name: string }[];
   employees: RecipientOption[];
   today: string;
+  /** 個人宛てを選べるか(権限 core.notices.individual)。 */
+  allowIndividual: boolean;
 }) {
   const [state, action, pending] = useActionState<NoticeFormState, FormData>(saveNoticeAction, undefined);
   const [target, setTarget] = useState<NoticeTarget>(notice?.target ?? "company");
@@ -113,7 +116,7 @@ export function NoticeForm({
           宛先<span className="bg-brand03 ml-2 px-1 text-xs font-normal text-white">必須</span>
         </legend>
         <div className="flex flex-wrap gap-x-6 gap-y-2">
-          {NOTICE_TARGETS.map((t) => (
+          {NOTICE_TARGETS.filter((t) => allowIndividual || t !== "individual").map((t) => (
             <label key={t} className="text-brand01 flex items-center gap-2 text-sm">
               <input
                 type="radio"
