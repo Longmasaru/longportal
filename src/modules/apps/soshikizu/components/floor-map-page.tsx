@@ -1,4 +1,3 @@
-import { canGlobally } from "@/modules/core/access";
 import { requireAppAccess } from "@/modules/core/apps";
 import { lineWorksConfig } from "@/modules/core/lineworks";
 import { applySeatOverrides, FLOOR_MAP_AS_OF, FLOOR_SEATS, placeSeats } from "../floor-map";
@@ -56,7 +55,6 @@ export async function FloorMapPage() {
         unplaced={unplaced.map(toPerson)}
         myId={actor.employee?.id ?? null}
         withPhoto={lineWorksConfig() !== null}
-        editAll={canGlobally(actor, "core.employees.manage")}
       />
     </div>
   );

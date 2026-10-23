@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { buildOrgBoxes, buildOrgChart, canMoveSeat, compareMembers, isExecutive, isOnRoster, lineWorksTalkUrl } from "./logic";
+import { buildOrgBoxes, buildOrgChart, compareMembers, isExecutive, isOnRoster, lineWorksTalkUrl } from "./logic";
 import type { OrgMember, OrgUnit } from "./types";
 
 const DEPTS: OrgUnit[] = [
@@ -119,12 +119,4 @@ test("lineWorksTalkUrl: 1 対 1 のトークを開く App Link", () => {
     lineWorksTalkUrl("yamada@example.co.jp"),
     "https://line.worksmobile.com/message/send?version=26&emailList=yamada%40example.co.jp",
   );
-});
-
-test("canMoveSeat: 管理者はだれの札でも、ほかの人は自分の札だけ", () => {
-  assert.equal(canMoveSeat(true, null, "a"), true);
-  assert.equal(canMoveSeat(true, "b", "a"), true);
-  assert.equal(canMoveSeat(false, "a", "a"), true);
-  assert.equal(canMoveSeat(false, "b", "a"), false);
-  assert.equal(canMoveSeat(false, null, "a"), false);
 });

@@ -4,33 +4,26 @@ import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/db/client";
-import { canGlobally } from "@/modules/core/access";
 import { requireAppAccess } from "@/modules/core/apps";
 import { writeAuditLog } from "@/modules/core/audit";
 import { employees } from "@/modules/core/employees/schema";
 import { FLOOR_MAP_SIZE, areaAt } from "./floor-map";
-import { canMoveSeat, isOnRoster } from "./logic";
+import { isOnRoster } from "./logic";
 import { manifest } from "./manifest";
 import { soshikizuSeatPositions } from "./schema";
 
-// 配置図の札を動かす・元に戻す(docs/DESIGN.md 36 章)。社員管理の権限を全社で持つ人はだれの札でも、ほかの社員は自分の札だけ。
+// 配置図の札を動かす・元に戻す(docs/DESIGN.md 36 章)。組織図を見られる社員はだれでも、だれの札でも動かせる(ユーザーの判断)。
 // 場所(どの建物か)は、送られた座標からサーバー側で決める。変更は監査ログに残す。
 
 export type SeatActionResult = { error?: string };
 
 const MAP_ROUTE = `${manifest.route}/haichi`;
-const EDIT_PERMISSION = "core.employees.manage";
 
 const moveSchema = z.object({
   employeeId: z.uuid(),
   x: z.number().finite().min(0).max(FLOOR_MAP_SIZE.width),
   y: z.number().finite().min(0).max(FLOOR_MAP_SIZE.height),
 });
-
-async function requireMover(employeeId: string) {
-  const actor = await requireAppAccess(manifest.appKey);
-  return canMoveSeat(canGlobally(actor, EDIT_PERMISSION), actor.employee?.id ?? null, employeeId) ? actor : null;
-}
 
 async function onRoster(employeeId: string, today: string): Promise<boolean> {
   const [e] = await db
@@ -42,10 +35,9 @@ async function onRoster(employeeId: string, today: string): Promise<boolean> {
 }
 
 export async function moveSeatAction(input: { employeeId: string; x: number; y: number }): Promise<SeatActionResult> {
+  const actor = await requireAppAccess(manifest.appKey);
   const parsed = moveSchema.safeParse(input);
   if (!parsed.success) return { error: "場所が正しくありません。" };
-  const actor = await requireMover(parsed.data.employeeId);
-  if (!actor) return { error: "この札を動かす権限がありません。" };
   const x = Math.round(parsed.data.x * 10) / 10;
   const y = Math.round(parsed.data.y * 10) / 10;
   const area = areaAt({ x, y });
@@ -78,10 +70,9 @@ export async function moveSeatAction(input: { employeeId: string; x: number; y: 
 }
 
 export async function resetSeatAction(input: { employeeId: string }): Promise<SeatActionResult> {
+  const actor = await requireAppAccess(manifest.appKey);
   const parsed = z.object({ employeeId: z.uuid() }).safeParse(input);
   if (!parsed.success) return { error: "社員が正しくありません。" };
-  const actor = await requireMover(parsed.data.employeeId);
-  if (!actor) return { error: "この札を動かす権限がありません。" };
 
   await db.transaction(async (tx) => {
     const removed = await tx
