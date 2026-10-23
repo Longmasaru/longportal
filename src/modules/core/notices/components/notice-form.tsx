@@ -3,6 +3,8 @@
 import { startTransition, useActionState, useState, type FormEvent } from "react";
 import { BUTTON_PRIMARY, BUTTON_SECONDARY, FIELD_CLASS, Field, FormNotice, LABEL_CLASS } from "../../shared/ui/form";
 import { saveNoticeAction, type NoticeFormState } from "../actions";
+import type { NoticeAttachment } from "../queries";
+import { NoticeAttachmentsField } from "./notice-attachments-field";
 import { NOTICE_KIND_LABEL, NOTICE_PRIORITY_LABEL, NOTICE_TARGET_LABEL } from "../labels";
 import {
   NOTICE_KINDS,
@@ -26,6 +28,7 @@ export type NoticeFormValues = {
   expiresOn: string | null;
   bannerUntil: string | null;
   recipientIds: string[];
+  attachments: NoticeAttachment[];
   status: "draft" | "published";
 };
 
@@ -51,6 +54,7 @@ export function NoticeForm({
   const [priority, setPriority] = useState<NoticePriority>(notice?.priority ?? "normal");
   const [recipients, setRecipients] = useState<Set<string>>(new Set(notice?.recipientIds ?? []));
   const [filter, setFilter] = useState("");
+  const [uploading, setUploading] = useState(false);
   const bannerAllowed = target === "company" && priority === "urgent";
   const shown = employees.filter((e) =>
     filter.trim() === "" ? true : `${e.name}${e.employeeNumber}${e.affiliation}`.includes(filter.trim()),
@@ -83,6 +87,8 @@ export function NoticeForm({
           className={`${FIELD_CLASS} leading-relaxed`}
         />
       </Field>
+
+      <NoticeAttachmentsField initial={notice?.attachments ?? []} onUploadingChange={setUploading} />
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="種類" htmlFor="nf-kind" required>
@@ -248,10 +254,10 @@ export function NoticeForm({
       </div>
 
       <div className="flex flex-wrap gap-3">
-        <button type="submit" name="intent" value="publish" disabled={pending} className={BUTTON_PRIMARY}>
+        <button type="submit" name="intent" value="publish" disabled={pending || uploading} className={BUTTON_PRIMARY}>
           {pending ? "保存中…" : notice?.status === "published" ? "公開中のまま保存" : "公開する"}
         </button>
-        <button type="submit" name="intent" value="draft" disabled={pending} className={BUTTON_SECONDARY}>
+        <button type="submit" name="intent" value="draft" disabled={pending || uploading} className={BUTTON_SECONDARY}>
           下書きとして保存
         </button>
       </div>

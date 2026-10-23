@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  formatFileSize,
+  isAllowedNoticeAttachment,
+  isInlineNoticeImage,
   isNoticeAddressedTo,
   isNoticeBanner,
   isNoticeLive,
@@ -67,4 +70,28 @@ test("splitBodyLinks: 本文の URL をリンクに分け、文末の句読点�
   assert.deepEqual(splitBodyLinks("URL なし"), [{ type: "text", text: "URL なし" }]);
   // javascript: などは URL として扱わない
   assert.deepEqual(splitBodyLinks("javascript:alert(1)"), [{ type: "text", text: "javascript:alert(1)" }]);
+});
+
+test("添付: 付けられるファイルは拡張子で判断する(大文字も可)", () => {
+  assert.equal(isAllowedNoticeAttachment("チラシ.PDF"), true);
+  assert.equal(isAllowedNoticeAttachment("写真.jpeg"), true);
+  assert.equal(isAllowedNoticeAttachment("表.xlsx"), true);
+  assert.equal(isAllowedNoticeAttachment("page.html"), false);
+  assert.equal(isAllowedNoticeAttachment("tool.exe"), false);
+  assert.equal(isAllowedNoticeAttachment("拡張子なし"), false);
+  assert.equal(isAllowedNoticeAttachment("pdf"), false);
+});
+
+test("添付: そのまま表示するのは一般的な画像だけ", () => {
+  assert.equal(isInlineNoticeImage("image/jpeg"), true);
+  assert.equal(isInlineNoticeImage("image/png"), true);
+  assert.equal(isInlineNoticeImage("image/svg+xml"), false);
+  assert.equal(isInlineNoticeImage("image/heic"), false);
+  assert.equal(isInlineNoticeImage("application/pdf"), false);
+});
+
+test("添付: 大きさの表示", () => {
+  assert.equal(formatFileSize(100), "1KB");
+  assert.equal(formatFileSize(350 * 1024), "350KB");
+  assert.equal(formatFileSize(1.25 * 1024 * 1024), "1.3MB");
 });

@@ -3,3 +3,4 @@ export { AdminNoticesPage, AdminNoticeNewPage, AdminNoticeEditPage } from "./com
 export { NoticeListPage, NoticeDetailPage, type NoticeChannel } from "./components/notice-viewer-pages";
 export { listNoticesForActor, type ViewerNotice } from "./queries";
 export { APP_NOTICE_DAYS, createAppNotice } from "./app-notices";
+export { handleNoticeFileRequest } from "./file-route";

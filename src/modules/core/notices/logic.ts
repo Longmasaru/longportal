@@ -1,5 +1,11 @@
 // お知らせの見え方の判定(純粋関数。DB に依存しない)。docs/DESIGN.md 23 章。
-import type { NoticePriority, NoticeStatus, NoticeTarget } from "./constants";
+import {
+  NOTICE_ATTACHMENT_EXTENSIONS,
+  NOTICE_INLINE_IMAGE_TYPES,
+  type NoticePriority,
+  type NoticeStatus,
+  type NoticeTarget,
+} from "./constants";
 
 export type NoticeFacts = {
   status: NoticeStatus;
@@ -84,4 +90,25 @@ export function splitBodyLinks(body: string): BodyPart[] {
   }
   if (last < body.length) parts.push({ type: "text", text: body.slice(last) });
   return parts;
+}
+
+// ---- 添付ファイル ----------------------------------------------------------------
+
+/** 付けてよいファイルか(拡張子で判断する。ブラウザが種類を空で送ることがあるため)。 */
+export function isAllowedNoticeAttachment(fileName: string): boolean {
+  const dot = fileName.lastIndexOf(".");
+  if (dot < 0) return false;
+  const ext = fileName.slice(dot + 1).toLowerCase();
+  return (NOTICE_ATTACHMENT_EXTENSIONS as readonly string[]).includes(ext);
+}
+
+/** お知らせの中に画像として表示するか。 */
+export function isInlineNoticeImage(contentType: string): boolean {
+  return (NOTICE_INLINE_IMAGE_TYPES as readonly string[]).includes(contentType);
+}
+
+/** ファイルの大きさの表示(1.2MB、350KB など)。 */
+export function formatFileSize(bytes: number): string {
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))}KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)}MB`;
 }

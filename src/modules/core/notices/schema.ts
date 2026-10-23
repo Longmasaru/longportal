@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { boolean, check, date, index, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { boolean, check, date, index, integer, primaryKey, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { audiences } from "../audience/schema";
 import { users } from "../auth/schema";
 import { employees } from "../employees/schema";
@@ -111,6 +111,29 @@ export const announcementReads = core.table(
     primaryKey({ columns: [t.announcementId, t.userId] }),
     index("announcement_reads_user_id_idx").on(t.userId),
   ],
+);
+
+/**
+ * お知らせの添付ファイル・写真(本体は Cloudflare R2。docs/DESIGN.md 43 章)。
+ * キーは `<プレフィックス>notices/<アップロードした人の user id>/<UUID>.<拡張子>`。
+ */
+export const announcementAttachments = core.table(
+  "announcement_attachments",
+  {
+    id: idColumn(),
+    announcementId: uuid("announcement_id")
+      .notNull()
+      .references(() => announcements.id, { onDelete: "cascade" }),
+    storageKey: text("storage_key").notNull().unique("announcement_attachments_storage_key_unique"),
+    /** 元のファイル名(画面の表示とダウンロード時の名前)。 */
+    fileName: text("file_name").notNull(),
+    contentType: text("content_type").notNull(),
+    size: integer("size").notNull(),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("announcement_attachments_announcement_id_idx").on(t.announcementId, t.sortOrder)],
 );
 
 export type Announcement = typeof announcements.$inferSelect;

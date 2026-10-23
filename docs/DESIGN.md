@@ -1092,3 +1092,17 @@ migration `0026_todo_requests` を本番 DB に適用 → `sync:manifests`(権�
 - **テーブル**(`pgSchema("meyasubako")`、migration `0027_meyasubako_app`): `meyasubako.posts`(投稿者(`core.users`、CASCADE)・投稿時の部署と拠点(SET NULL)・カテゴリ・宛先・公開範囲・匿名・場所(100 字)・本文(2000 字)・状況・投稿日(JST)・既読と書き込みの日時 4 つ)、`meyasubako.photos`(投稿(CASCADE)・R2 のキー(一意)・種類・大きさ・並び)、`meyasubako.messages`(投稿(CASCADE)・書いた人(SET NULL)・返事をする側か・本文(1000 字))。
 - **本番に出すとき**: migration `0027_meyasubako_app` を本番 DB に適用(テーブルの追加だけ)→ `sync:manifests`(アプリの登録と権限 2 つ)→ コードを `main` に入れる → `/admin/apps` で有効にし、表示する相手を「全社」に → リーダーに `meyasubako.leader.respond` を部署・拠点つきで割り当てる → 知らせを使うなら、トークルームを作って `MEYASUBAKO_LINEWORKS_CHANNEL_ID` を Vercel に登録。
 - **まだしないこと**: 投稿者による取り消し・書き直し、集計(カテゴリ・部署ごとの件数)、ありがとう・いいね、投稿しなかった写真の掃除。
+
+## 43. 実装メモ(お知らせのファイル・写真の添付)
+
+2026-10-23 のユーザーの要望: お知らせを出すときに、ファイルや写真を付けられるようにしたい。上限は、おすすめ案(1 件 10 個まで・1 つ 25MB まで。TODO の添付と同じ)で作り、ユーザーの判断で変える。
+
+- **保存先**: `core/storage`(Cloudflare R2、署名付き URL。20 章の方式)。ブラウザから R2 へ直接送り、キーは `<プレフィックス>notices/<送った人の user id>/<UUID>.<拡張子>`。
+- **テーブル**(migration `0028_core_notice_attachments`、テーブルの追加だけ): `core.announcement_attachments`(お知らせ(CASCADE)・R2 のキー(一意)・元のファイル名・種類・大きさ・並び・送った人(SET NULL)・作成日時)。
+- **付けられるもの**(`constants.ts`): 拡張子で判断する(写真 jpg / jpeg / png / webp / gif / heic、pdf、Word・Excel・PowerPoint、csv、txt、zip、mp4、mov)。ブラウザが種類を空で送ったときは `application/octet-stream` として扱う。
+- **作成・編集の画面**: 本文の下に「ファイル・写真を追加」。選ぶとすぐ R2 へ送り(送信中は保存ボタンを止める)、並べ替え(↑↓)と外す(✕)ができる。保存(公開・下書き)のときに、並びを hidden の `attachments` で送る(既にある添付は id、新しいものはキーと元の名前)。サーバーは、新しいものが**本人の置き場所のキーで、R2 に実在し、上限の内か**(`headObject`)を確かめてから登録し、画面で外したものは行を消して、確定後に R2 からも消す(失敗しても保存は止めない)。残すはずの添付がほかの画面で消されていたら、保存全体を取り消して読み込み直しを促す。権限は `core.notices.manage`(個人宛ては、これまでどおり `core.notices.individual` も)。添付の変更は監査ログ `notice.attachments.update`(ファイル名・種類・大きさ。中身は残さない)。
+- **見る画面**: お知らせの詳細で、写真(JPEG・PNG・WebP・GIF)はそのまま並べ、押すと大きく開く。ほかのファイルは名前と大きさを並べ、押すと開く(PDF はブラウザで表示、それ以外は元の名前でダウンロード)。一覧には 📎 と数を出す。
+- **ファイルの入口**(`/notices/files/<添付の id>`、`file-route.ts`): お知らせが届いている人(23 章の見える条件)と、お知らせを管理する人(下書きの確認のため。個人宛ては `core.notices.individual` も)だけを、5 分の署名付き URL へ転送する。それ以外は 404。
+- **削除**: 下書きのお知らせを削除すると、添付の行も消え(CASCADE)、R2 のファイルも消す。
+- **まだしないこと**: 保存しなかった(送っただけの)ファイルの掃除(目安箱と同じく R2 に残る)、写真の自動の縮小、アプリからのお知らせ(`createAppNotice`)への添付。
+- **本番に出すとき**: migration `0028_core_notice_attachments` を本番 DB に適用(テーブルの追加だけで、既存のデータは変えない)→ コードを `main` に入れる。権限・アプリの登録の変更はないので `sync:manifests` は不要。R2 の CORS(`docs/r2-cors.json`)は、TODO・目安箱と同じ設定で足りる。

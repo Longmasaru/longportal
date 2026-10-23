@@ -5,8 +5,16 @@ import { requireActor } from "../../access";
 import { formatDateDot } from "../../shared/format";
 import { LINK_CLASS, PageHeading, StatusTag } from "../../shared/ui/form";
 import { NOTICE_KIND_LABEL, NOTICE_PRIORITY_LABEL } from "../labels";
-import { splitBodyLinks } from "../logic";
-import { getNoticeForActor, listNoticesForActor, recordNoticeRead, type ViewerNotice } from "../queries";
+import { formatFileSize, isInlineNoticeImage, splitBodyLinks } from "../logic";
+import {
+  countNoticeAttachments,
+  getNoticeForActor,
+  listNoticeAttachments,
+  listNoticesForActor,
+  recordNoticeRead,
+  type NoticeAttachment,
+  type ViewerNotice,
+} from "../queries";
 import { AcknowledgeButton } from "./acknowledge-button";
 import { RefreshAfterRead } from "./refresh-after-read";
 
@@ -34,12 +42,17 @@ const CHANNEL = {
   },
 } as const;
 
-function NoticeTags({ n }: { n: ViewerNotice }) {
+function NoticeTags({ n, attachmentCount = 0 }: { n: ViewerNotice; attachmentCount?: number }) {
   return (
     <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
       {n.requiresAction && !n.isAcknowledged ? <StatusTag tone="attention">要対応</StatusTag> : null}
       {n.priority !== "normal" ? <StatusTag tone="attention">{NOTICE_PRIORITY_LABEL[n.priority]}</StatusTag> : null}
       <StatusTag tone="neutral">{NOTICE_KIND_LABEL[n.kind]}</StatusTag>
+      {attachmentCount > 0 ? (
+        <span className="text-brand04 text-xs" aria-label={`添付 ${attachmentCount} 件`}>
+          📎{attachmentCount}
+        </span>
+      ) : null}
       {!n.isRead ? (
         <span className="text-link flex items-center gap-1 text-xs font-bold">
           <span aria-hidden="true" className="bg-link size-1.5 rounded-full" />
@@ -64,6 +77,7 @@ export async function NoticeListPage({ channel }: { channel: NoticeChannel }) {
       return b.publishedOn.localeCompare(a.publishedOn);
     });
   const c = CHANNEL[channel];
+  const attachmentCounts = await countNoticeAttachments(list.map((n) => n.id));
 
   return (
     <div className={PAGE_CLASS}>
@@ -82,7 +96,7 @@ export async function NoticeListPage({ channel }: { channel: NoticeChannel }) {
                   {formatDateDot(n.publishedOn)}
                 </time>
                 <div className="min-w-0 flex-1">
-                  <NoticeTags n={n} />
+                  <NoticeTags n={n} attachmentCount={attachmentCounts.get(n.id) ?? 0} />
                   <p className="text-brand01 group-hover:text-brand03 mt-1 font-bold transition-colors">{n.title}</p>
                   {n.summary ? <p className="text-brand04 mt-0.5 line-clamp-1 text-sm">{n.summary}</p> : null}
                 </div>
@@ -103,6 +117,7 @@ export async function NoticeDetailPage({ id }: { id: string }) {
   if (!notice) notFound();
   const justRead = !notice.isRead;
   if (justRead) await recordNoticeRead(actor, notice.id);
+  const attachments = await listNoticeAttachments(notice.id);
   const back = notice.target === "company" ? "/notices/company" : "/notices/personal";
 
   return (
@@ -136,11 +151,55 @@ export async function NoticeDetailPage({ id }: { id: string }) {
           )}
         </div>
       ) : null}
+      {attachments.length > 0 ? <NoticeAttachments attachments={attachments} /> : null}
       <p className="text-sm">
         <Link href={back} className={LINK_CLASS}>
           一覧へ戻る
         </Link>
       </p>
     </div>
+  );
+}
+
+/** 添付: 写真はそのまま並べ(押すと大きく開く)、ほかのファイルは名前を押して開く。 */
+function NoticeAttachments({ attachments }: { attachments: NoticeAttachment[] }) {
+  const images = attachments.filter((a) => isInlineNoticeImage(a.contentType));
+  const files = attachments.filter((a) => !isInlineNoticeImage(a.contentType));
+  return (
+    <section aria-label="添付" className="flex flex-col gap-4">
+      {images.length > 0 ? (
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+          {images.map((a) => (
+            <a key={a.id} href={`/notices/files/${a.id}`} target="_blank" rel="noopener" className="block">
+              {/* eslint-disable-next-line @next/next/no-img-element -- 見てよい人だけ R2 へ転送する入口の画像 */}
+              <img
+                src={`/notices/files/${a.id}`}
+                alt={a.fileName}
+                loading="lazy"
+                className="bg-field aspect-[4/3] w-full object-cover"
+              />
+            </a>
+          ))}
+        </div>
+      ) : null}
+      {files.length > 0 ? (
+        <ul className="flex flex-col gap-1.5">
+          {files.map((a) => (
+            <li key={a.id}>
+              <a
+                href={`/notices/files/${a.id}`}
+                target="_blank"
+                rel="noopener"
+                className="bg-bg01 hover:text-brand03 text-brand01 flex items-center gap-3 px-3 py-2.5 text-sm transition-colors"
+              >
+                <span aria-hidden="true">📎</span>
+                <span className="min-w-0 flex-1 truncate">{a.fileName}</span>
+                <span className="text-brand04 shrink-0 text-xs">{formatFileSize(a.size)}</span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </section>
   );
 }
