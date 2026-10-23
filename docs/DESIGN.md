@@ -1102,3 +1102,14 @@ migration `0026_todo_requests` を本番 DB に適用 → `sync:manifests`(権�
 - **テーブル**(`pgSchema("meyasubako")`、migration `0027_meyasubako_app`): `meyasubako.posts`(投稿者(`core.users`、CASCADE)・投稿時の部署と拠点(SET NULL)・カテゴリ・宛先・公開範囲・匿名・場所(100 字)・本文(2000 字)・状況・投稿日(JST)・既読と書き込みの日時 4 つ)、`meyasubako.photos`(投稿(CASCADE)・R2 のキー(一意)・種類・大きさ・並び)、`meyasubako.messages`(投稿(CASCADE)・書いた人(SET NULL)・返事をする側か・本文(1000 字))。
 - **本番に出すとき**: migration `0027_meyasubako_app` を本番 DB に適用(テーブルの追加だけ)→ `sync:manifests`(アプリの登録と権限 2 つ)→ コードを `main` に入れる → `/admin/apps` で有効にし、表示する相手を「全社」に → リーダーに `meyasubako.leader.respond` を部署・拠点つきで割り当てる → 知らせを使うなら、トークルームを作って `MEYASUBAKO_LINEWORKS_CHANNEL_ID` を Vercel に登録。
 - **まだしないこと**: 投稿者による取り消し・書き直し、集計(カテゴリ・部署ごとの件数)、ありがとう・いいね、投稿しなかった写真の掃除。
+
+## 43. 実装メモ(手順書)
+
+2026-10-23 のユーザーの要望: ポータルの中のアプリとして「手順書」を作り、いくつもの手順書を載せられるようにする。最初の 1 つは freee勤怠管理Plus の詳しい使い方。
+
+- **アプリ**: `modules/apps/tejunsho`、`app_key = tejunsho`、`/apps/tejunsho`(一覧。まとまりごと)、`/apps/tejunsho/<slug>`(手順書。要点 → 目次 → 本文 → 出典)。入口は `requireAppAccess("tejunsho")`。閲覧だけなので専用の権限はない。DB の変更もない。
+- **中身はコードに持つ**(`guides/<名前>.ts`、一覧は `guides/index.ts` の `GUIDES`)。リポジトリは公開なので、載せてよいのは公開の情報から作れる一般的な手順だけ(社内のやり方・担当者名・写真を含む手順は、30 章の教科書と同じく DB と R2 に置く形を、そのときに作る)。
+- **形**(`types.ts`): 手順書 = slug・まとまり・題名・説明・確認した日・並び順・要点・節・出典。節は小見出しごとに、文・番号つきの手順(補足つき)・箇条書き・囲み(こつ / 注意 / 補足)・表・よくある質問の部品を並べる。「」で囲んだ語(ボタン名・メニュー名)は太字で出す。
+- **書き間違いの検査**: `validateGuides`(`logic.ts`)が slug・節の id の形と重なり、空の節、確認した日の形、出典の URL を確かめる。`npm test` で登録済みの手順書を検査する。
+- **freee勤怠管理Plus の使い方**(`guides/freee-kintai.ts`): freee の公式ヘルプと従業員マニュアルから、従業員の操作(ログイン・打刻・タイムカード・打刻申請・休暇・時間外勤務・申請履歴・エラー勤務・月末の勤怠確認・よくある質問)をまとめた。会社の設定で出ない画面(休憩ボタン、LINE WORKS の打刻など)はそう書いた。freee の画面が変わったら直して `checkedOn` を更新する。
+- **本番に出すとき**: `sync:manifests`(アプリの登録)→ コードを `main` に入れる → `/admin/apps` で有効にし、表示する相手を「全社」に。
