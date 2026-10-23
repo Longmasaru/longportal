@@ -201,8 +201,15 @@
     {
       "idx": 28,
       "version": "7",
-      "when": 1792734275703,
-      "tag": "0028_nakama_members",
+      "when": 1792739622044,
+      "tag": "0028_soshikizu_seat_positions",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1792741119080,
+      "tag": "0029_nakama_members",
       "breakpoints": true
     }
   ]

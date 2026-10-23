@@ -3,11 +3,12 @@ import { notFound } from "next/navigation";
 import { z } from "zod";
 import { requireAppAccess } from "@/modules/core/apps";
 import { FormNotice } from "@/modules/core/shared/ui/form";
-import { DESTINATION_LABEL, VISIBILITY_LABEL } from "../constants";
+import { CATEGORY_LABEL, DESTINATION_LABEL, VISIBILITY_LABEL } from "../constants";
 import { manifest } from "../manifest";
 import { canManagePosts, getPostDetail } from "../queries";
 import { DeletePostButton, MarkRead, ReplyForm, StatusControl } from "./post-controls";
 import { CategoryTag, StatusBadge, TIME_FORMAT } from "./post-list";
+import { ToukanScene } from "./toukan-scene";
 
 /** 投稿の詳細(/apps/meyasubako/<id>)。見られない投稿は 404(存在を知らせない)。 */
 export async function MeyasubakoPostPage({ postId, sent }: { postId: string; sent: boolean }) {
@@ -27,6 +28,13 @@ export async function MeyasubakoPostPage({ postId, sent }: { postId: string; sen
         </Link>
       </p>
 
+      {sent && access.isAuthor ? (
+        <ToukanScene
+          postId={post.id}
+          heading={`【${CATEGORY_LABEL[post.category].label}】`}
+          text={post.body || "(写真を添えて)"}
+        />
+      ) : null}
       {sent && access.isAuthor ? (
         <FormNotice tone="success">
           目安箱に入れました。ありがとうございます。返事が届くと、ホームと「わたしの投稿」でお知らせします。

@@ -1,5 +1,5 @@
 {
-  "id": "4d33fda4-8c4b-47f1-9fa2-59f828919732",
+  "id": "6e426a9a-8454-4b74-8829-8c2d9f9a827c",
   "prevId": "5ed12066-b8bb-4f99-b8e4-ca88fedf65b9",
   "version": "7",
   "dialect": "postgresql",
@@ -3791,141 +3791,6 @@
       },
       "isRLSEnabled": false
     },
-    "nakama.members": {
-      "name": "members",
-      "schema": "nakama",
-      "columns": {
-        "employee_id": {
-          "name": "employee_id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "native_name": {
-          "name": "native_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "''"
-        },
-        "nickname": {
-          "name": "nickname",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "''"
-        },
-        "arrived_on": {
-          "name": "arrived_on",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "hometown": {
-          "name": "hometown",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "''"
-        },
-        "note": {
-          "name": "note",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "''"
-        },
-        "residence_status": {
-          "name": "residence_status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "residence_expires_on": {
-          "name": "residence_expires_on",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "updated_by_user_id": {
-          "name": "updated_by_user_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "members_employee_id_employees_id_fk": {
-          "name": "members_employee_id_employees_id_fk",
-          "tableFrom": "members",
-          "tableTo": "employees",
-          "schemaTo": "core",
-          "columnsFrom": [
-            "employee_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "restrict",
-          "onUpdate": "no action"
-        },
-        "members_updated_by_user_id_users_id_fk": {
-          "name": "members_updated_by_user_id_users_id_fk",
-          "tableFrom": "members",
-          "tableTo": "users",
-          "schemaTo": "core",
-          "columnsFrom": [
-            "updated_by_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "members_residence_status_check": {
-          "name": "members_residence_status_check",
-          "value": "\"nakama\".\"members\".\"residence_status\" is null or \"nakama\".\"members\".\"residence_status\" in ('technical_intern_1', 'technical_intern_2', 'technical_intern_3', 'employment_training', 'specified_skilled_1', 'specified_skilled_2', 'engineer', 'permanent', 'family', 'other')"
-        },
-        "members_native_name_length_check": {
-          "name": "members_native_name_length_check",
-          "value": "char_length(\"nakama\".\"members\".\"native_name\") <= 100"
-        },
-        "members_nickname_length_check": {
-          "name": "members_nickname_length_check",
-          "value": "char_length(\"nakama\".\"members\".\"nickname\") <= 30"
-        },
-        "members_hometown_length_check": {
-          "name": "members_hometown_length_check",
-          "value": "char_length(\"nakama\".\"members\".\"hometown\") <= 50"
-        },
-        "members_note_length_check": {
-          "name": "members_note_length_check",
-          "value": "char_length(\"nakama\".\"members\".\"note\") <= 100"
-        }
-      },
-      "isRLSEnabled": false
-    },
     "nippo.comments": {
       "name": "comments",
       "schema": "nippo",
@@ -4260,6 +4125,85 @@
           "value": "(\"nippo\".\"reports\".\"status\" = 'draft') = (\"nippo\".\"reports\".\"submitted_at\" is null)"
         }
       },
+      "isRLSEnabled": false
+    },
+    "soshikizu.seat_positions": {
+      "name": "seat_positions",
+      "schema": "soshikizu",
+      "columns": {
+        "employee_id": {
+          "name": "employee_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "area": {
+          "name": "area",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "x": {
+          "name": "x",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "y": {
+          "name": "y",
+          "type": "double precision",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "seat_positions_employee_id_employees_id_fk": {
+          "name": "seat_positions_employee_id_employees_id_fk",
+          "tableFrom": "seat_positions",
+          "tableTo": "employees",
+          "schemaTo": "core",
+          "columnsFrom": [
+            "employee_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "seat_positions_updated_by_users_id_fk": {
+          "name": "seat_positions_updated_by_users_id_fk",
+          "tableFrom": "seat_positions",
+          "tableTo": "users",
+          "schemaTo": "core",
+          "columnsFrom": [
+            "updated_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
       "isRLSEnabled": false
     },
     "todo.attachments": {
@@ -7127,8 +7071,8 @@
     "hr": "hr",
     "kyokasho": "kyokasho",
     "meyasubako": "meyasubako",
-    "nakama": "nakama",
     "nippo": "nippo",
+    "soshikizu": "soshikizu",
     "todo": "todo"
   },
   "sequences": {},

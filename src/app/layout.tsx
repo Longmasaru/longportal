@@ -20,13 +20,13 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html lang="ja" className={`${futura.variable} h-full antialiased`}>
       <head>
         {/* 和文の Zen Kaku Gothic New は next/font が日本語サブセットを持たないため、
-            Google Fonts から読み込む。Yuji Boku・Zen Antique は、ありがとう番付の相撲字の代わり
+            Google Fonts から読み込む。Yuji Boku・Zen Antique は、ありがとう番付の相撲字の代わり。Dela Gothic One は教科書のツッコミの演出
             (文字ごとに分割して配信されるので、使うページで使う字だけが読み込まれる) */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
         {/* eslint-disable-next-line @next/next/no-page-custom-font -- App Router のルートレイアウトなので全ページに適用される */}
         <link
-          href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=Yuji+Boku&family=Zen+Antique&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=Yuji+Boku&family=Zen+Antique&family=Dela+Gothic+One&display=swap"
           rel="stylesheet"
         />
       </head>

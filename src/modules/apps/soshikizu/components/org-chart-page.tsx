@@ -6,6 +6,7 @@ import { buildOrgChart } from "../logic";
 import { manifest } from "../manifest";
 import { listDepartments, listLocations, listOrgMembers } from "../queries";
 import { OrgBoard, type BoardOptions } from "./org-board";
+import { OrgTabs } from "./org-tabs";
 
 const FILTER_LINK = "border px-3 py-1.5 text-sm font-bold transition-colors";
 const FILTER_ON = "border-brand01 bg-brand01 text-white";
@@ -50,6 +51,8 @@ export async function OrgChartPage({ location }: { location: string | null }) {
           {opts.withPhoto && "吹き出しを押すと、その人と LINE WORKS でトークできます。"}
         </p>
       </div>
+
+      <OrgTabs current="chart" />
 
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-brand04 mr-1 text-xs font-bold tracking-widest">拠点</span>

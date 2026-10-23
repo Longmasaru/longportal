@@ -1,6 +1,8 @@
-CREATE SCHEMA "nakama";
+-- 本番 DB には、この内容を 2026-10-23 に「0028_nakama_members」の名前で先に適用した(同じ日に別の 0028 が main に入ったため 0029 に付け直した)。
+-- その DB で再び流れても失敗しないよう、すべて「なければ作る」にしてある(docs/DESIGN.md 43 章)。
+CREATE SCHEMA IF NOT EXISTS "nakama";
 --> statement-breakpoint
-CREATE TABLE "nakama"."members" (
+CREATE TABLE IF NOT EXISTS "nakama"."members" (
 	"employee_id" uuid PRIMARY KEY NOT NULL,
 	"native_name" text DEFAULT '' NOT NULL,
 	"nickname" text DEFAULT '' NOT NULL,
@@ -19,5 +21,11 @@ CREATE TABLE "nakama"."members" (
 	CONSTRAINT "members_note_length_check" CHECK (char_length("nakama"."members"."note") <= 100)
 );
 --> statement-breakpoint
-ALTER TABLE "nakama"."members" ADD CONSTRAINT "members_employee_id_employees_id_fk" FOREIGN KEY ("employee_id") REFERENCES "core"."employees"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "nakama"."members" ADD CONSTRAINT "members_updated_by_user_id_users_id_fk" FOREIGN KEY ("updated_by_user_id") REFERENCES "core"."users"("id") ON DELETE set null ON UPDATE no action;
+DO $$ BEGIN
+  ALTER TABLE "nakama"."members" ADD CONSTRAINT "members_employee_id_employees_id_fk" FOREIGN KEY ("employee_id") REFERENCES "core"."employees"("id") ON DELETE restrict ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;--> statement-breakpoint
+DO $$ BEGIN
+  ALTER TABLE "nakama"."members" ADD CONSTRAINT "members_updated_by_user_id_users_id_fk" FOREIGN KEY ("updated_by_user_id") REFERENCES "core"."users"("id") ON DELETE set null ON UPDATE no action;
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
