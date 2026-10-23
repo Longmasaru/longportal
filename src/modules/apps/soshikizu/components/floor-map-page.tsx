@@ -56,7 +56,7 @@ export async function FloorMapPage() {
         unplaced={unplaced.map(toPerson)}
         myId={actor.employee?.id ?? null}
         withPhoto={lineWorksConfig() !== null}
-        canEdit={canGlobally(actor, "core.employees.manage")}
+        editAll={canGlobally(actor, "core.employees.manage")}
       />
     </div>
   );

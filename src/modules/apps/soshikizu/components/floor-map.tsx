@@ -16,6 +16,7 @@ import {
   type AreaKey,
   type FloorSeat,
 } from "../floor-map";
+import { canMoveSeat } from "../logic";
 import { Avatar } from "./avatar";
 import { TalkLink } from "./talk-link";
 
@@ -69,14 +70,15 @@ export function FloorMap({
   unplaced,
   myId,
   withPhoto,
-  canEdit,
+  editAll,
 }: {
   seats: MapSeat[];
   unplaced: MapPerson[];
   myId: string | null;
   withPhoto: boolean;
   /** 札を動かせる人(社員管理の権限を全社で持つ人)。 */
-  canEdit: boolean;
+  /** だれの札でも動かせる(社員管理の権限)。ほかの人は自分の札だけ。 */
+  editAll: boolean;
 }) {
   const router = useRouter();
   const [sel, setSel] = useState<Selection>(null);
@@ -109,6 +111,8 @@ export function FloorMap({
     const key = sel.kind === "seat" ? `seat-${sel.index}` : `area-${sel.key}`;
     listRef.current.querySelector(`[data-key="${key}"]`)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [sel]);
+
+  const movable = (employeeId: string) => canMoveSeat(editAll, myId, employeeId);
 
   const pickSeat = (s: MapSeat, fromList: boolean) => {
     setSel({ kind: "seat", index: s.index });
@@ -168,7 +172,7 @@ export function FloorMap({
   }
 
   const onSeatPointerDown = (e: PointerEvent, s: MapSeat) => {
-    if (!editing || !s.member || saving) return;
+    if (!editing || !s.member || !movable(s.member.id) || saving) return;
     const p = toMap(e);
     if (!p) return;
     e.stopPropagation();
@@ -229,7 +233,7 @@ export function FloorMap({
             サブリーダー
           </span>
           <span className="lg:hidden">地図は横に動かせます</span>
-          {canEdit && (
+          {(editAll || myId !== null) && (
             <button
               type="button"
               onClick={() => {
@@ -250,7 +254,9 @@ export function FloorMap({
           <p className="border-brand03 bg-[#fff6f2] text-brand01 border px-3 py-2 text-xs" role="status">
             {placing
               ? `「${placing.name}」さんを置きたい所を、地図の上で押してください。`
-              : "札をドラッグすると、その人のよくいる場所を変えられます(建物の中に置く)。名簿の下の「配置図にまだいない人」は、名前を押してから地図を押すと置けます。"}
+              : editAll
+                ? "札をドラッグすると、その人のよくいる場所を変えられます(建物の中に置く)。名簿の下の「配置図にまだいない人」は、名前を押してから地図を押すと置けます。"
+                : "自分の札をドラッグすると、自分のよくいる場所を変えられます(建物の中に置く)。配置図にまだいないときは、名簿の下の自分の名前を押してから地図を押すと置けます。"}
             {saving && " 保存しています…"}
             {notice && <span className="ml-1 font-bold text-red-700">{notice}</span>}
           </p>
@@ -423,17 +429,17 @@ export function FloorMap({
                   role="button"
                   tabIndex={0}
                   aria-label={`${s.member?.name ?? s.label}(${AREA_NAME.get(s.area)})`}
-                  className={`outline-none ${editing && s.member ? (grabbing ? "cursor-grabbing" : "cursor-grab") : "cursor-pointer"} ${
+                  className={`outline-none ${editing && s.member && movable(s.member.id) ? (grabbing ? "cursor-grabbing" : "cursor-grab") : "cursor-pointer"} ${
                     on && sel?.kind === "seat" && !editing ? "fm-pop" : ""
                   }`}
-                  style={editing && s.member ? { touchAction: "none" } : undefined}
+                  style={editing && s.member && movable(s.member.id) ? { touchAction: "none" } : undefined}
                   opacity={grabbing ? 0.85 : 1}
                   onPointerDown={(e) => onSeatPointerDown(e, s)}
                   onClick={(e) => {
                     if (placing) return;
                     e.stopPropagation();
                     // 動かす間は、押したときの選択を onPointerUp で行う。
-                    if (!(editing && s.member)) pickSeat(s, false);
+                    if (!(editing && s.member && movable(s.member.id))) pickSeat(s, false);
                   }}
                   onKeyDown={(e) => isActivate(e) && pickSeat(s, false)}
                 >
@@ -482,6 +488,7 @@ export function FloorMap({
           withPhoto={withPhoto}
           onPickSeat={(s) => pickSeat(s, true)}
           onReset={editing ? reset : null}
+          movable={movable}
         />
       </div>
 
@@ -545,7 +552,7 @@ export function FloorMap({
             </p>
             <ul className="text-brand04 flex flex-col gap-1 px-3 py-2 text-xs">
               {unplaced.map((p) =>
-                editing ? (
+                editing && movable(p.id) ? (
                   <li key={p.id}>
                     <button
                       type="button"
@@ -586,6 +593,7 @@ function InfoCard({
   withPhoto,
   onPickSeat,
   onReset,
+  movable,
 }: {
   sel: Selection;
   seats: MapSeat[];
@@ -594,6 +602,7 @@ function InfoCard({
   onPickSeat: (s: MapSeat) => void;
   /** 札を動かしている間だけ。動かした札を元の場所に戻す。 */
   onReset: ((s: MapSeat) => void) | null;
+  movable: (employeeId: string) => boolean;
 }) {
   if (!sel) {
     return (
@@ -649,7 +658,7 @@ function InfoCard({
         {!m && <p className="text-brand04 mt-1 text-xs">ポータルの社員に見つからない人です(名簿にいない、または名前のつづりが違う)。</p>}
       </div>
       {m && withPhoto && m.id !== myId && <TalkLink employeeId={m.id} name={m.name} compact={false} />}
-      {onReset && s.moved && (
+      {onReset && s.moved && m && movable(m.id) && (
         <button
           type="button"
           onClick={() => onReset(s)}

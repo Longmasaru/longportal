@@ -111,6 +111,13 @@ export function isOnRoster(
  * LINE WORKS で、その人との 1 対 1 のトークを開く URL(App Link。スマホはアプリ、PC はアプリかブラウザで開く)。
  * 宛先は LINE WORKS のアカウント(メールの形)。
  */
+/**
+ * 配置図の札を動かせるか。社員管理の権限を全社で持つ人はだれの札でも、ほかの人は自分の札だけ(docs/DESIGN.md 36 章)。
+ */
+export function canMoveSeat(editAll: boolean, myEmployeeId: string | null, targetEmployeeId: string): boolean {
+  return editAll || (myEmployeeId !== null && myEmployeeId === targetEmployeeId);
+}
+
 export function lineWorksTalkUrl(account: string): string {
   const url = new URL("https://line.worksmobile.com/message/send");
   url.searchParams.set("version", "26");
