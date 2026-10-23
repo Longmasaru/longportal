@@ -197,6 +197,13 @@
       "when": 1792579688182,
       "tag": "0027_meyasubako_app",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1792734275703,
+      "tag": "0028_nakama_members",
+      "breakpoints": true
     }
   ]
 }
