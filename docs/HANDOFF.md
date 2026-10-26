@@ -165,7 +165,7 @@
 - **PC のメモリが逼迫すると、シェルが極端に遅くなる**(空きが約 1GB のとき)。重い処理は、バックグラウンド実行にして、出力ファイルを読む。
 - **ブラウザ操作(Playwright)の MCP は、接続できないことがある**。その場合は、ログイン API を `curl` で直接たたく、DB の確認を `tsx` で行う、などで代替する。
 - **Git の「LF → CRLF」の警告**は、Windows の設定によるもので、無害。
-- **脆弱性は、重さに関係なくすべて対処する。直せないものは、その機能や入口を閉じて、安全が担保できてから開ける**(ユーザーの方針。どんな作業でも共通)。2026-10-23: Next.js 16.3.8 の critical(画像最適化と SVG・`use cache` による外部からの実行、Server Actions によるサービス停止。16.0.0〜16.4.0 が対象)のため、ポータル・AI教室とも **16.4.2** に上げた(`eslint-config-next` も 16.4.2)。開発用の drizzle-kit が使う古い esbuild(moderate)は、`package.json` の `overrides` で 0.25.12 に差し替えた(`drizzle-kit check` で動作を確認)。**残り: `braces`(high。eslint-config-next → fast-glob → micromatch → braces)は修正版がまだ存在しない**。lint を手元で実行したときだけ動く開発用の部品で、本番の中身にも Vercel のビルドにも入らない(`npm run audit:prod` = 本番に入る部品の検査は 0 件)。修正版が出たら上げる。定期的に `npm audit` と `npm run audit:prod` を確認し、本番に入る部品で直せないものが出たら、該当の機能を止める。
+- **脆弱性は、重さに関係なくすべて対処する。直せないものは、その機能や入口を閉じて、安全が担保できてから開ける**(ユーザーの方針。どんな作業でも共通)。2026-10-23: Next.js 16.3.8 の critical(画像最適化と SVG・`use cache` による外部からの実行、Server Actions によるサービス停止。16.0.0〜16.4.0 が対象)のため、ポータル・AI教室とも **16.4.2** に上げた(`eslint-config-next` も 16.4.2)。開発用の drizzle-kit が使う古い esbuild(moderate)は、`package.json` の `overrides` で 0.25.12 に差し替えた(`drizzle-kit check` で動作を確認)。開発用の `braces`(high)は修正版がなかったが、2026-10-26 には警告が出なくなった。2026-10-26: zod 4.6.5 に high(GHSA-mrhx-c7xc-m3w5。大きすぎる配列などを検証するとメモリを使い切る。画面からの入力の検証に使っているため、本番に関わる)が出たため、ポータル・AI教室とも **4.6.7** に上げた。この時点で `npm audit` は開発用も含めて 0 件。定期的に `npm audit` と `npm run audit:prod` を確認し、本番に入る部品で直せないものが出たら、該当の機能を止める。
 - **Cloudflare の API トークン(オブジェクトの読み書き)では、バケットの設定(CORS)は変えられない**。CORS は、ユーザーが Cloudflare の画面から設定する(内容は `docs/r2-cors.json`)。独自ドメインやポートを変えたら、更新が必要。
 
 ## 8. 参照
