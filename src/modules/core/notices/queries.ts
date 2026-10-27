@@ -12,6 +12,7 @@ import { audiences } from "../audience/schema";
 import { users } from "../auth/schema";
 import { isNoticeAddressedTo, isNoticeBanner, summarize } from "./logic";
 import {
+  announcementAttachments,
   announcementReads,
   announcementRecipients,
   announcements,
@@ -278,4 +279,33 @@ export async function getNoticeAdmin(id: string, today: string): Promise<AdminNo
     recipientIds: recipients.map((r) => r.employeeId),
     addressees,
   };
+}
+
+// ---- 添付ファイル ----------------------------------------------------------------
+
+export type NoticeAttachment = { id: string; fileName: string; size: number; contentType: string };
+
+/** お知らせの添付ファイル(登録順)。 */
+export async function listNoticeAttachments(announcementId: string): Promise<NoticeAttachment[]> {
+  return db
+    .select({
+      id: announcementAttachments.id,
+      fileName: announcementAttachments.fileName,
+      size: announcementAttachments.size,
+      contentType: announcementAttachments.contentType,
+    })
+    .from(announcementAttachments)
+    .where(eq(announcementAttachments.announcementId, announcementId))
+    .orderBy(announcementAttachments.createdAt);
+}
+
+/** お知らせごとの添付の数(一覧に 📎 を出すため)。 */
+export async function countNoticeAttachments(announcementIds: string[]): Promise<Map<string, number>> {
+  if (announcementIds.length === 0) return new Map();
+  const rows = await db
+    .select({ id: announcementAttachments.announcementId, n: sql<number>`count(*)::int` })
+    .from(announcementAttachments)
+    .where(inArray(announcementAttachments.announcementId, announcementIds))
+    .groupBy(announcementAttachments.announcementId);
+  return new Map(rows.map((r) => [r.id, r.n]));
 }

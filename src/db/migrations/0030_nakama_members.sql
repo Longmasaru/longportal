@@ -1,4 +1,4 @@
--- 本番 DB には、この内容を 2026-10-23 に「0028_nakama_members」の名前で先に適用した(同じ日に別の 0028 が main に入ったため 0029 に付け直した)。
+-- 本番 DB には、この内容を 2026-10-23 に「0028_nakama_members」の名前で先に適用した(そのあと別の 0028・0029 が main に先に入ったため 0030 に付け直した)。
 -- その DB で再び流れても失敗しないよう、すべて「なければ作る」にしてある(docs/DESIGN.md 43 章)。
 CREATE SCHEMA IF NOT EXISTS "nakama";
 --> statement-breakpoint

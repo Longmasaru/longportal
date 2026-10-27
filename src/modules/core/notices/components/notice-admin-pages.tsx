@@ -9,7 +9,7 @@ import { todayJst } from "../../shared/jst";
 import { BUTTON_PRIMARY, FormNotice, LINK_CLASS, PageHeading, StatusTag } from "../../shared/ui/form";
 import { NOTICE_KIND_LABEL, NOTICE_PRIORITY_LABEL, NOTICE_TARGET_LABEL } from "../labels";
 import { isNoticeLive } from "../logic";
-import { getNoticeAdmin, listNoticesAdmin } from "../queries";
+import { getNoticeAdmin, listNoticeAttachments, listNoticesAdmin } from "../queries";
 import { NoticeAdminButtons } from "./notice-admin-buttons";
 import { NoticeForm, type RecipientOption } from "./notice-form";
 
@@ -159,7 +159,11 @@ export async function AdminNoticeEditPage({ id, saved }: { id: string; saved?: s
   if (!z.uuid().safeParse(id).success) notFound();
   const today = todayJst();
   const allowIndividual = canHandleIndividual(actor);
-  const [detail, options] = await Promise.all([getNoticeAdmin(id, today), formOptions(today, allowIndividual)]);
+  const [detail, options, attachments] = await Promise.all([
+    getNoticeAdmin(id, today),
+    formOptions(today, allowIndividual),
+    listNoticeAttachments(id),
+  ]);
   // 個人宛ては、権限のない人には「ない」ものとして扱う(中身も既読の状況も見せない)。
   if (!detail || (detail.notice.target === "individual" && !allowIndividual)) notFound();
   const { notice, addressees } = detail;
@@ -210,6 +214,7 @@ export async function AdminNoticeEditPage({ id, saved }: { id: string; saved?: s
         employees={options.employees}
         today={today}
         allowIndividual={allowIndividual}
+        attachments={attachments}
       />
 
       <section aria-labelledby="addressees-heading">

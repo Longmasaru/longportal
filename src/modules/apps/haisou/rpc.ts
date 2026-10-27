@@ -93,7 +93,8 @@ const ClientSchema = z.object({
 });
 
 const DriverSchema = z.object({ name: Str(100).default(""), email: Str(320).default("") });
-const Id = z.uuid("不正なリクエストです。");
+// DB の行は UUID、元のシートの行は「行番号 + 中身の目印」(sheet-store.ts)
+const Id = z.union([z.uuid(), z.string().regex(/^[rb]\d+(?:-\d+)?\.[0-9a-f]{8}$/)], { error: "不正なリクエストです。" });
 const Month = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "月の指定が正しくありません");
 
 type Ctx = { userId: string; today: string };

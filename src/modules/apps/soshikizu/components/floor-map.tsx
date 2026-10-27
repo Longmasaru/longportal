@@ -69,14 +69,12 @@ export function FloorMap({
   unplaced,
   myId,
   withPhoto,
-  canEdit,
 }: {
   seats: MapSeat[];
   unplaced: MapPerson[];
   myId: string | null;
   withPhoto: boolean;
   /** 札を動かせる人(社員管理の権限を全社で持つ人)。 */
-  canEdit: boolean;
 }) {
   const router = useRouter();
   const [sel, setSel] = useState<Selection>(null);
@@ -229,21 +227,19 @@ export function FloorMap({
             サブリーダー
           </span>
           <span className="lg:hidden">地図は横に動かせます</span>
-          {canEdit && (
-            <button
-              type="button"
-              onClick={() => {
-                setEditing((v) => !v);
-                setPlacing(null);
-                setNotice(null);
-              }}
-              className={`ml-auto border px-3 py-1 text-xs font-bold ${
-                editing ? "border-brand03 bg-brand03 text-white" : "border-brand01/20 text-brand01 hover:border-brand03 hover:text-brand03 bg-white"
-              }`}
-            >
-              {editing ? "動かし終わる" : "札を動かす"}
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => {
+              setEditing((v) => !v);
+              setPlacing(null);
+              setNotice(null);
+            }}
+            className={`ml-auto border px-3 py-1 text-xs font-bold ${
+              editing ? "border-brand03 bg-brand03 text-white" : "border-brand01/20 text-brand01 hover:border-brand03 hover:text-brand03 bg-white"
+            }`}
+          >
+            {editing ? "動かし終わる" : "札を動かす"}
+          </button>
         </div>
 
         {editing && (

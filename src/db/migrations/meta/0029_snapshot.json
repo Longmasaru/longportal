@@ -1,5 +1,5 @@
 {
-  "id": "1f7e9a8b-aa5e-46e4-a75d-a085f1bef9f1",
+  "id": "57d06b60-89c1-4997-bca7-dcc56b8290ac",
   "prevId": "6e426a9a-8454-4b74-8829-8c2d9f9a827c",
   "version": "7",
   "dialect": "postgresql",
@@ -3791,141 +3791,6 @@
       },
       "isRLSEnabled": false
     },
-    "nakama.members": {
-      "name": "members",
-      "schema": "nakama",
-      "columns": {
-        "employee_id": {
-          "name": "employee_id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "native_name": {
-          "name": "native_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "''"
-        },
-        "nickname": {
-          "name": "nickname",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "''"
-        },
-        "arrived_on": {
-          "name": "arrived_on",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "hometown": {
-          "name": "hometown",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "''"
-        },
-        "note": {
-          "name": "note",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "''"
-        },
-        "residence_status": {
-          "name": "residence_status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "residence_expires_on": {
-          "name": "residence_expires_on",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "updated_by_user_id": {
-          "name": "updated_by_user_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "members_employee_id_employees_id_fk": {
-          "name": "members_employee_id_employees_id_fk",
-          "tableFrom": "members",
-          "tableTo": "employees",
-          "schemaTo": "core",
-          "columnsFrom": [
-            "employee_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "restrict",
-          "onUpdate": "no action"
-        },
-        "members_updated_by_user_id_users_id_fk": {
-          "name": "members_updated_by_user_id_users_id_fk",
-          "tableFrom": "members",
-          "tableTo": "users",
-          "schemaTo": "core",
-          "columnsFrom": [
-            "updated_by_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "members_residence_status_check": {
-          "name": "members_residence_status_check",
-          "value": "\"nakama\".\"members\".\"residence_status\" is null or \"nakama\".\"members\".\"residence_status\" in ('technical_intern_1', 'technical_intern_2', 'technical_intern_3', 'employment_training', 'specified_skilled_1', 'specified_skilled_2', 'engineer', 'permanent', 'family', 'other')"
-        },
-        "members_native_name_length_check": {
-          "name": "members_native_name_length_check",
-          "value": "char_length(\"nakama\".\"members\".\"native_name\") <= 100"
-        },
-        "members_nickname_length_check": {
-          "name": "members_nickname_length_check",
-          "value": "char_length(\"nakama\".\"members\".\"nickname\") <= 30"
-        },
-        "members_hometown_length_check": {
-          "name": "members_hometown_length_check",
-          "value": "char_length(\"nakama\".\"members\".\"hometown\") <= 50"
-        },
-        "members_note_length_check": {
-          "name": "members_note_length_check",
-          "value": "char_length(\"nakama\".\"members\".\"note\") <= 100"
-        }
-      },
-      "isRLSEnabled": false
-    },
     "nippo.comments": {
       "name": "comments",
       "schema": "nippo",
@@ -6352,6 +6217,122 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "core.announcement_attachments": {
+      "name": "announcement_attachments",
+      "schema": "core",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "announcement_id": {
+          "name": "announcement_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "object_key": {
+          "name": "object_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "file_name": {
+          "name": "file_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "size": {
+          "name": "size",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "content_type": {
+          "name": "content_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "uploaded_by": {
+          "name": "uploaded_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "announcement_attachments_announcement_id_idx": {
+          "name": "announcement_attachments_announcement_id_idx",
+          "columns": [
+            {
+              "expression": "announcement_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "announcement_attachments_announcement_id_announcements_id_fk": {
+          "name": "announcement_attachments_announcement_id_announcements_id_fk",
+          "tableFrom": "announcement_attachments",
+          "tableTo": "announcements",
+          "schemaTo": "core",
+          "columnsFrom": [
+            "announcement_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "announcement_attachments_uploaded_by_users_id_fk": {
+          "name": "announcement_attachments_uploaded_by_users_id_fk",
+          "tableFrom": "announcement_attachments",
+          "tableTo": "users",
+          "schemaTo": "core",
+          "columnsFrom": [
+            "uploaded_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "announcement_attachments_object_key_unique": {
+          "name": "announcement_attachments_object_key_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "object_key"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "core.announcement_reads": {
       "name": "announcement_reads",
       "schema": "core",
@@ -7206,7 +7187,6 @@
     "hr": "hr",
     "kyokasho": "kyokasho",
     "meyasubako": "meyasubako",
-    "nakama": "nakama",
     "nippo": "nippo",
     "soshikizu": "soshikizu",
     "todo": "todo"

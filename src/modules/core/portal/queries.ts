@@ -6,7 +6,7 @@ import { canGlobally, requireActor, type Actor } from "../access";
 import { getEmailStatus } from "../auth/recovery";
 import { listAppsForActor } from "../apps";
 import { listLinksForActor } from "../links";
-import { listNoticesForActor } from "../notices";
+import { countNoticeAttachments, listNoticesForActor } from "../notices";
 import { todayJst } from "../shared/jst";
 import { ADMIN_NAV, buildNavigation } from "./navigation";
 import { comparePersonalNotices, isBannerActive } from "./notices";
@@ -41,11 +41,13 @@ async function listVisibleApps(actor: Actor): Promise<PortalApp[]> {
 /** 利用者に届いている、掲載中のお知らせ(画面用の形)。要対応 = 確認が必要で、まだ確認していないもの。 */
 async function listVisibleNotices(actor: Actor): Promise<Notice[]> {
   const list = await listNoticesForActor(actor);
+  const attachmentCounts = await countNoticeAttachments(list.map((n) => n.id));
   return list.map((n) => ({
     id: n.id,
     title: n.title,
     summary: n.summary,
     body: n.body,
+    attachmentCount: attachmentCounts.get(n.id) ?? 0,
     kind: n.kind,
     priority: n.priority,
     target: n.target,

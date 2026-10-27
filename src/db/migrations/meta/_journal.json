@@ -208,8 +208,15 @@
     {
       "idx": 29,
       "version": "7",
-      "when": 1792741119080,
-      "tag": "0029_nakama_members",
+      "when": 1792741532498,
+      "tag": "0029_notice_attachments",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1793077083802,
+      "tag": "0030_nakama_members",
       "breakpoints": true
     }
   ]

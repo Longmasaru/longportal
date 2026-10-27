@@ -74,7 +74,11 @@ export function normalizeClock(s: string): string {
 
 /** 取引先一覧。見出しは 1 行目。No.(row_no)は元のシートの行番号(見出しが 1 行目)をそのまま使う。 */
 export function readClients(text: string): { records: ClientRecord[]; issues: ImportIssue[] } {
-  const rows = parseCsv(text, { keepEmptyRows: true });
+  return readClientRows(parseCsv(text, { keepEmptyRows: true }));
+}
+
+/** readClients の、行(セルの文字列の配列)から読む版。元のシートを直接読むとき(sheet-store.ts)にも使う。 */
+export function readClientRows(rows: string[][]): { records: ClientRecord[]; issues: ImportIssue[] } {
   const records: ClientRecord[] = [];
   const issues: ImportIssue[] = [];
   rows.slice(1).forEach((row, i) => {
@@ -111,7 +115,10 @@ export function readClients(text: string): { records: ClientRecord[]; issues: Im
 
 /** 配達者リスト。見出しは 1 行目。並びはシートの順。 */
 export function readDrivers(text: string): { records: DriverRecord[]; issues: ImportIssue[] } {
-  const rows = parseCsv(text, { keepEmptyRows: true });
+  return readDriverRows(parseCsv(text, { keepEmptyRows: true }));
+}
+
+export function readDriverRows(rows: string[][]): { records: DriverRecord[]; issues: ImportIssue[] } {
   const records: DriverRecord[] = [];
   rows.slice(1).forEach((row) => {
     const name = cell(row, 0);
@@ -126,7 +133,10 @@ export function readDrivers(text: string): { records: DriverRecord[]; issues: Im
  * 1 回の保存は続いた行に書かれているので、順番が 1 に戻るか、日付・便・配達者・出発時刻が変わったら、次の便とする。
  */
 export function readHistory(text: string): { records: HistoryRecord[]; issues: ImportIssue[] } {
-  const rows = parseCsv(text, { keepEmptyRows: true });
+  return readHistoryRows(parseCsv(text, { keepEmptyRows: true }));
+}
+
+export function readHistoryRows(rows: string[][]): { records: HistoryRecord[]; issues: ImportIssue[] } {
   const records: HistoryRecord[] = [];
   const issues: ImportIssue[] = [];
   let batch = 0;
@@ -193,7 +203,10 @@ export function parseJstDateTime(s: string): Date | null {
 
 /** 保存ルート。見出しは 1 行目。同じ保存名が 2 回あれば、下の行(あとで保存したもの)を使う。 */
 export function readSavedRoutes(text: string): { records: SavedRouteRecord[]; issues: ImportIssue[] } {
-  const rows = parseCsv(text, { keepEmptyRows: true });
+  return readSavedRouteRows(parseCsv(text, { keepEmptyRows: true }));
+}
+
+export function readSavedRouteRows(rows: string[][]): { records: SavedRouteRecord[]; issues: ImportIssue[] } {
   const byName = new Map<string, SavedRouteRecord>();
   const issues: ImportIssue[] = [];
   rows.slice(1).forEach((row, i) => {
