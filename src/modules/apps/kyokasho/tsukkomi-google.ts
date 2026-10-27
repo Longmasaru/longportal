@@ -3,7 +3,7 @@ import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db/client";
 import { users } from "@/modules/core/auth/schema";
 import { employees } from "@/modules/core/employees/schema";
-import { createDriveComment, listDriveCommentContents } from "@/modules/core/google";
+import { createDriveComment, deleteDriveComment, listDriveComments, type DriveComment } from "@/modules/core/google";
 import { googleDocId } from "./logic";
 import { kyokashoBooks, kyokashoComments } from "./schema";
 import { googleCommentContent, googleCommentMarker, isCommentKind } from "./tsukkomi";
@@ -11,14 +11,15 @@ import { googleCommentContent, googleCommentMarker, isCommentKind } from "./tsuk
 // これまでのツッコミを、元の Google ドキュメントにコメントとしてまとめて付ける(docs/DESIGN.md 32 章)。
 // 新しいツッコミは書いたときに付く(tsukkomi-actions.ts)。ここは、鍵を入れる前のものや、付けられなかったものの取りこぼし用。
 // ドキュメントのコメントに「ツッコミ番号」が既にあるものは付けない(何度押しても二重にならない)。
+// ポータルが前に付けたもので、本文の形が今と違うもの(引用つきの古い形など)は、消して付け直す。
 
-export type GooglePushResult = { added: number; skipped: number; failed: number; books: number };
+export type GooglePushResult = { added: number; replaced: number; skipped: number; failed: number; books: number };
 
 const authorUser = alias(users, "author_user");
 const authorEmp = alias(employees, "author_emp");
 
 export async function pushCommentsToGoogle(origin: string): Promise<GooglePushResult> {
-  const result: GooglePushResult = { added: 0, skipped: 0, failed: 0, books: 0 };
+  const result: GooglePushResult = { added: 0, replaced: 0, skipped: 0, failed: 0, books: 0 };
   const books = await db
     .select({ id: kyokashoBooks.id, slug: kyokashoBooks.slug, sourceUrl: kyokashoBooks.sourceUrl })
     .from(kyokashoBooks)
@@ -46,16 +47,16 @@ export async function pushCommentsToGoogle(origin: string): Promise<GooglePushRe
     if (comments.length === 0) continue;
     result.books += 1;
 
-    let existing: string[];
+    let existing: DriveComment[];
     try {
-      existing = await listDriveCommentContents(docId);
+      existing = await listDriveComments(docId);
     } catch (err) {
       console.error(`[kyokasho] ${book.slug} のコメントを読めませんでした: ${err instanceof Error ? err.message : "不明"}`);
       result.failed += comments.length;
       continue;
     }
     for (const c of comments) {
-      if (existing.some((text) => text.includes(googleCommentMarker(c.id))) || !isCommentKind(c.kind)) {
+      if (!isCommentKind(c.kind)) {
         result.skipped += 1;
         continue;
       }
@@ -64,13 +65,23 @@ export async function pushCommentsToGoogle(origin: string): Promise<GooglePushRe
         kind: c.kind,
         chapterTitle: c.chapterTitle,
         sectionTitle: c.sectionTitle,
+        quote: c.quote,
         body: c.body,
         authorName: c.authorName ?? "(退職した人)",
         url: `${origin}/apps/kyokasho/${book.slug}/${c.chapterNo}`,
       });
+      const marker = googleCommentMarker(c.id);
+      const found = existing.filter((e) => e.content.includes(marker));
+      const stale = found.filter((e) => e.mine && (e.quoted || e.content.trim() !== content.trim()));
+      if (found.length > stale.length) {
+        result.skipped += 1;
+        continue;
+      }
       try {
-        await createDriveComment(docId, content, c.quote || c.sectionTitle || undefined);
-        result.added += 1;
+        for (const e of stale) await deleteDriveComment(docId, e.id);
+        await createDriveComment(docId, content);
+        if (stale.length > 0) result.replaced += 1;
+        else result.added += 1;
       } catch (err) {
         console.error(`[kyokasho] ${book.slug} にコメントを付けられませんでした: ${err instanceof Error ? err.message : "不明"}`);
         result.failed += 1;
