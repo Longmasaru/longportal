@@ -13,6 +13,7 @@ import { matchedAudienceIds } from "@/modules/core/audience";
 import { writeAuditLog } from "@/modules/core/audit";
 import { createDriveComment, googleServiceAccount } from "@/modules/core/google";
 import { sendLineWorksChannelText } from "@/modules/core/lineworks";
+import { appBaseUrl } from "@/modules/core/mail";
 import { chapterOutline } from "./content";
 import { canViewBook, googleDocId } from "./logic";
 import { manifest } from "./manifest";
@@ -125,7 +126,7 @@ export async function postCommentAction(_prev: TsukkomiFormState, formData: Form
 
   // 元の Google ドキュメントにも、同じツッコミをコメントとして付ける(鍵と元の URL があるときだけ)。
   const docId = googleDocId(book.sourceUrl);
-  if (docId && host) {
+  if (docId) {
     const content = googleCommentContent({
       id: inserted.id,
       kind: v.kind,
@@ -133,7 +134,7 @@ export async function postCommentAction(_prev: TsukkomiFormState, formData: Form
       sectionTitle,
       body: v.body,
       authorName: actor.employee?.name ?? actor.loginId,
-      url: `https://${host}${BASE}/${book.slug}/${v.chapterNo}`,
+      url: `${appBaseUrl()}${BASE}/${book.slug}/${v.chapterNo}`,
     });
     after(() =>
       createDriveComment(docId, content, v.quote || sectionTitle || undefined).then(
@@ -294,9 +295,7 @@ export async function pushCommentsToGoogleAction(): Promise<GooglePushFormState>
   const actor = await requireAppAccess(manifest.appKey);
   if (!canHandleComments(actor)) notFound();
   if (!googleServiceAccount()) return { error: "Google のサービスアカウントの鍵が登録されていません。" };
-  const host = (await headers()).get("host");
-  if (!host) return { error: "不正なリクエストです。" };
-  const r = await pushCommentsToGoogle(`https://${host}`);
+  const r = await pushCommentsToGoogle(appBaseUrl());
   await writeAuditLog(db, {
     actorUserId: actor.userId,
     action: "kyokasho.comment.push_google",
