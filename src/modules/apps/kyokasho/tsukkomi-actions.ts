@@ -11,9 +11,10 @@ import type { Actor } from "@/modules/core/access";
 import { requireAppAccess } from "@/modules/core/apps";
 import { matchedAudienceIds } from "@/modules/core/audience";
 import { writeAuditLog } from "@/modules/core/audit";
+import { createDriveComment, googleServiceAccount } from "@/modules/core/google";
 import { sendLineWorksChannelText } from "@/modules/core/lineworks";
 import { chapterOutline } from "./content";
-import { canViewBook } from "./logic";
+import { canViewBook, googleDocId } from "./logic";
 import { manifest } from "./manifest";
 import { polishTsukkomi, type PolishResult } from "./polish";
 import { canManageBooks } from "./queries";
@@ -27,8 +28,10 @@ import {
   QUOTE_MAX,
   REPLY_MAX,
   canDeleteOwnComment,
+  googleCommentContent,
   notifyChannelFor,
 } from "./tsukkomi";
+import { pushCommentsToGoogle } from "./tsukkomi-google";
 import { canHandleComments } from "./tsukkomi-queries";
 
 // ツッコミの書き込み(docs/DESIGN.md 32 章)。書く・消す・ありがとうは、その教科書を見られる人だけ。
@@ -91,17 +94,20 @@ export async function postCommentAction(_prev: TsukkomiFormState, formData: Form
   const section = v.sectionId ? chapterOutline(chapter).find((h) => h.id === v.sectionId) : undefined;
 
   const sectionTitle = section ? section.text.replace(/\*\*/g, "").slice(0, 200) : "";
-  await db.insert(kyokashoComments).values({
-    bookId: book.id,
-    chapterNo: v.chapterNo,
-    chapterTitle: chapter.title.slice(0, 200),
-    sectionId: section ? section.id : null,
-    sectionTitle,
-    quote: v.quote,
-    kind: v.kind,
-    body: v.body,
-    authorUserId: actor.userId,
-  });
+  const [inserted] = await db
+    .insert(kyokashoComments)
+    .values({
+      bookId: book.id,
+      chapterNo: v.chapterNo,
+      chapterTitle: chapter.title.slice(0, 200),
+      sectionId: section ? section.id : null,
+      sectionTitle,
+      quote: v.quote,
+      kind: v.kind,
+      body: v.body,
+      authorUserId: actor.userId,
+    })
+    .returning({ id: kyokashoComments.id });
   revalidatePath(BASE, "layout");
 
   // その部署の教科書チームの LINE WORKS のトークルームへ知らせる(設定があるときだけ。返事を待たずに画面を返す)。
@@ -116,6 +122,26 @@ export async function postCommentAction(_prev: TsukkomiFormState, formData: Form
     .filter(Boolean)
     .join("\n");
   after(() => sendLineWorksChannelText(notifyChannelFor(book, process.env), message).then(() => undefined));
+
+  // 元の Google ドキュメントにも、同じツッコミをコメントとして付ける(鍵と元の URL があるときだけ)。
+  const docId = googleDocId(book.sourceUrl);
+  if (docId && host) {
+    const content = googleCommentContent({
+      id: inserted.id,
+      kind: v.kind,
+      chapterTitle: chapter.title,
+      sectionTitle,
+      body: v.body,
+      authorName: actor.employee?.name ?? actor.loginId,
+      url: `https://${host}${BASE}/${book.slug}/${v.chapterNo}`,
+    });
+    after(() =>
+      createDriveComment(docId, content, v.quote || sectionTitle || undefined).then(
+        () => undefined,
+        (err: unknown) => console.error(`[kyokasho] Google ドキュメントにコメントを付けられませんでした: ${err instanceof Error ? err.message : "不明"}`),
+      ),
+    );
+  }
 
   return { success: "ツッコミを送りました。ありがとうございます!", at: Date.now() };
 }
@@ -259,4 +285,24 @@ export async function polishTsukkomiAction(input: {
     quote: v.quote,
     body: v.body,
   });
+}
+
+export type GooglePushFormState = { error?: string; success?: string } | undefined;
+
+/** これまでのツッコミを、元の Google ドキュメントにまとめてコメントとして付ける(教科書チームだけ。付いているものは飛ばす)。 */
+export async function pushCommentsToGoogleAction(): Promise<GooglePushFormState> {
+  const actor = await requireAppAccess(manifest.appKey);
+  if (!canHandleComments(actor)) notFound();
+  if (!googleServiceAccount()) return { error: "Google のサービスアカウントの鍵が登録されていません。" };
+  const host = (await headers()).get("host");
+  if (!host) return { error: "不正なリクエストです。" };
+  const r = await pushCommentsToGoogle(`https://${host}`);
+  await writeAuditLog(db, {
+    actorUserId: actor.userId,
+    action: "kyokasho.comment.push_google",
+    targetType: "kyokasho_comment",
+    after: r,
+  });
+  const summary = `${r.added} 件を付けました(付いていた ${r.skipped} 件は飛ばしました)。`;
+  return r.failed > 0 ? { error: `${summary}${r.failed} 件は付けられませんでした。` } : { success: summary };
 }
