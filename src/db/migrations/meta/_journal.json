@@ -218,6 +218,13 @@
       "when": 1793077083802,
       "tag": "0030_nakama_members",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1793080582147,
+      "tag": "0031_zukan_app",
+      "breakpoints": true
     }
   ]
 }

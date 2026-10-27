@@ -34,6 +34,8 @@ export const AUDIT_ACTION_LABEL: Record<string, string> = {
   "app.delete": "アプリの登録の削除",
   "arigato.card.delete": "ありがとうカードの削除(管理)",
   "meyasubako.post.delete": "目安箱の投稿の削除(管理)",
+  "zukan.entry.appraise": "カイゼン図鑑: 点数の確定(鑑定)",
+  "zukan.entry.delete": "カイゼン図鑑: ページの削除(管理)",
   "nakama.member.create": "ベトナムの仲間: 名簿に足す",
   "nakama.member.update": "ベトナムの仲間: 名簿の内容の変更",
   "nakama.member.delete": "ベトナムの仲間: 名簿から外す",

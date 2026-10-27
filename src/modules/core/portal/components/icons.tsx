@@ -107,6 +107,12 @@ const PATHS: Record<IconName, ReactNode> = {
       <path d="M16 2v4M8 2v4M3 10h18" />
     </>
   ),
+  book: (
+    <>
+      <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20" />
+      <path d="M9 7h6" />
+    </>
+  ),
   sprout: (
     <>
       <path d="M12 21v-9" />

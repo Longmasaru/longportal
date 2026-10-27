@@ -30,6 +30,7 @@ export const APP_ICONS = [
   "building",
   "megaphone",
   "link",
+  "book",
 ] as const satisfies readonly IconName[];
 export type AppIcon = (typeof APP_ICONS)[number];
 
@@ -51,6 +52,7 @@ export const APP_ICON_LABEL: Record<AppIcon, string> = {
   building: "建物",
   megaphone: "拡声器",
   link: "リンク",
+  book: "図鑑",
 };
 
 /** 業務アプリ(modules/apps/○○)が定義する manifest の形(docs/DESIGN.md 8 章)。 */

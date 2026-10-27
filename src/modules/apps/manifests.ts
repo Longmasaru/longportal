@@ -13,5 +13,6 @@ import { manifest as nakama } from "./nakama/manifest";
 import { manifest as sodatsu } from "./sodatsu/manifest";
 import { manifest as soshikizu } from "./soshikizu/manifest";
 import { manifest as todo } from "./todo/manifest";
+import { manifest as zukan } from "./zukan/manifest";
 
-export const APP_MANIFESTS: readonly AppManifest[] = [sodatsu, arigato, todo, calendar, haisou, kyokasho, hr, soshikizu, nippo, bots, meyasubako, nakama];
+export const APP_MANIFESTS: readonly AppManifest[] = [sodatsu, arigato, todo, calendar, haisou, kyokasho, hr, soshikizu, nippo, bots, meyasubako, nakama, zukan];
