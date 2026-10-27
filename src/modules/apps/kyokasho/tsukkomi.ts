@@ -105,21 +105,26 @@ export function googleCommentMarker(commentId: string): string {
 
 /**
  * 元の Google ドキュメントに付けるコメントの本文(docs/DESIGN.md 32 章)。
- * 種類・章と節・本文・書いた人と、ポータルのその章への道を入れる。引用はコメントの「引用」の欄に別に出す。
+ * コメントの書き手はポータルのサービスアカウントになるので、書いた人の名前を先頭に出す。
+ * 続けて場所(章と節)・引用・本文と、ポータルのその章への道を入れる。
  */
 export function googleCommentContent(c: {
   id: string;
   kind: CommentKind;
   chapterTitle: string;
   sectionTitle: string;
+  quote: string;
   body: string;
   authorName: string;
   url: string;
 }): string {
+  const place = [c.chapterTitle, c.sectionTitle].filter(Boolean).join(" › ");
+  const quote = c.quote.trim().replace(/\s+/g, " ");
   return [
-    `【${KIND_LABELS[c.kind].label}】${[c.chapterTitle, c.sectionTitle].filter(Boolean).join(" › ")}`,
+    [`${c.authorName} さんのツッコミ【${KIND_LABELS[c.kind].label}】`, place && `場所: ${place}`, quote && `「${quote.length > 200 ? `${quote.slice(0, 200)}…` : quote}」`]
+      .filter(Boolean)
+      .join("\n"),
     c.body,
-    `― ${c.authorName} さん(LONG PORTAL のツッコミ)`,
     `${c.url}\n${googleCommentMarker(c.id)}`,
   ].join("\n\n");
 }

@@ -29,6 +29,6 @@ export async function handleSyncCron(request: Request): Promise<Response> {
   if (outcomes.some((o) => o.status === "updated")) revalidatePath("/apps/kyokasho", "layout");
   for (const o of outcomes) console.log(`[kyokasho-sync] ${o.slug}: ${o.status} ${o.message}`);
   const google = googleServiceAccount() ? await pushCommentsToGoogle(appBaseUrl()) : null;
-  if (google) console.log(`[kyokasho-sync] Google のコメント: 付けた ${google.added}・付いていた ${google.skipped}・失敗 ${google.failed}`);
+  if (google) console.log(`[kyokasho-sync] Google のコメント: 付けた ${google.added}・付け直した ${google.replaced}・付いていた ${google.skipped}・失敗 ${google.failed}`);
   return Response.json({ outcomes, google });
 }
