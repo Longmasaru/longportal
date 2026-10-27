@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireAppAccess } from "@/modules/core/apps";
+import { googleServiceAccount } from "@/modules/core/google";
 import { LINK_CLASS, PageHeading } from "@/modules/core/shared/ui/form";
 import { manifest } from "../manifest";
 import { COMMENT_STATUSES, STATUS_LABELS, isCommentStatus, type CommentStatus } from "../tsukkomi";
 import { canHandleComments, listCommentsAdmin } from "../tsukkomi-queries";
 import { CommentCard } from "./tsukkomi";
+import { GooglePushButton } from "./tsukkomi-google-button";
 
 const BASE = "/apps/kyokasho";
 
@@ -32,6 +34,8 @@ export async function TsukkomiManagePage({ status: statusParam }: { status?: str
           </Link>
         }
       />
+
+      {googleServiceAccount() ? <GooglePushButton /> : null}
 
       <nav aria-label="受け止め方で絞る" className="-mx-4 overflow-x-auto px-4 md:mx-0 md:px-0">
         <ul className="border-brand01/15 flex min-w-max gap-1 border-b">
