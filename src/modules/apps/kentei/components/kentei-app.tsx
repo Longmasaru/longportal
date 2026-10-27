@@ -13,7 +13,7 @@ import { Test, finishLocally, type TestState } from "./test";
 import { DEFAULT_PREFS, PrefsProvider, T, VI_FONT, type Lang, type Prefs } from "./text";
 import { Meter, Pill, SECTION_TITLE } from "./ui";
 
-// 練習の画面(ホーム・学習・用語集・模擬テスト・実技・記録)。docs/DESIGN.md 43 章。
+// 練習の画面(ホーム・学習・用語集・模擬テスト・実技・記録)。docs/DESIGN.md 44 章。
 // 答えの記録はサーバーに残す(本人と、指導する人が見る)。表示の言語などの設定は、この端末のブラウザにだけ保存する。
 
 export type ClientTest = {

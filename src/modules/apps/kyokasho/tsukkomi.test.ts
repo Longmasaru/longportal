@@ -1,6 +1,15 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { canDeleteOwnComment, isAdopted, isCommentKind, isCommentStatus, notifyChannelFor, rankContributors } from "./tsukkomi";
+import {
+  canDeleteOwnComment,
+  googleCommentContent,
+  googleCommentMarker,
+  isAdopted,
+  isCommentKind,
+  isCommentStatus,
+  notifyChannelFor,
+  rankContributors,
+} from "./tsukkomi";
 
 test("ツッコミの種類・受け止め方の判定", () => {
   assert.equal(isCommentKind("question"), true);
@@ -52,4 +61,20 @@ test("知らせの送り先: 教科書の slug → 部署 → なければ全体
   const broken = { KYOKASHO_LINEWORKS_CHANNELS: "壊れた値", KYOKASHO_LINEWORKS_CHANNEL_ID: "ch-all" };
   assert.equal(notifyChannelFor({ slug: "stud", department: "ブレーキ部" }, broken), "ch-all");
   assert.equal(notifyChannelFor({ slug: "stud", department: "ブレーキ部" }, {}), undefined);
+});
+
+test("Google ドキュメントのコメント: 種類・場所・本文・書いた人・道と、二重防止の印を入れる", () => {
+  const text = googleCommentContent({
+    id: "0123abcd-0000-4000-8000-000000000000",
+    kind: "question",
+    chapterTitle: "第1章 ブレーキ部の仕事",
+    sectionTitle: "1-2 一日の流れ",
+    body: "何を確認すればよいですか?",
+    authorName: "伊藤 健",
+    url: "https://long-ishikawa.com/apps/kyokasho/shokyu/1",
+  });
+  assert.match(text, /^【はてな】第1章 ブレーキ部の仕事 › 1-2 一日の流れ\n\n何を確認すればよいですか\?/);
+  assert.match(text, /伊藤 健 さん/);
+  assert.ok(text.endsWith(`https://long-ishikawa.com/apps/kyokasho/shokyu/1\n${googleCommentMarker("0123abcd-0000-4000-8000-000000000000")}`));
+  assert.equal(googleCommentMarker("0123abcd-0000"), "ツッコミ番号 0123abcd");
 });

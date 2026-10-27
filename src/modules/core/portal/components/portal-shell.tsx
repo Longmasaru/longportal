@@ -20,7 +20,7 @@ export async function PortalShell({ children, appBadges }: { children: ReactNode
 /** メールアドレスが未登録・未確認のときの案内(パスワードを忘れたときに困らないように)。docs/DESIGN.md 26 章。 */
 function EmailNotice({ status }: { status: "none" | "unverified" }) {
   return (
-    <div role="status" className="bg-brand03/10 border-brand03 border-b px-4 py-2.5 text-sm md:px-8">
+    <div role="status" className="bg-brand03/10 border-brand03 border-b print:hidden px-4 py-2.5 text-sm md:px-8">
       <p className="text-brand01 mx-auto flex max-w-6xl flex-wrap items-center gap-x-4 gap-y-1">
         <span>
           {status === "none"

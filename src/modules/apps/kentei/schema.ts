@@ -15,7 +15,7 @@ import {
 import { users } from "@/modules/core/auth/schema";
 import type { ExamContent } from "./content";
 
-/** 技能検定の練習アプリの Postgres スキーマ(docs/DESIGN.md 43 章)。 */
+/** 技能検定の練習アプリの Postgres スキーマ(docs/DESIGN.md 44 章)。 */
 export const kentei = pgSchema("kentei");
 
 /**

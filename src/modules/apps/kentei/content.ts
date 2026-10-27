@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-// 試験 1 つ分の中身(学科の問題・用語・実技の資料)。DB の kentei.exams.content(JSON)に入れる。docs/DESIGN.md 43 章。
+// 試験 1 つ分の中身(学科の問題・用語・実技の資料)。DB の kentei.exams.content(JSON)に入れる。docs/DESIGN.md 44 章。
 // 過去問は「禁転載複製」の資料なので、中身はリポジトリに入れない(取り込みは scripts/import-kentei.ts)。
 // 文はすべて日本語(ja)とベトナム語(vi)の組。問題文の ja は試験と同じ ひらがな、kanji は漢字まじり(指導する人向け)。
 // 画像は取り込みのときに kentei.images の ID に置き換える(取り込む JSON では、フォルダの中のファイル名)。

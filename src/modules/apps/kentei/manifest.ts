@@ -1,6 +1,6 @@
 import type { AppManifest } from "@/modules/core/apps";
 
-// アプリの技術的な存在・契約(docs/DESIGN.md 8 章・24 章・43 章)。npm run sync:manifests で app_registry に登録する。
+// アプリの技術的な存在・契約(docs/DESIGN.md 8 章・24 章・44 章)。npm run sync:manifests で app_registry に登録する。
 // 表示名・説明・アイコンは初回登録時の値で、以後は管理画面(/admin/apps)の設定が優先される。
 // 練習するだけなら専用の権限は要らない(表示する相手に当てはまる社員なら使える。自分の成績だけが見える)。
 /** 実習生などの成績(正答率・模擬テストの結果)を見る(指導する人)。 */

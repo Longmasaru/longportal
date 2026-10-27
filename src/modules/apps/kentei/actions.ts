@@ -13,7 +13,7 @@ import { MANAGE_PERMISSION, manifest } from "./manifest";
 import { findExamForActor, type TestRecord } from "./queries";
 import { kenteiAnswers, kenteiExams, kenteiTestResults } from "./schema";
 
-// 練習の記録(本人のもの)と、試験の公開の切り替え。docs/DESIGN.md 43 章。
+// 練習の記録(本人のもの)と、試験の公開の切り替え。docs/DESIGN.md 44 章。
 // 正誤は、画面から送られた値を使わず、サーバーが試験の中身の正解と照らして決める。
 
 const idSchema = z.string().regex(/^[a-z0-9_]{1,60}$/);

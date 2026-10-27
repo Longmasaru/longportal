@@ -5,7 +5,7 @@ import type { Bilingual } from "../content";
 import { toRomaji } from "../romaji";
 
 // 表示の言語の切り替え(日本語とベトナム語の両方 / 日本語だけ / ベトナム語だけ)と、漢字・ローマ字の添え書き。
-// 設定はこの端末のブラウザにだけ保存する(ログイン中のユーザーごと。docs/DESIGN.md 43 章)。
+// 設定はこの端末のブラウザにだけ保存する(ログイン中のユーザーごと。docs/DESIGN.md 44 章)。
 
 export type Lang = "both" | "ja" | "vi";
 export type Prefs = { lang: Lang; kanji: boolean; romaji: boolean };

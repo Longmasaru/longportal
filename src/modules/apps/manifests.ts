@@ -10,8 +10,9 @@ import { manifest as kentei } from "./kentei/manifest";
 import { manifest as kyokasho } from "./kyokasho/manifest";
 import { manifest as nippo } from "./nippo/manifest";
 import { manifest as meyasubako } from "./meyasubako/manifest";
+import { manifest as nakama } from "./nakama/manifest";
 import { manifest as sodatsu } from "./sodatsu/manifest";
 import { manifest as soshikizu } from "./soshikizu/manifest";
 import { manifest as todo } from "./todo/manifest";
 
-export const APP_MANIFESTS: readonly AppManifest[] = [sodatsu, arigato, todo, calendar, haisou, kyokasho, hr, soshikizu, nippo, bots, meyasubako, kentei];
+export const APP_MANIFESTS: readonly AppManifest[] = [sodatsu, arigato, todo, calendar, haisou, kyokasho, hr, soshikizu, nippo, bots, meyasubako, nakama, kentei];

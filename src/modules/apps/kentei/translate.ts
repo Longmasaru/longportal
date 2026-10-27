@@ -2,7 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import type { ExamContent } from "./content";
 
-// 取り込むときに、ベトナム語が空の文を Claude で訳して埋める(scripts/import-kentei.ts の --translate。docs/DESIGN.md 43 章)。
+// 取り込むときに、ベトナム語が空の文を Claude で訳して埋める(scripts/import-kentei.ts の --translate。docs/DESIGN.md 44 章)。
 // 送るのは試験の問題・用語・実技の文だけ(社員の情報は送らない)。訳は機械訳なので、あとで人が確かめる前提。
 // 技能実習生が読む専門用語の訳なので、教科書の整理(Haiku)より精度を優先して Sonnet を使う。
 

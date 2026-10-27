@@ -97,3 +97,29 @@ export function notifyChannelFor(
   }
   return env.KYOKASHO_LINEWORKS_CHANNEL_ID?.trim() || undefined;
 }
+
+/** 元の Google ドキュメントに付けるコメントの、ツッコミごとの印(二重に付けないため。ID の頭 8 文字)。 */
+export function googleCommentMarker(commentId: string): string {
+  return `ツッコミ番号 ${commentId.slice(0, 8)}`;
+}
+
+/**
+ * 元の Google ドキュメントに付けるコメントの本文(docs/DESIGN.md 32 章)。
+ * 種類・章と節・本文・書いた人と、ポータルのその章への道を入れる。引用はコメントの「引用」の欄に別に出す。
+ */
+export function googleCommentContent(c: {
+  id: string;
+  kind: CommentKind;
+  chapterTitle: string;
+  sectionTitle: string;
+  body: string;
+  authorName: string;
+  url: string;
+}): string {
+  return [
+    `【${KIND_LABELS[c.kind].label}】${[c.chapterTitle, c.sectionTitle].filter(Boolean).join(" › ")}`,
+    c.body,
+    `― ${c.authorName} さん(LONG PORTAL のツッコミ)`,
+    `${c.url}\n${googleCommentMarker(c.id)}`,
+  ].join("\n\n");
+}

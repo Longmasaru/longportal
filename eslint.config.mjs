@@ -277,6 +277,27 @@ const eslintConfig = defineConfig([
     },
   },
   {
+    // 業務アプリ同士は直接依存しない(apps/nakama から他のアプリを参照しない)
+    files: ["src/modules/apps/nakama/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["@/app", "@/app/*"],
+              message: "modules から src/app(ルーティング層)を参照しないでください。",
+            },
+            {
+              group: ["@/modules/apps/*", "!@/modules/apps/nakama", "!@/modules/apps/nakama/*"],
+              message: "業務アプリ同士は直接参照しないでください(core を経由する)。",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     // 業務アプリ同士は直接依存しない(apps/kentei から他のアプリを参照しない)
     files: ["src/modules/apps/kentei/**/*.{ts,tsx}"],
     rules: {

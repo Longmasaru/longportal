@@ -1,4 +1,4 @@
-// 技能検定の練習の判定・集計(DB や画面に依存しない純粋な関数。docs/DESIGN.md 43 章)。
+// 技能検定の練習の判定・集計(DB や画面に依存しない純粋な関数。docs/DESIGN.md 44 章)。
 
 /** 1 問ごとの記録のまとめ。 */
 export type QuestionStat = {

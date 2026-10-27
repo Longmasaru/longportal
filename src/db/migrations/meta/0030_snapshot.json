@@ -1,5 +1,5 @@
 {
-  "id": "3634cdf9-442b-4ecc-86a7-867bb616f100",
+  "id": "b0cf41dc-bf9e-49c4-84ce-d636b3600372",
   "prevId": "57d06b60-89c1-4997-bca7-dcc56b8290ac",
   "version": "7",
   "dialect": "postgresql",
@@ -2788,495 +2788,6 @@
       },
       "isRLSEnabled": false
     },
-    "kentei.answers": {
-      "name": "answers",
-      "schema": "kentei",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "exam_id": {
-          "name": "exam_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "question_id": {
-          "name": "question_id",
-          "type": "varchar(60)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "mode": {
-          "name": "mode",
-          "type": "varchar(10)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "correct": {
-          "name": "correct",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "answered_at": {
-          "name": "answered_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "answers_user_exam_idx": {
-          "name": "answers_user_exam_idx",
-          "columns": [
-            {
-              "expression": "user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "exam_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "answered_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "answers_user_id_users_id_fk": {
-          "name": "answers_user_id_users_id_fk",
-          "tableFrom": "answers",
-          "tableTo": "users",
-          "schemaTo": "core",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "answers_exam_id_exams_id_fk": {
-          "name": "answers_exam_id_exams_id_fk",
-          "tableFrom": "answers",
-          "tableTo": "exams",
-          "schemaTo": "kentei",
-          "columnsFrom": [
-            "exam_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "answers_mode_check": {
-          "name": "answers_mode_check",
-          "value": "\"kentei\".\"answers\".\"mode\" in ('study', 'test')"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "kentei.exams": {
-      "name": "exams",
-      "schema": "kentei",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "slug": {
-          "name": "slug",
-          "type": "varchar(60)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "title": {
-          "name": "title",
-          "type": "varchar(80)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "grade": {
-          "name": "grade",
-          "type": "varchar(20)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "title_vi": {
-          "name": "title_vi",
-          "type": "varchar(160)",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "''"
-        },
-        "sort_order": {
-          "name": "sort_order",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "is_published": {
-          "name": "is_published",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "content": {
-          "name": "content",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "imported_at": {
-          "name": "imported_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "imported_by": {
-          "name": "imported_by",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "exams_slug_key": {
-          "name": "exams_slug_key",
-          "columns": [
-            {
-              "expression": "slug",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "exams_imported_by_users_id_fk": {
-          "name": "exams_imported_by_users_id_fk",
-          "tableFrom": "exams",
-          "tableTo": "users",
-          "schemaTo": "core",
-          "columnsFrom": [
-            "imported_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "kentei.images": {
-      "name": "images",
-      "schema": "kentei",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "exam_id": {
-          "name": "exam_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "name": {
-          "name": "name",
-          "type": "varchar(200)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "sha256": {
-          "name": "sha256",
-          "type": "varchar(64)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "storage_key": {
-          "name": "storage_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "content_type": {
-          "name": "content_type",
-          "type": "varchar(40)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "size": {
-          "name": "size",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "images_exam_id_idx": {
-          "name": "images_exam_id_idx",
-          "columns": [
-            {
-              "expression": "exam_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "images_exam_id_exams_id_fk": {
-          "name": "images_exam_id_exams_id_fk",
-          "tableFrom": "images",
-          "tableTo": "exams",
-          "schemaTo": "kentei",
-          "columnsFrom": [
-            "exam_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "kentei.test_results": {
-      "name": "test_results",
-      "schema": "kentei",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "exam_id": {
-          "name": "exam_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "kind": {
-          "name": "kind",
-          "type": "varchar(10)",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "round": {
-          "name": "round",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "correct": {
-          "name": "correct",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "total": {
-          "name": "total",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "score": {
-          "name": "score",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "passed": {
-          "name": "passed",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "seconds": {
-          "name": "seconds",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "detail": {
-          "name": "detail",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "taken_at": {
-          "name": "taken_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "test_results_user_exam_idx": {
-          "name": "test_results_user_exam_idx",
-          "columns": [
-            {
-              "expression": "user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "exam_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "taken_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "test_results_user_id_users_id_fk": {
-          "name": "test_results_user_id_users_id_fk",
-          "tableFrom": "test_results",
-          "tableTo": "users",
-          "schemaTo": "core",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "test_results_exam_id_exams_id_fk": {
-          "name": "test_results_exam_id_exams_id_fk",
-          "tableFrom": "test_results",
-          "tableTo": "exams",
-          "schemaTo": "kentei",
-          "columnsFrom": [
-            "exam_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "test_results_kind_check": {
-          "name": "test_results_kind_check",
-          "value": "\"kentei\".\"test_results\".\"kind\" in ('random', 'past')"
-        },
-        "test_results_round_check": {
-          "name": "test_results_round_check",
-          "value": "(\"kentei\".\"test_results\".\"kind\" = 'past') = (\"kentei\".\"test_results\".\"round\" is not null)"
-        }
-      },
-      "isRLSEnabled": false
-    },
     "kyokasho.books": {
       "name": "books",
       "schema": "kyokasho",
@@ -4276,6 +3787,141 @@
         "posts_place_length_check": {
           "name": "posts_place_length_check",
           "value": "char_length(\"meyasubako\".\"posts\".\"place\") <= 100"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "nakama.members": {
+      "name": "members",
+      "schema": "nakama",
+      "columns": {
+        "employee_id": {
+          "name": "employee_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "native_name": {
+          "name": "native_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "nickname": {
+          "name": "nickname",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "arrived_on": {
+          "name": "arrived_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "hometown": {
+          "name": "hometown",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "note": {
+          "name": "note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "residence_status": {
+          "name": "residence_status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "residence_expires_on": {
+          "name": "residence_expires_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_by_user_id": {
+          "name": "updated_by_user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "members_employee_id_employees_id_fk": {
+          "name": "members_employee_id_employees_id_fk",
+          "tableFrom": "members",
+          "tableTo": "employees",
+          "schemaTo": "core",
+          "columnsFrom": [
+            "employee_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "members_updated_by_user_id_users_id_fk": {
+          "name": "members_updated_by_user_id_users_id_fk",
+          "tableFrom": "members",
+          "tableTo": "users",
+          "schemaTo": "core",
+          "columnsFrom": [
+            "updated_by_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "members_residence_status_check": {
+          "name": "members_residence_status_check",
+          "value": "\"nakama\".\"members\".\"residence_status\" is null or \"nakama\".\"members\".\"residence_status\" in ('technical_intern_1', 'technical_intern_2', 'technical_intern_3', 'employment_training', 'specified_skilled_1', 'specified_skilled_2', 'engineer', 'permanent', 'family', 'other')"
+        },
+        "members_native_name_length_check": {
+          "name": "members_native_name_length_check",
+          "value": "char_length(\"nakama\".\"members\".\"native_name\") <= 100"
+        },
+        "members_nickname_length_check": {
+          "name": "members_nickname_length_check",
+          "value": "char_length(\"nakama\".\"members\".\"nickname\") <= 30"
+        },
+        "members_hometown_length_check": {
+          "name": "members_hometown_length_check",
+          "value": "char_length(\"nakama\".\"members\".\"hometown\") <= 50"
+        },
+        "members_note_length_check": {
+          "name": "members_note_length_check",
+          "value": "char_length(\"nakama\".\"members\".\"note\") <= 100"
         }
       },
       "isRLSEnabled": false
@@ -7674,9 +7320,9 @@
     "calendar": "calendar",
     "haisou": "haisou",
     "hr": "hr",
-    "kentei": "kentei",
     "kyokasho": "kyokasho",
     "meyasubako": "meyasubako",
+    "nakama": "nakama",
     "nippo": "nippo",
     "soshikizu": "soshikizu",
     "todo": "todo"
