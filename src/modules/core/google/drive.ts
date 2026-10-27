@@ -79,34 +79,47 @@ async function driveApi(account: GoogleServiceAccount, path: string, init?: Requ
 
 /**
  * ドキュメントにコメントを付けて、コメントの ID を返す。鍵がなければ付けずに null。
- * quote は、コメントの上に「引用」として出る文(Google ドキュメントでは本文の位置には結び付かない)。
+ * 引用(quotedFileContent)は付けない。Google ドキュメントでは本文の位置に結び付かず、「元のコンテンツは削除されました」と出てしまうため。
  */
-export async function createDriveComment(fileId: string, content: string, quote?: string): Promise<string | null> {
+export async function createDriveComment(fileId: string, content: string): Promise<string | null> {
   const account = googleServiceAccount();
   if (!account) return null;
-  const body: Record<string, unknown> = { content: content.slice(0, CONTENT_MAX) };
-  if (quote) body.quotedFileContent = { mimeType: "text/plain", value: quote.slice(0, 1000) };
   const res = await driveApi(account, `/files/${encodeURIComponent(fileId)}/comments?fields=id`, {
     method: "POST",
-    body: JSON.stringify(body),
+    body: JSON.stringify({ content: content.slice(0, CONTENT_MAX) }),
   });
   const data = (await res.json()) as { id?: string };
   return data.id ?? null;
 }
 
-/** ドキュメントのコメントの本文をすべて読む(取り込み直しで二重に付けないため。消したものは除く)。 */
-export async function listDriveCommentContents(fileId: string): Promise<string[]> {
+export type DriveComment = { id: string; content: string; quoted: boolean; mine: boolean };
+
+/** ドキュメントのコメントをすべて読む(二重に付けない・古い形のものを付け直すため。消したものは除く)。mine は、このサービスアカウントが付けたもの。 */
+export async function listDriveComments(fileId: string): Promise<DriveComment[]> {
   const account = googleServiceAccount();
   if (!account) throw new Error("Google のサービスアカウントの鍵がありません。");
-  const contents: string[] = [];
+  const comments: DriveComment[] = [];
   let pageToken: string | undefined;
   do {
-    const q = new URLSearchParams({ fields: "nextPageToken,comments(content,deleted)", pageSize: "100" });
+    const q = new URLSearchParams({ fields: "nextPageToken,comments(id,content,deleted,quotedFileContent,author(me))", pageSize: "100" });
     if (pageToken) q.set("pageToken", pageToken);
     const res = await driveApi(account, `/files/${encodeURIComponent(fileId)}/comments?${q}`);
-    const data = (await res.json()) as { nextPageToken?: string; comments?: { content?: string; deleted?: boolean }[] };
-    for (const c of data.comments ?? []) if (!c.deleted && c.content) contents.push(c.content);
+    const data = (await res.json()) as {
+      nextPageToken?: string;
+      comments?: { id?: string; content?: string; deleted?: boolean; quotedFileContent?: { value?: string }; author?: { me?: boolean } }[];
+    };
+    for (const c of data.comments ?? []) {
+      if (c.deleted || !c.id || !c.content) continue;
+      comments.push({ id: c.id, content: c.content, quoted: Boolean(c.quotedFileContent?.value), mine: c.author?.me === true });
+    }
     pageToken = data.nextPageToken;
   } while (pageToken);
-  return contents;
+  return comments;
+}
+
+/** このサービスアカウントが付けたコメントを消す(付け直すとき)。 */
+export async function deleteDriveComment(fileId: string, commentId: string): Promise<void> {
+  const account = googleServiceAccount();
+  if (!account) throw new Error("Google のサービスアカウントの鍵がありません。");
+  await driveApi(account, `/files/${encodeURIComponent(fileId)}/comments/${encodeURIComponent(commentId)}`, { method: "DELETE" });
 }

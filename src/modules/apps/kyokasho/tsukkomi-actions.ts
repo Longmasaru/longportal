@@ -132,12 +132,13 @@ export async function postCommentAction(_prev: TsukkomiFormState, formData: Form
       kind: v.kind,
       chapterTitle: chapter.title,
       sectionTitle,
+      quote: v.quote,
       body: v.body,
       authorName: actor.employee?.name ?? actor.loginId,
       url: `${appBaseUrl()}${BASE}/${book.slug}/${v.chapterNo}`,
     });
     after(() =>
-      createDriveComment(docId, content, v.quote || sectionTitle || undefined).then(
+      createDriveComment(docId, content).then(
         () => undefined,
         (err: unknown) => console.error(`[kyokasho] Google ドキュメントにコメントを付けられませんでした: ${err instanceof Error ? err.message : "不明"}`),
       ),
@@ -302,6 +303,6 @@ export async function pushCommentsToGoogleAction(): Promise<GooglePushFormState>
     targetType: "kyokasho_comment",
     after: r,
   });
-  const summary = `${r.added} 件を付けました(付いていた ${r.skipped} 件は飛ばしました)。`;
+  const summary = `${r.added} 件を付けました。${r.replaced > 0 ? `${r.replaced} 件を新しい形で付け直しました。` : ""}(付いていた ${r.skipped} 件は飛ばしました)`;
   return r.failed > 0 ? { error: `${summary}${r.failed} 件は付けられませんでした。` } : { success: summary };
 }
