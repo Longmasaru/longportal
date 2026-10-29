@@ -702,6 +702,10 @@ TODOSample の TODO を、ポータルの中のアプリ(`modules/apps/todo`、`
   - `embedPath` への要求は、ポータルが Next.js の multi-zones の rewrites でアプリへ転送する(`next.config.ts` の `ZONES`。転送先は `AIKYOSHITSU_ORIGIN`、未設定なら `https://ai-kyoshitsu.vercel.app`)。利用者から見た住所はポータルのまま(同じサイト)なので、アプリのログイン状態の cookie は第三者 cookie にならない。アプリ側は `basePath` を `embedPath` と同じにし、ポータル経由の Server Action のために `serverActions.allowedOrigins` にポータルの住所を入れる。
   - 埋め込みの許可: ポータルの画面は今までどおり `X-Frame-Options: DENY`。`embedPath` の住所だけはポータルのヘッダーを付けず、アプリが `X-Frame-Options: SAMEORIGIN` と `frame-ancestors 'self'` を返す。`proxy.ts` の matcher から `embedPath` を外す(ログインの確認はアプリ側)。
   - 全画面: iframe に `allow="fullscreen"`。アプリは埋め込まれているとき(`window.self !== window.top`)、自分の上のバーを出さない。
+- **2 つ目の別プロジェクトのアプリ: 注文書CSV変換(2026-10-29)**: リポジトリ `Longmasaru/order-csv`(開発は老川さん。作業はブランチ → プルリクエスト → 長井さん(Claude)が確認して `main` へ)。Vercel プロジェクト `order-csv`(本番の住所は `https://order-csv-beta.vercel.app`。`order-csv.vercel.app` は他人が使用中)。契約は app_key `ordercsv`・鍵 `SSO_SECRET_ORDERCSV`・`embedPath` `/order-csv`・権限なし(使える人は Audience で担当者だけにする)。転送先は `ORDERCSV_ORIGIN`、未設定なら `https://order-csv-beta.vercel.app`。
+  - **アプリ専用の DB ユーザー**(AI教室より厳しくした): 同じ Neon に部屋 `order_csv`、接続は専用のユーザー `order_csv_app`(`order_csv` の表の読み書きだけ。ポータルの表は読めない・表や部屋は作れない。開発・本番の両方で確認済み)。アプリの Vercel の `DATABASE_URL` はこのユーザー。migration(表の変更)は、所有者の接続で長井さん(Claude)が適用する。drizzle-kit の `migrate` は失敗しても何も表示しないことがあるため、drizzle 本体の migrator で適用して結果を確かめる。最初の migration の `CREATE SCHEMA` は `IF NOT EXISTS` にする(migration の記録の表が先に部屋を作るため。AI教室と同じ)。
+  - 使った通行証の記録は DB(`order_csv.used_passes`)。本番で DB の設定がないときはログインを止める。手元の開発では `DEV_LOGIN=1`(`npm run dev` のときだけ効く仮のログイン)と、メモリでの記録で動かせる。
+  - 今後、別プロジェクトのアプリを増やすときは、この形(専用の部屋 + 専用の DB ユーザー + SSO の契約 + `ZONES`)を標準にする。
 
 
 ## 29. 実装メモ(配達ルート: Google スプレッドシートの Apps Script からの移植)

@@ -12,4 +12,12 @@ export const EXTERNAL_APP_CONTRACTS: readonly ExternalAppContract[] = [
     embedPath: "/aikyoshitsu",
     permissions: [{ code: "aikyoshitsu.materials.manage", description: "AI教室: 回と資料の登録・変更・削除" }],
   },
+  {
+    // 注文書CSV変換(リポジトリ order-csv。開発は老川さん)。取引先の注文書を、基幹システム(will)に取り込む CSV に変換する。
+    // 使える人(担当者)は、アプリ管理の Audience で決める。アプリの中の権限はまだない。
+    appKey: "ordercsv",
+    ssoSecretEnv: "SSO_SECRET_ORDERCSV",
+    embedPath: "/order-csv",
+    permissions: [],
+  },
 ];

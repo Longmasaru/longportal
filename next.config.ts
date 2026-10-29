@@ -14,6 +14,7 @@ const securityHeaders = [
 // path は modules/apps/external-apps.ts の embedPath と同じにする。
 const ZONES = [
   { path: "/aikyoshitsu", origin: process.env.AIKYOSHITSU_ORIGIN ?? "https://ai-kyoshitsu.vercel.app" },
+  { path: "/order-csv", origin: process.env.ORDERCSV_ORIGIN ?? "https://order-csv-beta.vercel.app" },
 ];
 
 const nextConfig: NextConfig = {
